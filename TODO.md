@@ -204,3 +204,23 @@ A simulation environment for training **tower control of traffic in the circuit*
 - Known, minor: an instructor heading given during a 180° turn of the close pattern is overridden at the end of the
   turn; a runway of length 0 never counts a landing (the tower always gives the length).
 - **Step 3b next:** overhead pattern with the break, SFO, helicopter.
+
+## Corrections before step 3b (asked 2 Nov, from the user's pictures of the overhead / jet circuit) — waiting for the go
+
+- **Names of the legs of the close pattern:** no CROSSWIND and no BASE (they do not exist there): during the 180° turn
+  from the upwind the leg is DOWNWIND, during the 180° turn to the final it is FINAL.
+- **Turn anticipation** at the corners of the conventional and wide circuits (start turning before the point), so the
+  downwind starts parallel instead of wide (seen in circuits.html).
+- **Clearer circuits.html:** runway vertical (final from the bottom), a colour per leg, the leg name in the middle of the
+  leg, a legend (the labels at the start of each leg confused the user).
+- **Roll out (F/A-18 kneeboard "Overhead break / FLP", given by the user):** per class distance and height of the roll
+  out on final after the 180° turn: Jet 1 NM / 450 ft, Turboprop 0.75 NM / 350 ft, Light 0.5 NM / 250 ft (provisional);
+  the downwind goes on past the threshold to the turn point.
+- **Waveoff in the jet circuits (close, overhead):** above 400 ft it turns to the downwind at once while climbing to
+  circuit height (not at the runway end).
+- **Crosswind correction of the downwind:** 0.1 NM per 10 kt of crosswind component (wider when the wind blows towards
+  the runway, narrower when away).
+- **Close / jet downwind: at most 1.5 NM** (decided by the user 2 Nov: 1 to 1.5 NM, even 2 NM happens with a gentle turn
+  or a high speed; stay within 1.5). Defaults unchanged (Light 0.6, Turboprop 0.8, Jet 0.9).
+- Kneeboard also: initial 3-5 NM on the runway track at circuit height (1500 ft), 300-400 kt; break over the first half
+  of the runway or as soon as practical, a level turn tight enough to meet the abeam distance (for step 3b).
