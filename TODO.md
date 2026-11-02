@@ -205,7 +205,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   turn; a runway of length 0 never counts a landing (the tower always gives the length).
 - **Step 3b next:** overhead pattern with the break, SFO, helicopter.
 
-## Corrections before step 3b (asked 2 Nov, from the user's pictures of the overhead / jet circuit) — waiting for the go
+## Corrections before step 3b (asked 2 Nov, from the user's pictures of the overhead / jet circuit) — WRITTEN 2 Nov (go), to check on circuits.html
 
 - **Names of the legs of the close pattern:** no CROSSWIND and no BASE (they do not exist there): during the 180° turn
   from the upwind the leg is DOWNWIND, during the 180° turn to the final it is FINAL.
@@ -224,3 +224,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   or a high speed; stay within 1.5). Defaults: Light 0.6, Turboprop 0.8, **Jet 1.2** (the user, 2 Nov).
 - Kneeboard also: initial 3-5 NM on the runway track at circuit height (1500 ft), 300-400 kt; break over the first half
   of the runway or as soon as practical, a level turn tight enough to meet the abeam distance (for step 3b).
+- Written as: `RoutePoint.Turn180` marks the ends of the close pattern's 180° turns (legs DOWNWIND and FINAL); the close
+  upwind ends 2 NM past the runway, the turn to the downwind starts above 400 ft on the runway track (take-off, touch and
+  go, go-around); the downwind of the close pattern goes on to abeam the roll out (`RollOutNM`, `RollOutHeightFt`);
+  turn anticipation `radius × tan(turn / 2)` + half the roll-in; width corrected by the mean wind.

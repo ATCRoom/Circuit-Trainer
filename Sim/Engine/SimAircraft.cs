@@ -57,8 +57,10 @@ namespace ATCRoom.Sim
     /// <summary>
     /// A point of a route: position in the <see cref="LocalPlane"/> (NM east, NM north of the threshold), altitude
     /// (ft above mean sea level) and speed (kt) to have there, and an optional name (a fix of the maps, for the lists).
+    /// <paramref name="Turn180"/> (circuits): the point is the end of a 180° turn, reached by turning to the opposite
+    /// heading, not flown to (the close pattern's turns to its downwind and to its final).
     /// </summary>
-    public sealed record RoutePoint(double X, double Y, double AltitudeFt, double SpeedKt, string Name = "");
+    public sealed record RoutePoint(double X, double Y, double AltitudeFt, double SpeedKt, string Name = "", bool Turn180 = false);
 
     /// <summary>
     /// An aircraft of the simulation at one moment, as given out by <see cref="SimEngine.Snapshot"/> (a copy: it does

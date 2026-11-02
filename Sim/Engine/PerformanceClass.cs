@@ -40,6 +40,9 @@ namespace ATCRoom.Sim
         public double WideDownwindNM { get; set; }
         /// <summary>Bank angle of the turns in the circuit (degrees): steeper than the en-route turns, so the circuit keeps its shape.</summary>
         public double CircuitBankDegrees { get; set; }
+        /// <summary>Close pattern: where the 180° turn rolls out on the final (NM before the threshold) and its height there (ft above the threshold).</summary>
+        public double RollOutNM { get; set; }
+        public double RollOutHeightFt { get; set; }
 
         /// <summary>Fields of a newer version of the file, kept as they are.</summary>
         [JsonExtensionData]
@@ -66,27 +69,31 @@ namespace ATCRoom.Sim
             DecelerationKtPerSecond = Clamp(DecelerationKtPerSecond, 0.2, 10, 1);
             VerticalAccelerationFpmPerSecond = Clamp(VerticalAccelerationFpmPerSecond, 50, 2000, 300);
             MaxBankDegrees = Clamp(MaxBankDegrees, 10, 60, 30);
-            (double height, double speed, double downwind, double close, double wide, double bank) = CircuitDefaults(Name, ApproachSpeedKt, MaxBankDegrees);
+            (double height, double speed, double downwind, double close, double wide, double bank, double rollOut, double rollOutHeight) = CircuitDefaults(Name, ApproachSpeedKt, MaxBankDegrees);
             CircuitHeightFt = Clamp(CircuitHeightFt, 300, 5000, height);
             CircuitSpeedKt = Clamp(CircuitSpeedKt, FinalSpeedKt, MaxSpeedKt, speed);
             DownwindNM = Clamp(DownwindNM, 0.3, 5, downwind);
-            CloseDownwindNM = Clamp(CloseDownwindNM, 0.2, 1, close);
+            CloseDownwindNM = Clamp(CloseDownwindNM, 0.2, 1.5, close);
             WideDownwindNM = Clamp(WideDownwindNM, DownwindNM, 8, Math.Max(wide, DownwindNM));
             CircuitBankDegrees = Clamp(CircuitBankDegrees, 10, 60, bank);
+            RollOutNM = Clamp(RollOutNM, 0.3, 3, rollOut);
+            RollOutHeightFt = Clamp(RollOutHeightFt, 150, 1500, rollOutHeight);
         }
 
         /// <summary>
         /// The circuit values of the first classes (and of a class without them): height (ft above the threshold), speed
-        /// (kt), downwind conventional, close (jet circuit) and wide (NM), bank in the circuit (degrees). Provisional values
-        /// of 2 Nov 2026, to be tuned by the user in performance.json.
+        /// (kt), downwind conventional, close (jet circuit, up to 1.5 NM) and wide (NM), bank in the circuit (degrees),
+        /// roll out of the close pattern on the final (NM, ft). Provisional values of 2 Nov 2026 (the jet's from the user and
+        /// an overhead-break kneeboard: close downwind 1.2 NM, roll out 1 NM at 450 ft), to be tuned in performance.json.
         /// </summary>
-        public static (double Height, double Speed, double Downwind, double Close, double Wide, double Bank) CircuitDefaults(string? name, double approachSpeedKt, double maxBank) =>
+        public static (double Height, double Speed, double Downwind, double Close, double Wide, double Bank, double RollOut, double RollOutHeight) CircuitDefaults(
+            string? name, double approachSpeedKt, double maxBank) =>
             (name ?? "").Trim().ToUpperInvariant() switch
             {
-                "LIGHT" => (1000, 90, 1.0, 0.6, 2.5, 30),
-                "TURBOPROP" => (1500, 150, 1.2, 0.8, 3.0, 45),
-                "JET" => (1500, 200, 1.5, 0.9, 3.5, 60),
-                _ => (1000, approachSpeedKt, 1.2, 0.8, 3.0, Math.Max(maxBank, 30))
+                "LIGHT" => (1000, 90, 1.0, 0.6, 2.5, 30, 0.5, 250),
+                "TURBOPROP" => (1500, 150, 1.2, 0.8, 3.0, 45, 0.75, 350),
+                "JET" => (1500, 200, 1.5, 1.2, 3.5, 60, 1.0, 450),
+                _ => (1000, approachSpeedKt, 1.2, 0.8, 3.0, Math.Max(maxBank, 30), 0.75, 350)
             };
 
         private static double Clamp(double value, double min, double max, double fallback) =>
@@ -97,13 +104,16 @@ namespace ATCRoom.Sim
         [
             new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70, MaxClimbFpm = 800, MaxDescentFpm = 1500,
                 AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 1.5, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
-                CircuitHeightFt = 1000, CircuitSpeedKt = 90, DownwindNM = 1.0, CloseDownwindNM = 0.6, WideDownwindNM = 2.5, CircuitBankDegrees = 30 },
+                CircuitHeightFt = 1000, CircuitSpeedKt = 90, DownwindNM = 1.0, CloseDownwindNM = 0.6, WideDownwindNM = 2.5, CircuitBankDegrees = 30,
+                RollOutNM = 0.5, RollOutHeightFt = 250 },
             new() { Name = "Turboprop", MinSpeedKt = 90, MaxSpeedKt = 280, ApproachSpeedKt = 140, FinalSpeedKt = 110, MaxClimbFpm = 2000, MaxDescentFpm = 3000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
-                CircuitHeightFt = 1500, CircuitSpeedKt = 150, DownwindNM = 1.2, CloseDownwindNM = 0.8, WideDownwindNM = 3.0, CircuitBankDegrees = 45 },
+                CircuitHeightFt = 1500, CircuitSpeedKt = 150, DownwindNM = 1.2, CloseDownwindNM = 0.8, WideDownwindNM = 3.0, CircuitBankDegrees = 45,
+                RollOutNM = 0.75, RollOutHeightFt = 350 },
             new() { Name = "Jet", MinSpeedKt = 120, MaxSpeedKt = 350, ApproachSpeedKt = 180, FinalSpeedKt = 140, MaxClimbFpm = 3000, MaxDescentFpm = 4000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
-                CircuitHeightFt = 1500, CircuitSpeedKt = 200, DownwindNM = 1.5, CloseDownwindNM = 0.9, WideDownwindNM = 3.5, CircuitBankDegrees = 60 }
+                CircuitHeightFt = 1500, CircuitSpeedKt = 200, DownwindNM = 1.5, CloseDownwindNM = 1.2, WideDownwindNM = 3.5, CircuitBankDegrees = 60,
+                RollOutNM = 1.0, RollOutHeightFt = 450 }
         ];
 
         /// <summary>The class a new aircraft gets when none is chosen (by the engine).</summary>

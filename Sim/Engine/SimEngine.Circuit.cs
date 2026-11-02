@@ -5,7 +5,11 @@ namespace ATCRoom.Sim
     {
         /// <summary>The rectangular circuit: upwind, crosswind, downwind, base, final.</summary>
         Conventional,
-        /// <summary>Close pattern: the downwind at the width of the jet circuit, a 180° turn from it to the final (and from a go-around to the downwind).</summary>
+        /// <summary>
+        /// Close pattern (the jet circuit without the initial and the break): no crosswind and no base: from the upwind (or a
+        /// go-around, above 400 ft) a 180° turn to the downwind, the downwind at the width of the jet circuit, a descending
+        /// 180° turn that rolls out on the final (the class's roll out distance and height).
+        /// </summary>
         Close,
         /// <summary>Wide circuit (outside downwind): as the conventional one, further out.</summary>
         Wide
@@ -70,6 +74,8 @@ namespace ATCRoom.Sim
         /// <summary>The go-around of the end action "go around": at this height (ft above the threshold), on the short final (NM before the threshold at most).</summary>
         private const double GoAroundHeight = 200;
         private const double GoAroundShortFinal = 0.7;
+        /// <summary>The waveoff of the jet circuits: above this height (ft above the threshold) it turns to the downwind at once, climbing.</summary>
+        private const double WaveoffTurnHeight = 400;
         /// <summary>Seconds of the roll after a touchdown before the aircraft accelerates again.</summary>
         private const double TouchAndGoRoll = 3;
 
@@ -109,7 +115,7 @@ namespace ATCRoom.Sim
                 {
                     CircuitStart.LongFinal => At(-longFinal, 0, side, runwayElevation + longFinal * glide, glidePathCourse, kind.ApproachSpeedKt),
                     CircuitStart.InitialPoint => At(-initialPoint, 0, side, height, glidePathCourse, kind.CircuitSpeedKt),
-                    CircuitStart.Downwind => At(UpwindAlong(type, kind), Width(type, kind), side, height, Normalize(glidePathCourse + 180), kind.CircuitSpeedKt),
+                    CircuitStart.Downwind => At(DownwindStartAlong(type, kind), Width(type, kind, side), side, height, Normalize(glidePathCourse + 180), kind.CircuitSpeedKt),
                     _ => At(0.02, 0, side, runwayElevation, glidePathCourse, kind.MinSpeedKt)
                 };
                 string name = Add(x, y, altitude, heading, speed, callsign, kind.Name, takenElsewhere);
@@ -125,7 +131,7 @@ namespace ATCRoom.Sim
                         GiveRoute(plane, [Point(0, 0, side, height, kind.CircuitSpeedKt, "INITIAL"), .. Loop(plane, UpwindAlong(type, kind), withUpwind: true)]);
                         break;
                     case CircuitStart.Downwind:
-                        GiveRoute(plane, Loop(plane, UpwindAlong(type, kind), withUpwind: false).SkipWhile(p => p.Name != "DOWNWIND").ToList());
+                        GiveRoute(plane, Loop(plane, UpwindAlong(type, kind), withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList());
                         break;
                     default:
                         // On the runway: the take-off roll from standstill.
@@ -157,10 +163,10 @@ namespace ATCRoom.Sim
                 if (circuit.OnFinal && !circuit.Suspended && Math.Abs(lateral) < 0.3 && along < runwayLength) return;
                 circuit.Suspended = false;
                 circuit.OnFinal = false;
-                double width = Width(type, a.Class);
-                double upwind = UpwindAlong(type, a.Class);
-                List<RoutePoint> loop = Loop(a, upwind, withUpwind: false);
-                List<RoutePoint> downwind = loop.SkipWhile(p => p.Name != "DOWNWIND").ToList();
+                double width = Width(type, a.Class, side);
+                double upwind = DownwindStartAlong(type, a.Class);
+                List<RoutePoint> loop = Loop(a, UpwindAlong(type, a.Class), withUpwind: false);
+                List<RoutePoint> downwind = loop.SkipWhile(p => !IsDownwind(p)).ToList();
                 double baseTurn = BaseAlong(type, a.Class);
                 if (lateral > 0.3 * width && along > baseTurn + 0.3 && along < upwind + 1.5)
                 {
@@ -215,14 +221,44 @@ namespace ATCRoom.Sim
             if (circuit.Suspended) return;
             plane.CircuitBankDegrees = plane.Class.CircuitBankDegrees;
             plane.SelectedTurnRateDps = MaxTurnRate;
+            if (!routeOver && plane.Route != null && plane.RouteNext + 1 < plane.Route.Count)
+            {
+                RoutePoint target = plane.Route[plane.RouteNext];
+                RoutePoint next = plane.Route[plane.RouteNext + 1];
+                (double alongNow, double lateralNow) = RunwayFrame(plane.X, plane.Y, circuit.Side);
+                if (circuit.Type == CircuitType.Close)
+                {
+                    // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind at once, climbing.
+                    if (target.Name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
+                    {
+                        PassPoint(plane, fromHere: true);
+                    }
+                }
+                else if (target.Name is "CROSSWIND" or "DOWNWIND" or "BASE")
+                {
+                    // The turn at a corner starts before it, so the next leg starts on its line (not wide of it).
+                    double legCourse = Math.Atan2(target.X - plane.LegStartX, target.Y - plane.LegStartY);
+                    double nextCourse = Math.Atan2(next.X - target.X, next.Y - target.Y);
+                    double turn = Math.Abs(Wrap((nextCourse - legCourse) * 180 / Math.PI));
+                    if (turn > 5)
+                    {
+                        double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
+                        double speed = Math.Max(30, plane.GroundSpeedKt) / 3600;
+                        double radius = speed / (rate * Math.PI / 180);
+                        double lead = radius * Math.Tan(turn / 2 * Math.PI / 180) + speed * (rate / TurnRateChange) / 2;
+                        double toCorner = Math.Sqrt((target.X - plane.X) * (target.X - plane.X) + (target.Y - plane.Y) * (target.Y - plane.Y));
+                        if (toCorner <= lead) PassPoint(plane, fromHere: false);
+                    }
+                }
+            }
             if (!routeOver && plane.Route != null && plane.RouteNext != circuit.LegIndex)
             {
                 // A new leg: the vertical rate that reaches the altitude of its point at its end (climbing: briskly).
                 circuit.LegIndex = plane.RouteNext;
                 RoutePoint point = plane.Route[plane.RouteNext];
-                circuit.OnFinal = point.Name == "FINAL";
+                circuit.OnFinal = point.Name == "FINAL" && !point.Turn180;
                 // The close pattern: its downwind and its final are reached by a 180° turn, not flown to as points.
-                if (circuit.Type == CircuitType.Close && point.Name is "CROSSWIND" or "BASE")
+                if (circuit.Type == CircuitType.Close && point.Turn180)
                 {
                     StartTurn(plane, circuit, point);
                     return;
@@ -264,12 +300,12 @@ namespace ATCRoom.Sim
         /// </summary>
         private void StartTurn(SimAircraft plane, CircuitState circuit, RoutePoint after)
         {
-            double radius = Width(CircuitType.Close, plane.Class) / 2;
+            double radius = Width(CircuitType.Close, plane.Class, circuit.Side) / 2;
             double rate = (Math.Max(30, plane.SpeedKt) / 3600) / radius * 180 / Math.PI;
             circuit.Turning = true;
             plane.Navigation = NavigationMode.Manual;
             plane.SelectedTurnRateDps = Math.Clamp(rate, MinTurnRate, MaxTurnRate);
-            plane.TargetHeading = after.Name == "BASE" ? glidePathCourse : Normalize(glidePathCourse + 180);
+            plane.TargetHeading = after.Name == "FINAL" ? glidePathCourse : Normalize(glidePathCourse + 180);
             plane.TurnDirection = circuit.Side == CircuitSide.Left ? TurnDirection.Left : TurnDirection.Right;
             if (!plane.AltitudeGiven && double.IsFinite(after.AltitudeFt))
             {
@@ -380,15 +416,15 @@ namespace ATCRoom.Sim
         /// The points of one circuit, from the end of the upwind (when asked) to the threshold, in the runway frame of its
         /// side. Conventional and wide: crosswind at <paramref name="upwind"/>, downwind at the width of the circuit
         /// (descent from abeam the threshold), base as far before the threshold as the downwind is wide, the final.
-        /// Close: a 180° turn from the upwind to the downwind (point CROSSWIND, its end), the downwind, a descending 180° turn
-        /// (point BASE, its end) to a short final.
+        /// Close: a 180° turn from the upwind to the downwind (the first DOWNWIND point, its end), the downwind on past the
+        /// threshold, a descending 180° turn (the first FINAL point, its end) that rolls out on the final.
         /// </summary>
         private List<RoutePoint> Loop(SimAircraft plane, double upwind, bool withUpwind)
         {
             CircuitState circuit = plane.Circuit!;
             PerformanceClass kind = plane.Class;
             CircuitSide side = circuit.Side;
-            double width = Width(circuit.Type, kind);
+            double width = Width(circuit.Type, kind, side);
             double height = runwayElevation + kind.CircuitHeightFt;
             double speed = kind.CircuitSpeedKt;
             double glide = GlideFeetPerNM();
@@ -396,11 +432,11 @@ namespace ATCRoom.Sim
             if (withUpwind) points.Add(Point(upwind, 0, side, height, speed, "UPWIND"));
             if (circuit.Type == CircuitType.Close)
             {
-                // The ends of the two 180° turns (flown as turns, see StartTurn): the downwind start, the final start.
+                // The ends of the two 180° turns (flown as turns, see StartTurn): the downwind start, the roll out on the final.
                 double turn = BaseAlong(CircuitType.Close, kind);
-                points.Add(Point(upwind, width, side, height, speed, "CROSSWIND"));
+                points.Add(Point(upwind, width, side, height, speed, "DOWNWIND", turn180: true));
                 points.Add(Point(turn, width, side, height, speed, "DOWNWIND"));
-                points.Add(Point(turn, 0, side, runwayElevation + -turn * glide, kind.FinalSpeedKt, "BASE"));
+                points.Add(Point(turn, 0, side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true));
             }
             else
             {
@@ -414,33 +450,72 @@ namespace ATCRoom.Sim
             return points;
         }
 
-        /// <summary>Width of the downwind of a circuit (NM).</summary>
-        private static double Width(CircuitType type, PerformanceClass kind) => type switch
+        /// <summary>Width of the downwind of a circuit (NM), as in the class.</summary>
+        private static double BaseWidth(CircuitType type, PerformanceClass kind) => type switch
         {
             CircuitType.Close => kind.CloseDownwindNM,
             CircuitType.Wide => kind.WideDownwindNM,
             _ => kind.DownwindNM
         };
 
-        /// <summary>Where the upwind ends, along the runway (NM from the threshold): the close pattern at the runway end, the others beyond it.</summary>
+        /// <summary>
+        /// Width of the downwind (NM) corrected for the crosswind, as pilots do: 0.1 NM for every 10 kt of wind across the
+        /// runway, wider when it blows towards the runway from the circuit side, narrower when it blows away from it.
+        /// </summary>
+        private double Width(CircuitType type, PerformanceClass kind, CircuitSide side)
+        {
+            double c = glidePathCourse * Math.PI / 180;
+            double s = side == CircuitSide.Right ? 1 : -1;
+            double towards = (windFrom + 180) * Math.PI / 180;
+            double east = windSpeed * Math.Sin(towards), north = windSpeed * Math.Cos(towards);
+            // Wind component from the circuit side towards the runway (kt).
+            double towardsRunway = -s * (east * Math.Cos(c) - north * Math.Sin(c));
+            return Math.Max(0.3, BaseWidth(type, kind) + 0.01 * towardsRunway);
+        }
+
+        /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
+        private static bool IsDownwind(RoutePoint point) => point.Name == "DOWNWIND" && !point.Turn180;
+
+        /// <summary>Where the downwind starts along the runway (NM from the threshold): the close pattern abeam the runway end.</summary>
+        private double DownwindStartAlong(CircuitType type, PerformanceClass kind) =>
+            type == CircuitType.Close ? Math.Max(runwayLength, 0.3) : UpwindAlong(type, kind);
+
+        /// <summary>
+        /// Where the upwind ends, along the runway (NM from the threshold): beyond the runway end; the close pattern's is far
+        /// ahead, as it turns to the downwind as soon as it is above 400 ft.
+        /// </summary>
         private double UpwindAlong(CircuitType type, PerformanceClass kind)
         {
             double length = Math.Max(runwayLength, 0.3);
-            return type == CircuitType.Close ? length : length + 0.6 * Width(type, kind);
+            return type == CircuitType.Close ? length + 2 : length + 0.6 * BaseWidth(type, kind);
         }
 
-        /// <summary>Where the base (the close pattern: its final turn) is, along the runway (negative: before the threshold).</summary>
+        /// <summary>Where the base (the close pattern: its turn to the final, rolling out there) is, along the runway (negative: before the threshold).</summary>
         private static double BaseAlong(CircuitType type, PerformanceClass kind) =>
-            type == CircuitType.Close ? -(0.3 + 0.5 * kind.CloseDownwindNM) : -Width(type, kind);
+            type == CircuitType.Close ? -kind.RollOutNM : -BaseWidth(type, kind);
+
+        /// <summary>
+        /// The point the aircraft flies to is passed now (a turn anticipated, a waveoff turn): the next one is flown to. From
+        /// here (<paramref name="fromHere"/>) or, at a corner, from the point passed (the leg keeps its line).
+        /// </summary>
+        private void PassPoint(SimAircraft plane, bool fromHere)
+        {
+            RoutePoint passed = plane.Route![plane.RouteNext];
+            plane.RouteNext++;
+            plane.LegStartX = fromHere ? plane.X : passed.X;
+            plane.LegStartY = fromHere ? plane.Y : passed.Y;
+            plane.RouteApproached = false;
+            StartLeg(plane);
+        }
 
         /// <summary>Feet of the glide path per NM (3° when the runway has no angle).</summary>
         private double GlideFeetPerNM() => FeetPerNM * Math.Tan((glidePathAngle > 0 ? glidePathAngle : 3) * Math.PI / 180);
 
         /// <summary>A route point at this place of the runway frame (along the landing direction, to the circuit side).</summary>
-        private RoutePoint Point(double along, double lateral, CircuitSide side, double altitudeFt, double speedKt, string name)
+        private RoutePoint Point(double along, double lateral, CircuitSide side, double altitudeFt, double speedKt, string name, bool turn180 = false)
         {
             (double x, double y) = FromRunway(along, lateral, side);
-            return new RoutePoint(x, y, altitudeFt, speedKt, name);
+            return new RoutePoint(x, y, altitudeFt, speedKt, name, turn180);
         }
 
         private (double X, double Y, double Altitude, double Heading, double Speed) At(double along, double lateral, CircuitSide side, double altitude, double heading, double speed)
