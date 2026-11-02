@@ -183,3 +183,24 @@ A simulation environment for training **tower control of traffic in the circuit*
 - **KML taxiway / apron labels (decided 2 Nov, the user):** divisions may write them in different ways; when the name of
   a KML label point has an **underscore, what follows it is not part of the name** and is dropped (`A_C` → `A`,
   `RUNUP_W` → `RUNUP`). The `.txi` labels stay exactly as written (`M west`).
+
+## Step 3a (circuits in the engine) — WRITTEN 2 Nov (go of the user), to test with the build
+
+- **Circuits built from the runway** (`Sim/Engine/SimEngine.Circuit.cs`): conventional, close, wide; left or right;
+  heights above the threshold; the route points named by their leg (UPWIND, CROSSWIND, DOWNWIND, BASE, FINAL, INITIAL,
+  GO AROUND, JOIN, DEPARTURE; ROLL, LANDED, MANUAL), shown as LEG. The close pattern's two 180° turns are commanded
+  turns (opposite heading, towards the circuit side, at the rate that makes them as wide as its downwind), not points
+  (review 2 Nov: as points a jet overshot and circled).
+- **Starts:** long final (10 NM, `LongFinalNM`), initial point (3 NM, `InitialPointNM`), downwind, runway (take-off).
+- **End of the final (`EndAction`):** full stop, touch and go (roll 3 s, lift-off at the final speed), go-around (at
+  200 ft on the short final, within 0.4 NM), low pass (about 100 ft over the runway), departure (touch and go, then
+  straight out at circuit height). Commands: `SetCircuit` (re-join close / wide / another circuit from where it is),
+  `SetEndAction`, `GoAround`; a heading or the stick takes the aircraft out of the circuit (MANUAL) until it is given again.
+- **The final:** the descent is steered to a point 0.15 NM past the threshold (low pass: to 100 ft), unless the
+  instructor gave an altitude; approach speed beyond 4 NM, final speed within.
+- **Class values (performance.json, provisional):** CircuitHeightFt, CircuitSpeedKt, DownwindNM, CloseDownwindNM (≤ 1 NM),
+  WideDownwindNM, CircuitBankDegrees; missing in an old file: the values of the class name.
+- **Self-test:** 10 circuits flown and checked; `circuits.html` (artifact "circuits-of-the-self-test") draws them.
+- Known, minor: an instructor heading given during a 180° turn of the close pattern is overridden at the end of the
+  turn; a runway of length 0 never counts a landing (the tower always gives the length).
+- **Step 3b next:** overhead pattern with the break, SFO, helicopter.

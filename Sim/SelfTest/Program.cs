@@ -806,6 +806,221 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         "Stop climb: levels off just above where it was, then holds it", $"stop at {altitudeAtStop:F0}, holds {level:F0}");
 }
 
+// --- Circuits (TWR Trainer): flown by the engine, checked, and drawn into circuits.html for the user ---------------
+
+{
+    const double CircuitCourse = 140, CircuitElevation = 200, CircuitLength = 1.0;
+    List<(string Title, List<AircraftState> Track)> pictures = [];
+
+    SimEngine NewCircuitEngine()
+    {
+        SimEngine created = new();
+        created.SetGlidePath(CircuitCourse, 3, CircuitElevation, CircuitLength);
+        return created;
+    }
+    (double Along, double Lateral) Frame(AircraftState st)
+    {
+        double c = CircuitCourse * Math.PI / 180;
+        double sign = st.CircuitSide == CircuitSide.Right ? 1 : -1;
+        return (st.X * Math.Sin(c) + st.Y * Math.Cos(c), sign * (st.X * Math.Cos(c) - st.Y * Math.Sin(c)));
+    }
+    List<AircraftState> Fly(SimEngine sim, string callsign, double seconds, Action<AircraftState>? each = null)
+    {
+        List<AircraftState> track = [];
+        for (int t = 0; t < seconds; t++)
+        {
+            sim.RunFor(1);
+            AircraftState? now = sim.Get(callsign);
+            if (now == null) break;
+            track.Add(now);
+            each?.Invoke(now);
+        }
+        return track;
+    }
+    double Height(AircraftState st) => st.AltitudeFt - CircuitElevation;
+    List<AircraftState> OnLeg(List<AircraftState> track, string leg) => track.Where(st => st.Leg == leg).ToList();
+    bool LandedOnRunway(List<AircraftState> track)
+    {
+        AircraftState? first = track.FirstOrDefault(st => st.Contact == GroundContact.Landed);
+        return first != null && Between(Frame(first).Along, -0.2, CircuitLength) && Math.Abs(Frame(first).Lateral) < 0.1;
+    }
+
+    // Values of the classes: a class without circuit values gets those of its name.
+    PerformanceClass bare = new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70 };
+    bare.Normalize();
+    Check(bare.CircuitHeightFt == 1000 && bare.CircuitSpeedKt == 90 && bare.DownwindNM == 1.0 && bare.CloseDownwindNM == 0.6 && bare.WideDownwindNM == 2.5,
+        "Circuit values: a class written before them gets those of its name");
+    PerformanceClass odd = new() { Name = "Light", CloseDownwindNM = 3, WideDownwindNM = 0.5 };
+    odd.Normalize();
+    Check(odd.CloseDownwindNM == 1 && odd.WideDownwindNM >= odd.DownwindNM, "Circuit values: the close downwind at most 1 NM, the wide one not inside the conventional");
+
+    // 1. Conventional, Light, left, from the downwind, full stop.
+    SimEngine e1 = NewCircuitEngine();
+    string c1 = e1.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+    List<AircraftState> t1 = Fly(e1, c1, 900);
+    List<AircraftState> d1 = OnLeg(t1, "DOWNWIND");
+    Check(d1.Count > 10 && Near(d1.Average(st => Frame(st).Lateral), 1.0, 0.2) && Near(Height(d1[0]), 1000, 60),
+        "Conventional (Light, left): downwind about 1 NM to the left, at 1000 ft above the threshold", d1.Count > 0 ? $"lateral {d1.Average(st => Frame(st).Lateral):F2}, height {Height(d1[0]):F0}" : "no downwind");
+    Check(OnLeg(t1, "BASE").Count > 0 && OnLeg(t1, "FINAL").Count > 0 && LandedOnRunway(t1) && e1.Get(c1) == null,
+        "Conventional: base, final, landed on the runway, then removed (full stop)");
+    pictures.Add(("Conventional circuit, Light, left, full stop", t1));
+
+    // 2. Close pattern, Jet, right, from the runway, touch and go then full stop.
+    SimEngine e2 = NewCircuitEngine();
+    string c2 = e2.AddInCircuit(CircuitStart.Runway, CircuitType.Close, CircuitSide.Right, EndAction.TouchAndGo, performanceClass: "Jet");
+    int rolls = 0;
+    GroundContact last2 = GroundContact.Rolling;
+    List<AircraftState> t2 = Fly(e2, c2, 1200, st =>
+    {
+        if (st.Contact == GroundContact.Rolling && last2 != GroundContact.Rolling) { rolls++; e2.SetEndAction(c2, EndAction.FullStop); }
+        last2 = st.Contact;
+    });
+    List<AircraftState> d2 = OnLeg(t2, "DOWNWIND");
+    Check(d2.Count > 5 && Near(d2.Average(st => Frame(st).Lateral), 0.9, 0.25) && d2.All(st => Frame(st).Lateral < 1.3),
+        "Close pattern (Jet, right): downwind about 0.9 NM to the right, never beyond 1.3", d2.Count > 0 ? $"lateral {d2.Average(st => Frame(st).Lateral):F2}, max {d2.Max(st => Frame(st).Lateral):F2}" : "no downwind");
+    Check(t2[0].Contact == GroundContact.Rolling && rolls == 1 && LandedOnRunway(t2) && e2.Get(c2) == null,
+        "Close pattern: take-off from the runway, one touch and go, then a full stop", $"touch and go {rolls}");
+    Check(t2.Where(st => st.Contact == GroundContact.Airborne).Max(Height) is double top2 && Near(top2, 1500, 80), "Close pattern: circuit height 1500 ft");
+    pictures.Add(("Close pattern, Jet, right, take-off, touch and go, full stop", t2));
+
+    // 3. Wide circuit, Turboprop, left, from the initial point.
+    SimEngine e3 = NewCircuitEngine();
+    string c3 = e3.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Turboprop");
+    List<AircraftState> t3 = Fly(e3, c3, 1200);
+    List<AircraftState> d3 = OnLeg(t3, "DOWNWIND");
+    Check(Near(Frame(t3[0]).Along, -3, 0.1) && OnLeg(t3, "INITIAL").Count > 0 && OnLeg(t3, "UPWIND").Count > 0 && OnLeg(t3, "CROSSWIND").Count > 0,
+        "Wide (Turboprop): from the initial point at 3 NM, along the runway, upwind, crosswind");
+    Check(d3.Count > 10 && Near(d3.Average(st => Frame(st).Lateral), 3.0, 0.35) && LandedOnRunway(t3),
+        "Wide: downwind about 3 NM out, then landed", d3.Count > 0 ? $"lateral {d3.Average(st => Frame(st).Lateral):F2}" : "no downwind");
+    pictures.Add(("Wide circuit (outside downwind), Turboprop, left, from the initial point", t3));
+
+    // 4. Long final, Jet.
+    SimEngine e4 = NewCircuitEngine();
+    string c4 = e4.AddInCircuit(CircuitStart.LongFinal, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+    AircraftState start4 = e4.Get(c4)!;
+    List<AircraftState> t4 = Fly(e4, c4, 600);
+    AircraftState? short4 = t4.LastOrDefault(st => st.Contact == GroundContact.Airborne);
+    Check(Near(Frame(start4).Along, -10, 0.05) && Near(Height(start4), 10 * 318.4, 20) && LandedOnRunway(t4),
+        "Long final (Jet): starts at 10 NM on the glide path, lands on the runway", $"height {Height(start4):F0}");
+    Check(short4 != null && Near(short4.SpeedKt, 140, 8) && t4.Where(st => Frame(st).Along < -5).All(st => st.SpeedKt > 170),
+        "Long final: approach speed far out, final speed near the threshold", short4 != null ? $"{short4.SpeedKt:F0} kt" : "");
+    pictures.Add(("Long final, Jet", t4));
+
+    // 5. Go-around at the end of the final, then a full stop.
+    SimEngine e5 = NewCircuitEngine();
+    string c5 = e5.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.GoAround, performanceClass: "Light");
+    bool wentAround = false;
+    List<AircraftState> t5 = Fly(e5, c5, 1500, st =>
+    {
+        if (st.Leg == "GO AROUND" && !wentAround) { wentAround = true; e5.SetEndAction(c5, EndAction.FullStop); }
+    });
+    int ga = t5.FindIndex(st => st.Leg == "GO AROUND");
+    Check(ga > 0 && t5.Take(ga).All(st => st.Contact == GroundContact.Airborne) && t5.Take(ga).Min(Height) > 150 && t5.Skip(ga).Max(Height) > 950,
+        "Go-around: no touchdown, goes around at about 200 ft, climbs back to circuit height", ga > 0 ? $"lowest {t5.Take(ga).Min(Height):F0} ft" : "no go-around");
+    Check(LandedOnRunway(t5) && e5.Get(c5) == null, "Go-around: the next circuit ends with the full stop");
+    pictures.Add(("Go-around, then full stop, Light", t5));
+
+    // 6. Low pass, close pattern, Turboprop.
+    SimEngine e6 = NewCircuitEngine();
+    string c6 = e6.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.LowPass, performanceClass: "Turboprop");
+    bool passed = false;
+    List<AircraftState> t6 = Fly(e6, c6, 1200, st =>
+    {
+        if (st.Leg == "GO AROUND" && !passed) { passed = true; e6.SetEndAction(c6, EndAction.FullStop); }
+    });
+    int lp = t6.FindIndex(st => st.Leg == "GO AROUND");
+    List<AircraftState> over = t6.Take(lp + 20).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
+    Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 0 && Between(over.Min(Height), 60, 160),
+        "Low pass: over the runway at about 100 ft, no touchdown", over.Count > 0 ? $"lowest {over.Min(Height):F0} ft" : "not over the runway");
+    Check(LandedOnRunway(t6), "Low pass: then the full stop");
+    pictures.Add(("Low pass on a close pattern, then full stop, Turboprop", t6));
+
+    // 7. From the conventional to the close pattern on the downwind.
+    SimEngine e7 = NewCircuitEngine();
+    string c7 = e7.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+    bool joined = false;
+    List<AircraftState> t7 = Fly(e7, c7, 1200, st =>
+    {
+        if (!joined && st.Leg == "DOWNWIND" && Frame(st).Along < 1.2) { joined = true; e7.SetCircuit(c7, CircuitType.Close, CircuitSide.Left); }
+    });
+    List<AircraftState> d7 = t7.Where(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND").ToList();
+    Check(joined && d7.Count > 3 && d7.Last().Leg == "DOWNWIND" && Near(Frame(d7.Last()).Lateral, 0.6, 0.2) && LandedOnRunway(t7),
+        "Re-join: from the conventional downwind into the close pattern, then landed", d7.Count > 0 ? $"lateral {Frame(d7.Last()).Lateral:F2}" : "no close downwind");
+    pictures.Add(("Conventional, re-joined into the close pattern on the downwind, Light", t7));
+
+    // 8. Crosswind: 15 kt from the left of the runway.
+    SimEngine e8 = NewCircuitEngine();
+    e8.SetWind(CircuitCourse + 90, 15, 0);
+    string c8 = e8.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+    List<AircraftState> t8 = Fly(e8, c8, 900);
+    Check(LandedOnRunway(t8), "Crosswind 15 kt: the Light still lands on the runway");
+    pictures.Add(("Conventional with 15 kt crosswind, Light", t8));
+
+    // 9. Departure: take-off and away.
+    SimEngine e9 = NewCircuitEngine();
+    string c9 = e9.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Left, EndAction.Departure, performanceClass: "Turboprop");
+    List<AircraftState> t9 = Fly(e9, c9, 300);
+    AircraftState end9 = t9[^1];
+    Check(end9.Leg == "DEPARTURE" && Frame(end9).Along > 4 && Near(Height(end9), 1500, 100) && Math.Abs(Frame(end9).Lateral) < 0.3,
+        "Departure: take-off, straight out at circuit height", $"{end9.Leg} at {Frame(end9).Along:F1} NM, {Height(end9):F0} ft");
+    pictures.Add(("Departure, Turboprop", t9));
+
+    // 10. The instructor takes it, then gives it back.
+    SimEngine e10 = NewCircuitEngine();
+    string c10 = e10.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+    e10.RunFor(10);
+    e10.SetHeading(c10, CircuitCourse + 90);
+    e10.RunFor(3);
+    string manual = e10.Get(c10)!.Leg;
+    e10.SetCircuit(c10, CircuitType.Conventional, CircuitSide.Left);
+    e10.RunFor(3);
+    string back = e10.Get(c10)!.Leg;
+    List<AircraftState> t10 = Fly(e10, c10, 900);
+    Check(manual == "MANUAL" && back == "DOWNWIND" && LandedOnRunway(t10), "Instructor: a heading takes it out of the circuit (MANUAL), the circuit given again brings it back", $"{manual} → {back}");
+
+    // The picture of the circuits flown, for the user (artifact of the build).
+    try
+    {
+        System.Text.StringBuilder html = new();
+        html.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>TWR Trainer - circuits of the self-test</title>")
+            .Append("<style>body{font-family:Segoe UI,Arial,sans-serif;background:#101820;color:#d6e2ec;margin:16px}h1{font-size:18px}")
+            .Append(".p{display:inline-block;margin:8px;vertical-align:top}.p div{font-size:13px;margin:4px 0;max-width:420px}</style></head><body>")
+            .Append("<h1>Circuits flown by the self-test (north up; runway 140°, 1 NM long, in grey; track every second; red: on the ground)</h1>");
+        foreach ((string title, List<AircraftState> track) in pictures)
+        {
+            if (track.Count == 0) continue;
+            double c = CircuitCourse * Math.PI / 180;
+            List<(double X, double Y)> all = track.Select(st => (st.X, st.Y)).Append((0.0, 0.0)).Append((Math.Sin(c) * CircuitLength, Math.Cos(c) * CircuitLength)).ToList();
+            double minX = all.Min(p => p.X) - 0.3, maxX = all.Max(p => p.X) + 0.3, minY = all.Min(p => p.Y) - 0.3, maxY = all.Max(p => p.Y) + 0.3;
+            double scale = 400 / Math.Max(maxX - minX, maxY - minY);
+            string Sx(double x) => ((x - minX) * scale).ToString("F1", CultureInfo.InvariantCulture);
+            string Sy(double y) => ((maxY - y) * scale).ToString("F1", CultureInfo.InvariantCulture);
+            html.Append($"<div class=\"p\"><div>{System.Net.WebUtility.HtmlEncode(title)}</div><svg width=\"420\" height=\"420\" style=\"background:#0b1118\">");
+            html.Append($"<line x1=\"{Sx(0)}\" y1=\"{Sy(0)}\" x2=\"{Sx(Math.Sin(c) * CircuitLength)}\" y2=\"{Sy(Math.Cos(c) * CircuitLength)}\" stroke=\"#8a949c\" stroke-width=\"5\"/>");
+            html.Append("<polyline fill=\"none\" stroke=\"#ff9f40\" stroke-width=\"1.5\" points=\"")
+                .Append(string.Join(" ", track.Select(st => Sx(st.X) + "," + Sy(st.Y)))).Append("\"/>");
+            string previous = "";
+            foreach (AircraftState st in track)
+            {
+                if (st.Contact != GroundContact.Airborne) html.Append($"<circle cx=\"{Sx(st.X)}\" cy=\"{Sy(st.Y)}\" r=\"1.5\" fill=\"#ff5050\"/>");
+                if (st.Leg != previous && st.Leg.Length > 0)
+                {
+                    html.Append($"<text x=\"{Sx(st.X)}\" y=\"{Sy(st.Y)}\" fill=\"#7dff9a\" font-size=\"10\">{st.Leg} {Height(st):F0}ft</text>");
+                    previous = st.Leg;
+                }
+            }
+            html.Append("</svg></div>");
+        }
+        html.Append("</body></html>");
+        File.WriteAllText(Path.Combine(Environment.CurrentDirectory, "circuits.html"), html.ToString());
+        Console.WriteLine("circuits.html written.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("circuits.html not written: " + ex.Message);
+    }
+}
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? $"All {checks} checks passed." : $"{failures} of {checks} checks FAILED.");
 return failures == 0 ? 0 : 1;

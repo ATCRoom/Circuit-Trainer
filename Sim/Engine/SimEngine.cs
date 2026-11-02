@@ -29,7 +29,7 @@ namespace ATCRoom.Sim
     /// passed, <see cref="Advance"/>) and its gusts come from a seeded random source: the same instructions give the
     /// same flight.
     /// </summary>
-    public sealed class SimEngine
+    public sealed partial class SimEngine
     {
         /// <summary>Length of a simulation step (s).</summary>
         public const double Step = 0.1;
@@ -712,6 +712,12 @@ namespace ATCRoom.Sim
                     if (plane.Contact == GroundContact.OnGround) plane.GroundSpeedKt = 0;
                     continue;
                 }
+                if (plane.Contact == GroundContact.Rolling)
+                {
+                    Roll(plane);
+                    continue;
+                }
+                CircuitStep(plane);
                 FollowRoute(plane);
                 Turn(plane);
                 Accelerate(plane);
@@ -738,6 +744,8 @@ namespace ATCRoom.Sim
                 double lateral = plane.X * Math.Cos(course) - plane.Y * Math.Sin(course);
                 onRunway = along >= -BeforeThresholdForLanding && along <= runwayLength && Math.Abs(lateral) <= RunwayHalfWidthForLanding;
             }
+            // In a circuit with a touch and go (or a departure after it): it rolls on and takes off again.
+            if (onRunway && TouchAndGo(plane)) return;
             plane.Contact = onRunway ? GroundContact.Landed : GroundContact.OnGround;
             plane.LandedStep = steps;
             plane.Route = null;
@@ -856,7 +864,7 @@ namespace ATCRoom.Sim
             if (!plane.RouteApproached)
             {
                 // A point inside the circle of the turn on its side cannot be turned to: on straight until it can.
-                double rate = Math.Max(MinTurnRate, Math.Min(plane.SelectedTurnRateDps, RateForBank(plane.Class.MaxBankDegrees, plane.SpeedKt)));
+                double rate = Math.Max(MinTurnRate, Math.Min(plane.SelectedTurnRateDps, RateForBank(BankLimit(plane), plane.SpeedKt)));
                 double radius = Math.Max(plane.GroundSpeedKt, 1) / 3600 / (rate * Math.PI / 180);
                 int side = lateral >= 0 ? 1 : -1;
                 double centreX = side * radius * Math.Cos(track);
@@ -921,7 +929,7 @@ namespace ATCRoom.Sim
                 return;
             }
             // The rate that still lets the roll-out end on the heading, within the selected rate and the bank limit.
-            double limit = Math.Min(plane.SelectedTurnRateDps, RateForBank(plane.Class.MaxBankDegrees, plane.SpeedKt));
+            double limit = Math.Min(plane.SelectedTurnRateDps, RateForBank(BankLimit(plane), plane.SpeedKt));
             // (The remaining heading less this step's turn: the rate falls in time, so the roll-out ends on the heading.)
             double wanted = side * Math.Min(limit, Math.Sqrt(2 * TurnRateChange * Math.Max(0, remaining - Math.Abs(plane.TurnRateDps) * Step)));
             MoveTurnRate(plane, wanted);

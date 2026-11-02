@@ -49,7 +49,9 @@ namespace ATCRoom.Sim
         /// <summary>Touched down on the runway: it rolls on for a few seconds, then it is removed.</summary>
         Landed,
         /// <summary>Reached the ground outside the runway: it stops there until the instructor removes it.</summary>
-        OnGround
+        OnGround,
+        /// <summary>On the runway in a circuit (touch and go, take-off): it rolls and lifts off by itself.</summary>
+        Rolling
     }
 
     /// <summary>
@@ -97,7 +99,13 @@ namespace ATCRoom.Sim
         // Whether the route still gives the altitude and the speed (until the instructor gives one).
         bool RouteAltitude = false,
         bool RouteSpeed = false,
-        NavigationMode Navigation = NavigationMode.Manual);
+        NavigationMode Navigation = NavigationMode.Manual,
+        // The circuit (TWR Trainer; null: not in a circuit), its side, what it does at the end of the final, and the leg
+        // now (UPWIND, CROSSWIND, DOWNWIND, BASE, FINAL, INITIAL, GO AROUND, ROLL, DEPARTURE; MANUAL: the instructor flies it).
+        CircuitType? Circuit = null,
+        CircuitSide CircuitSide = CircuitSide.Left,
+        EndAction EndAction = EndAction.FullStop,
+        string Leg = "");
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -152,11 +160,24 @@ namespace ATCRoom.Sim
         public NavigationMode Navigation = NavigationMode.Manual;
         public bool AltitudeGiven;
         public bool SpeedGiven;
+        /// <summary>The circuit it flies (null: none) and, while it flies it, the bank of its turns (0: the class limit).</summary>
+        public CircuitState? Circuit;
+        public double CircuitBankDegrees;
+
+        /// <summary>The leg of the circuit now, for the label (empty: not in a circuit).</summary>
+        public string Leg => Circuit == null ? ""
+            : Contact == GroundContact.Rolling ? "ROLL"
+            : Contact == GroundContact.Landed ? "LANDED"
+            : Circuit.Departed ? "DEPARTURE"
+            : Circuit.Suspended ? "MANUAL"
+            : Route != null && RouteNext >= 0 && RouteNext < Route.Count ? Route[RouteNext].Name
+            : Circuit.OnFinal ? "FINAL" : "";
 
         public AircraftState ToState(int pendingCommands) => new(Callsign, X, Y, AltitudeFt, HeadingTrue, SpeedKt, VerticalSpeedFpm, TurnRateDps,
             TargetHeading, TurnDirection, SelectedTurnRateDps, TurnRateMode, VerticalMode, TargetAltitudeFt, SelectedVerticalRateFpm,
             CommandedVerticalSpeedFpm, BestVerticalSpeedFpm, TargetSpeedKt, Frozen, StickX != 0 || StickY != 0, pendingCommands,
             Class.Name, GroundSpeedKt, TrackTrue, DriftDegrees, Contact,
-            Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation);
+            Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
+            Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg);
     }
 }
