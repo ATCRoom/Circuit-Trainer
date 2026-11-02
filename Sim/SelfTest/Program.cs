@@ -1158,15 +1158,26 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
                 double l0 = Frame(after2[n - 1] with { CircuitSide = CircuitSide.Left }).Lateral, l1 = Frame(after2[n] with { CircuitSide = CircuitSide.Left }).Lateral;
                 if (after2[n].Leg == "JOIN" && Math.Sign(l0) != Math.Sign(l1) && Math.Abs(l0) < 0.5) crossings.Add(Frame(after2[n]).Along);
             }
-            bool overField = goAround ? after2.Any(st => st.Leg == "GO AROUND") : crossings.Count > 0 && crossings.All(c => Between(c, -0.2, CircuitLength + 0.3));
+            // No loop: the heading turned one way and back (an S), never round (a loop: one way 270° or more).
+            int onDownwind = after2.FindIndex(StraightOn);
+            double sum = 0, top = 0, bottom = 0;
+            for (int n = 1; n < (onDownwind < 0 ? after2.Count : onDownwind); n++)
+            {
+                sum += SimEngine.Wrap(after2[n].HeadingTrue - after2[n - 1].HeadingTrue);
+                top = Math.Max(top, sum);
+                bottom = Math.Min(bottom, sum);
+            }
+            bool noLoop = onDownwind > 0 && top - bottom < 220;
+            bool overField = noLoop && goAround ? after2.Any(st => st.Leg == "GO AROUND") : crossings.Count > 0 && crossings.All(c => Between(c, -0.2, CircuitLength + 0.3));
             Check(first2.CircuitSide == CircuitSide.Right && sim2.DefaultSide == CircuitSide.Right && changed && after2.All(st => st.Leg != "MANUAL") && overField
                 && downwind2.Count > 5 && Near(downwind2.Average(st => Frame(st).Lateral), 1.0, 0.25) && LandedOnRunway(flown2),
                 $"Aerodrome right-hand, the instructor changes to the left {title}",
-                (crossings.Count > 0 ? $"crossed at {string.Join(", ", crossings.Select(c => c.ToString("F2", CultureInfo.InvariantCulture)))} NM, " : "")
+$"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"crossed at {string.Join(", ", crossings.Select(c => c.ToString("F2", CultureInfo.InvariantCulture)))} NM, " : "")
                 + (downwind2.Count > 0 ? $"downwind {downwind2.Average(st => Frame(st).Lateral):F2} NM to the left" : "no downwind"));
             pictures.Add(($"Aerodrome right-hand, changed to left {title} (Light)", flown2));
         }
-        SideChange("on the downwind: S over the aerodrome", st => StraightOn(st) && Frame(st).Along < 1.2, goAround: false);
+        SideChange("at the start of the downwind: S over the aerodrome", st => StraightOn(st) && Frame(st).Along < 1.2, goAround: false);
+        SideChange("near the end of the downwind: S over the aerodrome", st => StraightOn(st) && Frame(st).Along < -0.5, goAround: false);
         SideChange("on the final: go-around, new downwind", st => st.Leg == "FINAL" && Frame(st).Along > -0.8, goAround: true);
     }
 

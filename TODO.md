@@ -291,3 +291,6 @@ A simulation environment for training **tower control of traffic in the circuit*
   circuit an S over the aerodrome (across the runway at circuit height) onto the new downwind; on the base or the final a
   go-around, then the new downwind; on the upwind / initial / before the High Key the circuit simply goes on to the new
   side. (The first version with the 45° join from outside is replaced.)
+  Corrected the same evening from the user's drawing: the S turns towards the runway, crosses it over the aerodrome
+  towards its far end, then turns onto the new downwind at its start (from a point on its line 0.5 NM before it); the
+  go-around from the final turns the same way onto the new downwind. The self-test fails on a loop (270°+ one way).

@@ -303,10 +303,11 @@ namespace ATCRoom.Sim
             });
 
         /// <summary>
-        /// The side of the circuit changed in flight (the user, 2 Nov): it does not leave the circuit. On the upwind (the
-        /// initial, before the High Key) the circuit goes on to the new side; on the crosswind or the downwind an S over the
-        /// aerodrome (across the runway, at circuit height) onto the new downwind; on the base or the final a go-around,
-        /// then the new downwind. False: not in one of these legs (joining from outside: as a new join).
+        /// The side of the circuit changed in flight (the user, 2 Nov, with a drawing): it does not leave the circuit. From
+        /// anywhere in the circuit an S: a turn towards the runway, across it over the aerodrome towards its far end, a turn
+        /// onto the new downwind at its start. On the final (or the base): a go-around along the runway, then the same turn
+        /// onto the new downwind. On the upwind (the initial, before the High Key) the circuit goes on to the new side.
+        /// False: joining from outside (a new join).
         /// </summary>
         private bool ChangeSide(SimAircraft a, CircuitSide side, bool onFinal)
         {
@@ -316,17 +317,16 @@ namespace ATCRoom.Sim
             circuit.Side = side;
             circuit.NextType = null;
             circuit.Suspended = false;
-            if (onFinal || target == null || target.Name is "BASE" or "FINAL")
-            {
-                StartGoAround(a);
-                return true;
-            }
+            circuit.OnFinal = false;
             (double along, _) = RunwayFrame(a.X, a.Y, side);
-            switch (target.Name)
+            double length = Math.Max(runwayLength, 0.3);
+            double height = runwayElevation + a.Class.CircuitHeightFt;
+            double speed = a.Class.CircuitSpeedKt;
+            switch (target?.Name)
             {
                 case "UPWIND" or "GO AROUND":
                     List<RoutePoint> upwind = Loop(a, Math.Max(UpwindAlong(circuit.Type, a.Class), along + 0.3), withUpwind: true);
-                    upwind[0] = upwind[0] with { Name = target.Name };
+                    upwind[0] = upwind[0] with { Name = target!.Name };
                     GiveRoute(a, upwind);
                     return true;
                 case "INITIAL":
@@ -339,21 +339,37 @@ namespace ATCRoom.Sim
                     GiveRoute(a, ToInitialPoint(a));
                     return true;
             }
-            // The S: across the runway over the aerodrome, then onto the new downwind (both turns anticipated).
-            double width = Width(circuit.Type, a.Class, side);
-            double length = Math.Max(runwayLength, 0.3);
-            double cross = Math.Clamp(along - 0.5, 0.1, length - 0.1);
-            double entry = cross - 0.5;
-            double height = runwayElevation + a.Class.CircuitHeightFt;
-            double speed = a.Class.CircuitSpeedKt;
-            List<RoutePoint> downwind = Loop(a, UpwindAlong(circuit.Type, a.Class), withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList();
-            GiveRoute(a,
-            [
-                Point(cross, 0, side, height, speed, "JOIN"),
-                Point(entry, width, side, height, speed, "JOIN"),
-                .. downwind.Where(p => p.Name != "DOWNWIND" || AlongOf(p, side) < entry - 0.05)
-            ]);
+            if (onFinal || target == null || target.Name is "BASE" or "FINAL")
+            {
+                // Go-around along the runway, then onto the new downwind.
+                NextCircuit(circuit);
+                a.SpeedGiven = false;
+                GiveRoute(a, [Point(Math.Max(length, along + 0.5), 0, side, height, speed, "GO AROUND"), .. OntoDownwind(a)]);
+                a.SelectedVerticalRateFpm = Math.Max(MinVerticalRate, a.Class.MaxClimbFpm * 0.8);
+                return true;
+            }
+            // The S: across the runway (a little ahead of where it is, over the aerodrome), then onto the new downwind.
+            double cross = Math.Clamp(along + 0.3, 0.1, length - 0.1);
+            GiveRoute(a, [Point(cross, 0, side, height, speed, "JOIN"), .. OntoDownwind(a)]);
             return true;
+        }
+
+        /// <summary>
+        /// Onto the downwind at its start: to a point on its line 0.5 NM before its start (the turn onto it anticipated, so
+        /// it rolls out on it), then the downwind and the rest of the circuit.
+        /// </summary>
+        private List<RoutePoint> OntoDownwind(SimAircraft a)
+        {
+            CircuitState circuit = a.Circuit!;
+            CircuitSide side = circuit.Side;
+            double width = Width(circuit.Type, a.Class, side);
+            double start = DownwindStartAlong(circuit.Type, a.Class);
+            List<RoutePoint> downwind = Loop(a, UpwindAlong(circuit.Type, a.Class), withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList();
+            return
+            [
+                Point(start + 0.5, width, side, runwayElevation + a.Class.CircuitHeightFt, a.Class.CircuitSpeedKt, "JOIN"),
+                .. downwind.Where(p => p.Name != "DOWNWIND" || AlongOf(p, side) < start - 0.3)
+            ];
         }
 
         /// <summary>What the aircraft does at the end of each final, at once (it can be changed at any time).</summary>
