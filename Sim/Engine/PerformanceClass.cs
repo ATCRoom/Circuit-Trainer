@@ -43,6 +43,10 @@ namespace ATCRoom.Sim
         /// <summary>Close pattern: where the 180° turn rolls out on the final (NM before the threshold) and its height there (ft above the threshold).</summary>
         public double RollOutNM { get; set; }
         public double RollOutHeightFt { get; set; }
+        /// <summary>Overhead pattern: height (ft above the threshold) and speed (kt) of the initial; bank of the break turn (degrees, a level turn with some G).</summary>
+        public double OverheadHeightFt { get; set; }
+        public double OverheadSpeedKt { get; set; }
+        public double BreakBankDegrees { get; set; }
 
         /// <summary>Fields of a newer version of the file, kept as they are.</summary>
         [JsonExtensionData]
@@ -78,7 +82,24 @@ namespace ATCRoom.Sim
             CircuitBankDegrees = Clamp(CircuitBankDegrees, 10, 60, bank);
             RollOutNM = Clamp(RollOutNM, 0.3, 3, rollOut);
             RollOutHeightFt = Clamp(RollOutHeightFt, 150, 1500, rollOutHeight);
+            (double overheadHeight, double overheadSpeed, double breakBank) = OverheadDefaults(Name, CircuitSpeedKt);
+            OverheadHeightFt = Clamp(OverheadHeightFt, 500, 5000, overheadHeight);
+            OverheadSpeedKt = Clamp(OverheadSpeedKt, CircuitSpeedKt, MaxSpeedKt, overheadSpeed);
+            BreakBankDegrees = Clamp(BreakBankDegrees, 30, 80, breakBank);
         }
+
+        /// <summary>
+        /// The overhead values of the first classes (and of a class without them): initial height (ft above the threshold) and
+        /// speed (kt), bank of the break (degrees). Provisional values of 2 Nov 2026 (kneeboard: initial at 1500 ft, 300-400 kt).
+        /// </summary>
+        public static (double Height, double Speed, double BreakBank) OverheadDefaults(string? name, double circuitSpeedKt) =>
+            (name ?? "").Trim().ToUpperInvariant() switch
+            {
+                "LIGHT" => (1500, 110, 45),
+                "TURBOPROP" => (1500, 220, 60),
+                "JET" => (1500, 300, 75),
+                _ => (1500, circuitSpeedKt + 30, 60)
+            };
 
         /// <summary>
         /// The circuit values of the first classes (and of a class without them): height (ft above the threshold), speed
@@ -105,15 +126,15 @@ namespace ATCRoom.Sim
             new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70, MaxClimbFpm = 800, MaxDescentFpm = 1500,
                 AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 1.5, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1000, CircuitSpeedKt = 90, DownwindNM = 1.0, CloseDownwindNM = 0.6, WideDownwindNM = 2.5, CircuitBankDegrees = 30,
-                RollOutNM = 0.5, RollOutHeightFt = 250 },
+                RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 110, BreakBankDegrees = 45 },
             new() { Name = "Turboprop", MinSpeedKt = 90, MaxSpeedKt = 280, ApproachSpeedKt = 140, FinalSpeedKt = 110, MaxClimbFpm = 2000, MaxDescentFpm = 3000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 150, DownwindNM = 1.2, CloseDownwindNM = 0.8, WideDownwindNM = 3.0, CircuitBankDegrees = 45,
-                RollOutNM = 0.75, RollOutHeightFt = 350 },
+                RollOutNM = 0.75, RollOutHeightFt = 350, OverheadHeightFt = 1500, OverheadSpeedKt = 220, BreakBankDegrees = 60 },
             new() { Name = "Jet", MinSpeedKt = 120, MaxSpeedKt = 350, ApproachSpeedKt = 180, FinalSpeedKt = 140, MaxClimbFpm = 3000, MaxDescentFpm = 4000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 200, DownwindNM = 1.5, CloseDownwindNM = 1.2, WideDownwindNM = 3.5, CircuitBankDegrees = 60,
-                RollOutNM = 1.0, RollOutHeightFt = 450 }
+                RollOutNM = 1.0, RollOutHeightFt = 450, OverheadHeightFt = 1500, OverheadSpeedKt = 300, BreakBankDegrees = 75 }
         ];
 
         /// <summary>The class a new aircraft gets when none is chosen (by the engine).</summary>

@@ -845,6 +845,18 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         return first != null && Between(Frame(first).Along, -0.2, CircuitLength) && Math.Abs(Frame(first).Lateral) < 0.1;
     }
 
+    // The straight part of the downwind (heading within 10° of the opposite of the runway): its distance from the runway.
+    List<double> StraightDownwind(List<AircraftState> track) => track
+        .Where(st => st.Leg == "DOWNWIND" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 180)) < 10).Select(st => Frame(st).Lateral).ToList();
+    bool Parallel(List<double> laterals, double width) => laterals.Count > 5 && Near(laterals.Average(), width, 0.2) && laterals.Max() - laterals.Min() < 0.25;
+    string Describe(List<double> laterals) => laterals.Count > 0 ? $"{laterals.Average():F2} NM, from {laterals.Min():F2} to {laterals.Max():F2}" : "no straight downwind";
+    (double X, double Y) Place(double along, double lateral, CircuitSide side)
+    {
+        double c = CircuitCourse * Math.PI / 180;
+        double sign = side == CircuitSide.Right ? 1 : -1;
+        return (along * Math.Sin(c) + sign * lateral * Math.Cos(c), along * Math.Cos(c) - sign * lateral * Math.Sin(c));
+    }
+
     // Values of the classes: a class without circuit values gets those of its name.
     PerformanceClass bare = new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70 };
     bare.Normalize();
@@ -879,9 +891,11 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         last2 = st.Contact;
     });
     List<AircraftState> d2 = OnLeg(t2, "DOWNWIND");
-    Check(d2.Count > 5 && Near(d2.Average(st => Frame(st).Lateral), 1.2, 0.3) && d2.All(st => Frame(st).Lateral < 1.7),
-        "Close pattern (Jet, right): downwind about 1.2 NM to the right, never beyond 1.7", d2.Count > 0 ? $"lateral {d2.Average(st => Frame(st).Lateral):F2}, max {d2.Max(st => Frame(st).Lateral):F2}" : "no downwind");
+    Check(d2.Count > 5 && StraightDownwind(t2) is { Count: > 5 } straight2 && Near(straight2.Average(), 1.2, 0.3) && d2.All(st => Frame(st).Lateral < 1.7),
+        "Close pattern (Jet, right): downwind about 1.2 NM to the right, never beyond 1.7", d2.Count > 0 ? $"max {d2.Max(st => Frame(st).Lateral):F2}" : "no downwind");
     Check(t2.All(st => st.Leg is not ("CROSSWIND" or "BASE")), "Close pattern: no crosswind and no base (180° turns to the downwind and to the final)");
+    List<double> s2 = StraightDownwind(t2);
+    Check(Parallel(s2, 1.2), "Close pattern (Jet): the downwind parallel to the runway at 1.2 NM, also while it accelerates after the take-off", Describe(s2));
     AircraftState? rollOut2 = t2.FirstOrDefault(st => st.Leg == "FINAL" && Math.Abs(Frame(st).Lateral) < 0.15 && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) < 15);
     Check(rollOut2 != null && Near(Frame(rollOut2).Along, -1.0, 0.35) && Near(Height(rollOut2), 450, 100),
         "Close pattern: rolls out on the final at about 1 NM and 450 ft (Jet)", rollOut2 != null ? $"{-Frame(rollOut2).Along:F2} NM, {Height(rollOut2):F0} ft" : "never on the final");
@@ -942,18 +956,35 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     Check(LandedOnRunway(t6), "Low pass: then the full stop");
     pictures.Add(("Low pass on a close pattern, then full stop, Turboprop", t6));
 
-    // 7. From the conventional to the close pattern on the downwind.
+    // 7a. The close pattern ordered on the final of a conventional circuit: flown after the go-around.
     SimEngine e7 = NewCircuitEngine();
-    string c7 = e7.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
-    bool joined = false;
-    List<AircraftState> t7 = Fly(e7, c7, 1200, st =>
+    string c7 = e7.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.GoAround, performanceClass: "Light");
+    bool ordered = false, aroundSeen = false;
+    AircraftState? waiting = null;
+    List<AircraftState> t7 = Fly(e7, c7, 1500, st =>
     {
-        if (!joined && st.Leg == "DOWNWIND" && Frame(st).Along < 1.2) { joined = true; e7.SetCircuit(c7, CircuitType.Close, CircuitSide.Left); }
+        if (!ordered && st.Leg == "FINAL") { ordered = true; e7.SetCircuit(c7, CircuitType.Close, CircuitSide.Left); }
+        else if (ordered && waiting == null) waiting = st;
+        if (st.Leg == "GO AROUND" && !aroundSeen) { aroundSeen = true; e7.SetEndAction(c7, EndAction.FullStop); }
     });
-    List<AircraftState> d7 = t7.Where(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND").ToList();
-    Check(joined && d7.Count > 3 && d7.Last().Leg == "DOWNWIND" && Near(Frame(d7.Last()).Lateral, 0.6, 0.2) && LandedOnRunway(t7),
-        "Re-join: from the conventional downwind into the close pattern, then landed", d7.Count > 0 ? $"lateral {Frame(d7.Last()).Lateral:F2}" : "no close downwind");
-    pictures.Add(("Conventional, re-joined into the close pattern on the downwind, Light", t7));
+    List<double> s7 = StraightDownwind(t7.Where(st => st.Circuit == CircuitType.Close).ToList());
+    Check(waiting != null && waiting.Circuit == CircuitType.Conventional && waiting.NextCircuit == CircuitType.Close,
+        "Close pattern ordered while in a circuit: kept for after the go-around (shown as the next circuit)");
+    Check(aroundSeen && Parallel(s7, 0.6) && LandedOnRunway(t7), "After the go-around: the close pattern (180° to the downwind at 0.6 NM), then landed", Describe(s7));
+    pictures.Add(("Conventional; on the final the instructor orders the close pattern: go-around, close pattern, full stop (Light)", t7));
+
+    // 7b. From outside the circuits (arriving 4 NM abeam, 3 NM before the threshold): into the close pattern at once.
+    SimEngine e7b = NewCircuitEngine();
+    (double ox, double oy) = Place(-3, 4, CircuitSide.Left);
+    string c7b = e7b.Add(ox, oy, CircuitElevation + 1500, CircuitCourse, 150, performanceClass: "Turboprop");
+    e7b.SetCircuit(c7b, CircuitType.Close, CircuitSide.Left);
+    e7b.RunFor(2);
+    AircraftState joining = e7b.Get(c7b)!;
+    List<AircraftState> t7b = Fly(e7b, c7b, 1200);
+    List<AircraftState> d7b = OnLeg(t7b, "DOWNWIND");
+    Check(joining.Circuit == CircuitType.Close && joining.Leg == "JOIN" && d7b.Count > 3 && Near(Frame(d7b.Last()).Lateral, 0.8, 0.25) && LandedOnRunway(t7b),
+        "From outside the circuits: joins the close pattern at once, then lands", d7b.Count > 0 ? $"{joining.Leg}, downwind end {Frame(d7b.Last()).Lateral:F2} NM" : joining.Leg);
+    pictures.Add(("Arriving from outside the circuits, into the close pattern (Turboprop)", t7b));
 
     // 8. Crosswind: 15 kt from the left of the runway.
     SimEngine e8 = NewCircuitEngine();
@@ -987,7 +1018,62 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     int turnDownwind = wo < 0 ? -1 : t11.FindIndex(wo, st => st.Leg == "DOWNWIND");
     Check(turnDownwind > 0 && Between(Height(t11[turnDownwind]), 380, 700) && Frame(t11[turnDownwind]).Along < CircuitLength && LandedOnRunway(t11),
         "Waveoff (Jet, close pattern): turns to the downwind just above 400 ft, over the runway, then lands", turnDownwind > 0 ? $"{Height(t11[turnDownwind]):F0} ft at {Frame(t11[turnDownwind]).Along:F2} NM" : "no turn");
+    List<double> s11 = StraightDownwind(t11);
+    Check(Parallel(s11, 1.2), "Waveoff: the downwind parallel to the runway at 1.2 NM", Describe(s11));
     pictures.Add(("Waveoff in the close pattern, then full stop, Jet", t11));
+
+    // 12. Overhead pattern (Jet) from the initial point, break over the middle of the runway.
+    (List<AircraftState> Track, double BreakAlong) Overhead(BreakPoint breakAt, EndAction end, Action<SimEngine, string, AircraftState>? each = null)
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, CircuitSide.Left, end, performanceClass: "Jet");
+        sim.SetBreak(cs, breakAt);
+        List<AircraftState> flown = [sim.Get(cs)!];
+        flown.AddRange(Fly(sim, cs, 1200, st => each?.Invoke(sim, cs, st)));
+        int lastInitial = flown.FindLastIndex(st => st.Leg == "INITIAL");
+        return (flown, lastInitial >= 0 ? Frame(flown[lastInitial]).Along : double.NaN);
+    }
+    (List<AircraftState> t12, double b12) = Overhead(BreakPoint.Middle, EndAction.FullStop);
+    List<double> s12 = StraightDownwind(t12);
+    AircraftState? roll12 = t12.FirstOrDefault(st => st.Leg == "FINAL" && Math.Abs(Frame(st).Lateral) < 0.15 && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) < 15);
+    Check(Near(Frame(t12[0]).Along, -3, 0.05) && Near(Height(t12[0]), 1500, 5) && t12[0].SpeedKt == 300 && t12[0].Leg == "INITIAL",
+        "Overhead (Jet): from the initial point at 3 NM, 1500 ft, 300 kt, along the runway");
+    Check(Near(b12, CircuitLength / 2, 0.15) && t12.All(st => st.Leg is not ("CROSSWIND" or "BASE" or "UPWIND")),
+        "Overhead: the break over the middle of the runway, then straight to the downwind (no crosswind, no base)", $"break at {b12:F2} NM");
+    Check(Parallel(s12, 1.2) && s12.Max() < 1.5, "Overhead: after the break the downwind is parallel at 1.2 NM (never beyond 1.5)", Describe(s12));
+    Check(roll12 != null && Near(Frame(roll12).Along, -1.0, 0.35) && LandedOnRunway(t12), "Overhead: rolls out at about 1 NM, then lands",
+        roll12 != null ? $"{-Frame(roll12).Along:F2} NM, {Height(roll12):F0} ft" : "never on the final");
+    AircraftState? touch12 = t12.LastOrDefault(st => st.Contact == GroundContact.Airborne);
+    Check(touch12 != null && touch12.SpeedKt <= 160, "Overhead: slows down from 300 kt in the turns, lands at about the final speed", touch12 != null ? $"{touch12.SpeedKt:F0} kt" : "");
+    pictures.Add(("Overhead pattern (Jet, left), break over the middle of the runway, full stop", t12));
+
+    // 13. Break over the end and over the beginning of the runway.
+    (List<AircraftState> t13, double b13) = Overhead(BreakPoint.End, EndAction.FullStop);
+    (List<AircraftState> t13b, double b13b) = Overhead(BreakPoint.Beginning, EndAction.FullStop);
+    Check(Near(b13, CircuitLength, 0.15) && Near(b13b, 0.05, 0.15) && LandedOnRunway(t13) && LandedOnRunway(t13b),
+        "Overhead: break at the end of the runway, or at its beginning", $"end {b13:F2} NM, beginning {b13b:F2} NM");
+    pictures.Add(("Overhead, break at the end of the runway (Jet)", t13));
+    pictures.Add(("Overhead, break at the beginning of the runway (Jet)", t13b));
+
+    // 14. "Standby for break", then "break now" 1.5 NM past the threshold.
+    bool broke = false;
+    (List<AircraftState> t14, double b14) = Overhead(BreakPoint.Standby, EndAction.FullStop, (sim, cs, st) =>
+    {
+        if (!broke && st.Leg == "INITIAL" && Frame(st).Along > 1.5) { broke = true; sim.BreakNow(cs); }
+    });
+    Check(broke && Between(b14, 1.45, 1.75) && LandedOnRunway(t14), "Overhead: standby for break (no break over the runway), then break now", $"break at {b14:F2} NM");
+    pictures.Add(("Overhead, standby for break, break now past the runway (Jet)", t14));
+
+    // 15. Overhead with a touch and go: then the close pattern, not the initial point again.
+    bool touched = false;
+    (List<AircraftState> t15, _) = Overhead(BreakPoint.Middle, EndAction.TouchAndGo, (sim, cs, st) =>
+    {
+        if (!touched && st.Contact == GroundContact.Rolling) { touched = true; sim.SetEndAction(cs, EndAction.FullStop); }
+    });
+    int roll15 = t15.FindIndex(st => st.Contact == GroundContact.Rolling);
+    Check(roll15 > 0 && t15.Skip(roll15).All(st => st.Leg != "INITIAL") && t15.Skip(roll15 + 5).All(st => st.Circuit == CircuitType.Close) && LandedOnRunway(t15),
+        "Overhead with touch and go: then the close pattern (not the initial point again), then landed");
+    pictures.Add(("Overhead with touch and go, then close pattern, full stop (Jet)", t15));
 
     // 10. The instructor takes it, then gives it back.
     SimEngine e10 = NewCircuitEngine();
@@ -1028,8 +1114,11 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
             List<(double Right, double Along)> all = track.Select(Up).Append((0.0, 0.0)).Append((0.0, CircuitLength)).ToList();
             double minX = all.Min(p => p.Right) - 0.4, maxX = all.Max(p => p.Right) + 0.4, minY = all.Min(p => p.Along) - 0.3, maxY = all.Max(p => p.Along) + 0.3;
             double scale = 400 / Math.Max(maxX - minX, maxY - minY);
-            string Sx(double x) => ((x - minX) * scale).ToString("F1", CultureInfo.InvariantCulture);
-            string Sy(double y) => ((maxY - y) * scale).ToString("F1", CultureInfo.InvariantCulture);
+            double Px(double x) => (x - minX) * scale;
+            double Py(double y) => (maxY - y) * scale;
+            string Sx(double x) => Px(x).ToString("F1", CultureInfo.InvariantCulture);
+            string Sy(double y) => Py(y).ToString("F1", CultureInfo.InvariantCulture);
+            List<(double X, double Y)> placed = [];
             html.Append($"<div class=\"p\"><div>{System.Net.WebUtility.HtmlEncode(title)}</div><svg width=\"420\" height=\"420\" style=\"background:#0b1118\">");
             html.Append($"<line x1=\"{Sx(0)}\" y1=\"{Sy(0)}\" x2=\"{Sx(0)}\" y2=\"{Sy(CircuitLength)}\" stroke=\"#8a949c\" stroke-width=\"6\"/>");
             // One polyline per run of the same leg (joined to the next one), its name in the middle.
@@ -1045,7 +1134,14 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
                 AircraftState middle = track[(i + j) / 2];
                 if (track[i].Leg.Length > 0 && j - i >= 3)
                 {
-                    html.Append($"<text x=\"{Sx(Up(middle).Right)}\" y=\"{Sy(Up(middle).Along)}\" dx=\"5\" fill=\"{colour}\" font-size=\"11\">{track[i].Leg} {Height(middle):F0} ft</text>");
+                    // Beside the leg, on the outer side; moved down while it would cover a name already written.
+                    double lx = Px(Up(middle).Right), ly = Py(Up(middle).Along);
+                    bool left = Up(middle).Right < 0;
+                    while (placed.Any(q => Math.Abs(q.Y - ly) < 13 && Math.Abs(q.X - lx) < 110)) ly += 13;
+                    placed.Add((lx, ly));
+                    string anchor = left ? "end" : "start";
+                    string dx = left ? "-6" : "6";
+                    html.Append($"<text x=\"{lx.ToString("F1", CultureInfo.InvariantCulture)}\" y=\"{ly.ToString("F1", CultureInfo.InvariantCulture)}\" dx=\"{dx}\" text-anchor=\"{anchor}\" fill=\"{colour}\" font-size=\"11\">{track[i].Leg} {Height(middle):F0} ft</text>");
                 }
                 i = j + 1;
             }

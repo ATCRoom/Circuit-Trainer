@@ -228,3 +228,27 @@ A simulation environment for training **tower control of traffic in the circuit*
   upwind ends 2 NM past the runway, the turn to the downwind starts above 400 ft on the runway track (take-off, touch and
   go, go-around); the downwind of the close pattern goes on to abeam the roll out (`RollOutNM`, `RollOutHeightFt`);
   turn anticipation `radius × tan(turn / 2)` + half the roll-in; width corrected by the mean wind.
+
+## Close / overhead corrections and overhead pattern (step 3b, part 1) — WRITTEN 2 Nov (go of the user)
+
+- **180° turns on a circle** (close, overhead): centre and radius fixed at the start of the turn (from where it starts to
+  the downwind distance, or to the runway track), centre moved ahead by the roll-in; each step the rate makes it follow
+  the circle (tighter outside, wider inside, within the bank limit): the downwind comes parallel at the class distance
+  whatever the speed (the jet accelerating after take-off / go-around made a "drop" shape before) and the wind. In the
+  turns the aircraft slows down at three times the class deceleration (power back, speed brakes). A heading or the stick
+  during a turn takes it out of the circuit.
+- **Into the close pattern (the user, 2 Nov): only after a go-around (or the take-off), or from outside the circuits.**
+  `SetCircuit(Close)` to an aircraft already flying another circuit is kept as the next circuit (`NextCircuit`, for the
+  label) and flown after the next go-around, touch and go or low pass; from outside (no circuit, MANUAL) it joins at once.
+  The wide circuit still joins at once (to make room). On the final or rolling, any new circuit is flown after it.
+- **Overhead pattern** (`CircuitType.Overhead`): from the initial point (3 NM, `InitialPointNM`) along the runway at the
+  class's initial height and speed (`OverheadHeightFt` 1500, `OverheadSpeedKt` Light 110 / Turboprop 220 / Jet 300), the
+  break with the class's break bank (`BreakBankDegrees` 45 / 60 / 75) on the circle to the jet-circuit downwind, the
+  downwind at circuit height, the 180° turn to the final (roll out). `SetBreak`: middle (default), beginning, end, a
+  point along the runway (click), standby; `BreakNow` (only on the initial). After a go-around or touch and go: the close
+  pattern. `SetCircuit(Overhead)`: back to the initial point out on the wide downwind (on the final: after the go-around).
+- **circuits.html:** the re-join test replaced by realistic ones (close pattern ordered on the final → after the
+  go-around; arriving from outside → at once); overhead pictures (break middle / end / beginning / standby + break now /
+  touch and go); labels on the outer side, moved so they do not cover each other.
+- Known, low: arriving from outside abeam the runway end, the join may make a turn towards the runway before settling
+  on the downwind (review 2 Nov).

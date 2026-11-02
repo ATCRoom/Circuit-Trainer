@@ -1,6 +1,6 @@
 namespace ATCRoom.Sim
 {
-    /// <summary>The kinds of circuit (TWR Trainer). Overhead and SFO come with the next step.</summary>
+    /// <summary>The kinds of circuit (TWR Trainer). SFO comes with the next step.</summary>
     public enum CircuitType
     {
         /// <summary>The rectangular circuit: upwind, crosswind, downwind, base, final.</summary>
@@ -12,7 +12,28 @@ namespace ATCRoom.Sim
         /// </summary>
         Close,
         /// <summary>Wide circuit (outside downwind): as the conventional one, further out.</summary>
-        Wide
+        Wide,
+        /// <summary>
+        /// Overhead pattern (jet circuit, "run and break"): from the initial point along the runway at the initial height and
+        /// speed, the break (a level 180° turn, tight enough to meet the downwind distance), the downwind, a descending 180°
+        /// turn to the final. After a go-around or a touch and go it flies the close pattern (not the initial point again).
+        /// </summary>
+        Overhead
+    }
+
+    /// <summary>Where the overhead pattern breaks.</summary>
+    public enum BreakPoint
+    {
+        /// <summary>Over the middle of the runway (default).</summary>
+        Middle,
+        /// <summary>Over the beginning of the runway (the threshold).</summary>
+        Beginning,
+        /// <summary>Over the end of the runway.</summary>
+        End,
+        /// <summary>At a point given along the runway track (clicked on the map).</summary>
+        Point,
+        /// <summary>"Standby for break": on along the initial until "break now".</summary>
+        Standby
     }
 
     /// <summary>The side of the circuit: the turns are to this side.</summary>
@@ -64,6 +85,15 @@ namespace ATCRoom.Sim
         public int LegIndex = -1;
         /// <summary>Flying one of the 180° turns of the close pattern (to its downwind, to its final): the route waits for its end.</summary>
         public bool Turning;
+        /// <summary>The 180° turn follows this circle (the plane, NM) with this bank limit: it ends at the right distance from the runway whatever the speed and the wind.</summary>
+        public double CentreX, CentreY, Radius, TurnBank, TurnHeading;
+        /// <summary>The circuit ordered while in a circuit (the close pattern), flown after the next go-around or touch and go, and its side.</summary>
+        public CircuitType? NextType;
+        public CircuitSide NextSide;
+        /// <summary>Where the overhead pattern breaks (along the runway, NM, for <see cref="BreakPoint.Point"/>), and "break now".</summary>
+        public BreakPoint Break = BreakPoint.Middle;
+        public double BreakAlong;
+        public bool BreakNow;
     }
 
     public sealed partial class SimEngine
@@ -107,6 +137,8 @@ namespace ATCRoom.Sim
             lock (sync)
             {
                 if (double.IsNaN(glidePathCourse)) throw new InvalidOperationException("No runway: a circuit needs the runway in use.");
+                // The overhead pattern starts at the initial point; elsewhere it is the close pattern (its second part).
+                if (type == CircuitType.Overhead && start != CircuitStart.InitialPoint) type = CircuitType.Close;
                 PerformanceClass kind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                     ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
                 double height = runwayElevation + kind.CircuitHeightFt;
@@ -114,7 +146,9 @@ namespace ATCRoom.Sim
                 (double x, double y, double altitude, double heading, double speed) = start switch
                 {
                     CircuitStart.LongFinal => At(-longFinal, 0, side, runwayElevation + longFinal * glide, glidePathCourse, kind.ApproachSpeedKt),
-                    CircuitStart.InitialPoint => At(-initialPoint, 0, side, height, glidePathCourse, kind.CircuitSpeedKt),
+                    CircuitStart.InitialPoint => type == CircuitType.Overhead
+                        ? At(-initialPoint, 0, side, runwayElevation + kind.OverheadHeightFt, glidePathCourse, kind.OverheadSpeedKt)
+                        : At(-initialPoint, 0, side, height, glidePathCourse, kind.CircuitSpeedKt),
                     CircuitStart.Downwind => At(DownwindStartAlong(type, kind), Width(type, kind, side), side, height, Normalize(glidePathCourse + 180), kind.CircuitSpeedKt),
                     _ => At(0.02, 0, side, runwayElevation, glidePathCourse, kind.MinSpeedKt)
                 };
@@ -126,6 +160,9 @@ namespace ATCRoom.Sim
                     case CircuitStart.LongFinal:
                         GiveRoute(plane, [Point(0, 0, side, double.NaN, kind.FinalSpeedKt, "FINAL")]);
                         plane.TargetSpeedKt = kind.ApproachSpeedKt;
+                        break;
+                    case CircuitStart.InitialPoint when type == CircuitType.Overhead:
+                        GiveRoute(plane, OverheadRoute(plane));
                         break;
                     case CircuitStart.InitialPoint:
                         GiveRoute(plane, [Point(0, 0, side, height, kind.CircuitSpeedKt, "INITIAL"), .. Loop(plane, UpwindAlong(type, kind), withUpwind: true)]);
@@ -145,24 +182,42 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// Instruction: fly this circuit, on this side, from where the aircraft is (also to change circuit: the close
-        /// pattern to stay near, the wide one to make room). On the circuit side between the base turn and the crosswind it
-        /// joins the new downwind ahead of it; elsewhere it flies to the start of the downwind. On the final (or rolling)
-        /// it goes on: the new circuit is flown after it. Also takes back an aircraft the instructor was flying.
+        /// Instruction: fly this circuit, on this side, from where the aircraft is. The close pattern ordered to an aircraft
+        /// already flying another circuit is flown after its next go-around, touch and go or low pass (as in reality: from a
+        /// go-around, or after the take-off); from outside the circuits (arriving, flown by the instructor) it joins at once.
+        /// The wide circuit (to make room) joins at once: on the circuit side between the base turn and the crosswind the new
+        /// downwind ahead, elsewhere the start of the downwind. The overhead pattern: back to the initial point, out on the
+        /// wide downwind (on the final: after the go-around). On the final (or rolling) the new circuit is flown after it.
+        /// Also takes back an aircraft the instructor was flying.
         /// </summary>
         public void SetCircuit(string callsign, CircuitType type, CircuitSide side) =>
             Instruct(callsign, Kind.Heading, a =>
             {
                 if (double.IsNaN(glidePathCourse) || a.Contact is GroundContact.Landed or GroundContact.OnGround) return;
+                bool inCircuit = a.Circuit is { Suspended: false, Departed: false };
+                (double alongNow, double lateralNow) = RunwayFrame(a.X, a.Y, side);
+                bool onFinal = a.Circuit is { OnFinal: true } && Math.Abs(lateralNow) < 0.3 && alongNow < runwayLength;
+                if (inCircuit && (a.Contact == GroundContact.Rolling || onFinal || (type == CircuitType.Close && a.Circuit!.Type != CircuitType.Close)))
+                {
+                    // Flown after the next go-around or touch and go.
+                    a.Circuit!.NextType = type;
+                    a.Circuit.NextSide = side;
+                    return;
+                }
                 CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
+                circuit.NextType = null;
                 circuit.Type = type;
                 circuit.Side = side;
                 circuit.Departed = false;
                 if (a.Contact == GroundContact.Rolling) return;
-                (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
-                if (circuit.OnFinal && !circuit.Suspended && Math.Abs(lateral) < 0.3 && along < runwayLength) return;
+                (double along, double lateral) = (alongNow, lateralNow);
                 circuit.Suspended = false;
                 circuit.OnFinal = false;
+                if (type == CircuitType.Overhead)
+                {
+                    GiveRoute(a, ToInitialPoint(a));
+                    return;
+                }
                 double width = Width(type, a.Class, side);
                 double upwind = DownwindStartAlong(type, a.Class);
                 List<RoutePoint> loop = Loop(a, UpwindAlong(type, a.Class), withUpwind: false);
@@ -188,6 +243,23 @@ namespace ATCRoom.Sim
         {
             if (a.Circuit != null) a.Circuit.End = action;
         });
+
+        /// <summary>Where the overhead pattern breaks, at once: middle (default), beginning, end, a point along the runway track (NM from the threshold), or standby.</summary>
+        public void SetBreak(string callsign, BreakPoint where, double alongNM = double.NaN) => Change(callsign, a =>
+        {
+            if (a.Circuit == null) return;
+            a.Circuit.Break = where == BreakPoint.Point && !double.IsFinite(alongNM) ? BreakPoint.Middle : where;
+            a.Circuit.BreakAlong = double.IsFinite(alongNM) ? alongNM : 0;
+            a.Circuit.BreakNow = false;
+        });
+
+        /// <summary>Instruction "break now" (after "standby for break", or to break earlier): on the initial, it breaks at once.</summary>
+        public void BreakNow(string callsign) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                // Only on the initial (else it would break at once on the next initial).
+                if (a.Circuit != null && a.Route != null && a.RouteNext < a.Route.Count && a.Route[a.RouteNext].Name == "INITIAL") a.Circuit.BreakNow = true;
+            });
 
         /// <summary>Instruction: go around now: climbs to circuit height along the runway, then flies its circuit again.</summary>
         public void GoAround(string callsign) =>
@@ -226,7 +298,24 @@ namespace ATCRoom.Sim
                 RoutePoint target = plane.Route[plane.RouteNext];
                 RoutePoint next = plane.Route[plane.RouteNext + 1];
                 (double alongNow, double lateralNow) = RunwayFrame(plane.X, plane.Y, circuit.Side);
-                if (circuit.Type == CircuitType.Close)
+                if (circuit.Type == CircuitType.Overhead && target.Name == "INITIAL")
+                {
+                    // The break: over its point along the runway (not on standby), or at once on "break now".
+                    double breakAt = circuit.Break switch
+                    {
+                        BreakPoint.Beginning => 0.05,
+                        BreakPoint.End => Math.Max(runwayLength, 0.3),
+                        BreakPoint.Point => circuit.BreakAlong,
+                        BreakPoint.Standby => double.PositiveInfinity,
+                        _ => Math.Max(runwayLength, 0.3) / 2
+                    };
+                    if (circuit.BreakNow || alongNow >= breakAt)
+                    {
+                        circuit.BreakNow = false;
+                        PassPoint(plane, fromHere: true);
+                    }
+                }
+                else if (circuit.Type == CircuitType.Close)
                 {
                     // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind at once, climbing.
                     if (target.Name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
@@ -234,7 +323,7 @@ namespace ATCRoom.Sim
                         PassPoint(plane, fromHere: true);
                     }
                 }
-                else if (target.Name is "CROSSWIND" or "DOWNWIND" or "BASE")
+                else if (circuit.Type is CircuitType.Conventional or CircuitType.Wide && target.Name is "CROSSWIND" or "DOWNWIND" or "BASE")
                 {
                     // The turn at a corner starts before it, so the next leg starts on its line (not wide of it).
                     double legCourse = Math.Atan2(target.X - plane.LegStartX, target.Y - plane.LegStartY);
@@ -258,7 +347,7 @@ namespace ATCRoom.Sim
                 RoutePoint point = plane.Route[plane.RouteNext];
                 circuit.OnFinal = point.Name == "FINAL" && !point.Turn180;
                 // The close pattern: its downwind and its final are reached by a 180° turn, not flown to as points.
-                if (circuit.Type == CircuitType.Close && point.Turn180)
+                if (circuit.Type is CircuitType.Close or CircuitType.Overhead && point.Turn180)
                 {
                     StartTurn(plane, circuit, point);
                     return;
@@ -295,18 +384,30 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// A 180° turn of the close pattern towards its side (to the downwind, or to the final, descending to the start of
-        /// the final), at the rate that makes the turn as wide as the downwind; the route waits at the point after the turn.
+        /// A 180° turn of the close and overhead patterns towards their side (to the downwind; to the final, descending to
+        /// the roll out) on a circle: from where it starts to the downwind distance (or to the runway track), so it ends there
+        /// with the heading parallel to the runway, whatever the speed and the wind (see <see cref="TurnStep"/>). The break
+        /// of the overhead pattern turns with the break bank. The route waits at the point after the turn.
         /// </summary>
         private void StartTurn(SimAircraft plane, CircuitState circuit, RoutePoint after)
         {
-            double radius = Width(CircuitType.Close, plane.Class, circuit.Side) / 2;
-            double rate = (Math.Max(30, plane.SpeedKt) / 3600) / radius * 180 / Math.PI;
+            bool toFinal = after.Name == "FINAL";
+            (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
+            double width = Width(CircuitType.Close, plane.Class, circuit.Side);
+            double radius = Math.Max(0.15, toFinal ? lateral / 2 : (width - lateral) / 2);
+            circuit.TurnBank = circuit.Type == CircuitType.Overhead && !toFinal ? plane.Class.BreakBankDegrees : plane.Class.CircuitBankDegrees;
+            // The centre moved ahead by what it flies while it rolls into the turn (the rate grows at TurnRateChange).
+            double rateNeeded = Math.Min(MaxTurnRate, Math.Min((Math.Max(30, plane.GroundSpeedKt) / 3600) / radius * 180 / Math.PI, RateForBank(circuit.TurnBank, plane.SpeedKt)));
+            double rollIn = Math.Max(30, plane.GroundSpeedKt) / 3600 * (rateNeeded / TurnRateChange) / 2;
+            (circuit.CentreX, circuit.CentreY) = FromRunway(along + (toFinal ? -rollIn : rollIn), toFinal ? lateral - radius : lateral + radius, circuit.Side);
+            circuit.Radius = radius;
             circuit.Turning = true;
             plane.Navigation = NavigationMode.Manual;
-            plane.SelectedTurnRateDps = Math.Clamp(rate, MinTurnRate, MaxTurnRate);
-            plane.TargetHeading = after.Name == "FINAL" ? glidePathCourse : Normalize(glidePathCourse + 180);
+            plane.CircuitBankDegrees = circuit.TurnBank;
+            plane.SelectedTurnRateDps = Math.Clamp((Math.Max(30, plane.GroundSpeedKt) / 3600) / radius * 180 / Math.PI, MinTurnRate, MaxTurnRate);
+            plane.TargetHeading = toFinal ? glidePathCourse : Normalize(glidePathCourse + 180);
             plane.TurnDirection = circuit.Side == CircuitSide.Left ? TurnDirection.Left : TurnDirection.Right;
+            circuit.TurnHeading = plane.TargetHeading;
             if (!plane.AltitudeGiven && double.IsFinite(after.AltitudeFt))
             {
                 // Down to the start of the final during the half circle (π r).
@@ -320,10 +421,32 @@ namespace ATCRoom.Sim
             if (!plane.SpeedGiven && double.IsFinite(after.SpeedKt)) plane.TargetSpeedKt = Math.Clamp(after.SpeedKt, plane.Class.MinSpeedKt, plane.Class.MaxSpeedKt);
         }
 
-        /// <summary>During a 180° turn: when it rolls out on the new heading, the route goes on from the point after the turn.</summary>
+        /// <summary>
+        /// During a 180° turn: on its circle (the turn tighter when outside it, wider when inside, within the bank limit); when
+        /// it rolls out on the new heading, the route goes on from the point after the turn.
+        /// </summary>
         private void TurnStep(SimAircraft plane, CircuitState circuit)
         {
-            plane.CircuitBankDegrees = plane.Class.CircuitBankDegrees;
+            if (plane.StickX != 0 || Math.Abs(Wrap(plane.TargetHeading - circuit.TurnHeading)) > 0.01)
+            {
+                // The instructor gave a heading (or took the stick) during the turn: the circuit waits.
+                circuit.Turning = false;
+                circuit.Suspended = true;
+                circuit.OnFinal = false;
+                plane.CircuitBankDegrees = 0;
+                plane.SelectedTurnRateDps = plane.TurnRateMode == TurnRateMode.Half ? HalfTurnRate : StandardTurnRate;
+                return;
+            }
+            plane.CircuitBankDegrees = circuit.TurnBank;
+            // Slowing down in the turn (power back, speed brakes): three times the class deceleration.
+            if (!plane.SpeedGiven && plane.SpeedKt > plane.TargetSpeedKt)
+            {
+                plane.SpeedKt = Math.Max(plane.TargetSpeedKt, plane.SpeedKt - 2 * plane.Class.DecelerationKtPerSecond * Step);
+            }
+            double dx = plane.X - circuit.CentreX, dy = plane.Y - circuit.CentreY;
+            double off = (Math.Sqrt(dx * dx + dy * dy) - circuit.Radius) / circuit.Radius;
+            double rate = Math.Max(30, plane.GroundSpeedKt) / 3600 / circuit.Radius * (1 + 1.5 * off) * 180 / Math.PI;
+            plane.SelectedTurnRateDps = Math.Clamp(rate, MinTurnRate, MaxTurnRate);
             if (Math.Abs(Wrap(plane.HeadingTrue - plane.TargetHeading)) > 0.5 || Math.Abs(plane.TurnRateDps) > 0.2) return;
             circuit.Turning = false;
             if (plane.Route == null) return;
@@ -380,12 +503,17 @@ namespace ATCRoom.Sim
                 plane.Contact = GroundContact.Airborne;
                 plane.SpeedKt = Math.Max(plane.SpeedKt, liftOff);
                 plane.AltitudeFt = runwayElevation + 1;
+                NextCircuit(circuit);
                 double upwind = Math.Max(UpwindAlong(circuit.Type, kind), along + 0.3);
                 double height = runwayElevation + kind.CircuitHeightFt;
                 if (circuit.End == EndAction.Departure)
                 {
                     circuit.Departed = true;
                     GiveRoute(plane, [Point(upwind, 0, circuit.Side, height, kind.CircuitSpeedKt, "UPWIND"), Point(upwind + 10, 0, circuit.Side, height, kind.CircuitSpeedKt, "DEPARTURE")]);
+                }
+                else if (circuit.Type == CircuitType.Overhead)
+                {
+                    GiveRoute(plane, [Point(upwind, 0, circuit.Side, height, kind.CircuitSpeedKt, "UPWIND"), .. ToInitialPoint(plane)]);
                 }
                 else
                 {
@@ -402,9 +530,12 @@ namespace ATCRoom.Sim
             circuit.Suspended = false;
             circuit.OnFinal = false;
             circuit.Departed = false;
+            NextCircuit(circuit);
             (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double upwind = Math.Max(UpwindAlong(circuit.Type, plane.Class), along + 0.5);
-            List<RoutePoint> route = Loop(plane, upwind, withUpwind: true);
+            List<RoutePoint> route = circuit.Type == CircuitType.Overhead
+                ? [Point(upwind, 0, circuit.Side, runwayElevation + plane.Class.CircuitHeightFt, plane.Class.CircuitSpeedKt, "UPWIND"), .. ToInitialPoint(plane)]
+                : Loop(plane, upwind, withUpwind: true);
             route[0] = route[0] with { Name = "GO AROUND" };
             plane.SpeedGiven = false;
             GiveRoute(plane, route);
@@ -431,7 +562,7 @@ namespace ATCRoom.Sim
             double glide = GlideFeetPerNM();
             List<RoutePoint> points = [];
             if (withUpwind) points.Add(Point(upwind, 0, side, height, speed, "UPWIND"));
-            if (circuit.Type == CircuitType.Close)
+            if (circuit.Type is CircuitType.Close or CircuitType.Overhead)
             {
                 // The ends of the two 180° turns (flown as turns, see StartTurn): the downwind start, the roll out on the final.
                 double turn = BaseAlong(CircuitType.Close, kind);
@@ -451,10 +582,67 @@ namespace ATCRoom.Sim
             return points;
         }
 
-        /// <summary>Width of the downwind of a circuit (NM), as in the class.</summary>
+        /// <summary>
+        /// The overhead pattern from the initial point: the initial along the runway track at the initial height and speed
+        /// (its point far beyond the runway: the break comes before it), the break (a 180° turn to the downwind, at circuit
+        /// height and speed), the downwind, the 180° turn to the final, the final.
+        /// </summary>
+        private List<RoutePoint> OverheadRoute(SimAircraft plane)
+        {
+            PerformanceClass kind = plane.Class;
+            CircuitSide side = plane.Circuit!.Side;
+            double length = Math.Max(runwayLength, 0.3);
+            double width = Width(CircuitType.Overhead, kind, side);
+            double height = runwayElevation + kind.CircuitHeightFt;
+            double turn = BaseAlong(CircuitType.Overhead, kind);
+            return
+            [
+                Point(length + 5, 0, side, runwayElevation + kind.OverheadHeightFt, kind.OverheadSpeedKt, "INITIAL"),
+                Point(length, width, side, height, kind.CircuitSpeedKt, "DOWNWIND", turn180: true),
+                Point(turn, width, side, height, kind.CircuitSpeedKt, "DOWNWIND"),
+                Point(turn, 0, side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true),
+                Point(0, 0, side, double.NaN, kind.FinalSpeedKt, "FINAL")
+            ];
+        }
+
+        /// <summary>
+        /// Back to the initial point for a new overhead: out on the wide downwind to abeam a point 1 NM before the initial
+        /// point, onto the runway track there, then the overhead pattern.
+        /// </summary>
+        private List<RoutePoint> ToInitialPoint(SimAircraft plane)
+        {
+            PerformanceClass kind = plane.Class;
+            CircuitSide side = plane.Circuit!.Side;
+            double before = initialPoint + 1;
+            double wide = Width(CircuitType.Wide, kind, side);
+            double height = runwayElevation + kind.OverheadHeightFt;
+            return
+            [
+                Point(-before, wide, side, height, kind.CircuitSpeedKt, "JOIN"),
+                Point(-before, 0, side, height, kind.OverheadSpeedKt, "JOIN"),
+                .. OverheadRoute(plane)
+            ];
+        }
+
+        /// <summary>After a go-around or a touch and go: the circuit ordered meanwhile, else the overhead goes on as the close pattern.</summary>
+        private static void NextCircuit(CircuitState circuit)
+        {
+            if (circuit.NextType is CircuitType next)
+            {
+                circuit.Type = next;
+                circuit.Side = circuit.NextSide;
+                circuit.NextType = null;
+            }
+            else if (circuit.Type == CircuitType.Overhead)
+            {
+                circuit.Type = CircuitType.Close;
+            }
+        }
+
+        /// <summary>Width of the downwind of a circuit (NM), as in the class (the overhead's: the jet circuit's).</summary>
         private static double BaseWidth(CircuitType type, PerformanceClass kind) => type switch
         {
-            CircuitType.Close => kind.CloseDownwindNM,
+            CircuitType.Close or CircuitType.Overhead => kind.CloseDownwindNM,
             CircuitType.Wide => kind.WideDownwindNM,
             _ => kind.DownwindNM
         };
@@ -479,7 +667,7 @@ namespace ATCRoom.Sim
 
         /// <summary>Where the downwind starts along the runway (NM from the threshold): the close pattern abeam the runway end.</summary>
         private double DownwindStartAlong(CircuitType type, PerformanceClass kind) =>
-            type == CircuitType.Close ? Math.Max(runwayLength, 0.3) : UpwindAlong(type, kind);
+            type is CircuitType.Close or CircuitType.Overhead ? Math.Max(runwayLength, 0.3) : UpwindAlong(type, kind);
 
         /// <summary>
         /// Where the upwind ends, along the runway (NM from the threshold): beyond the runway end; the close pattern's is far
@@ -488,12 +676,12 @@ namespace ATCRoom.Sim
         private double UpwindAlong(CircuitType type, PerformanceClass kind)
         {
             double length = Math.Max(runwayLength, 0.3);
-            return type == CircuitType.Close ? length + 2 : length + 0.6 * BaseWidth(type, kind);
+            return type is CircuitType.Close or CircuitType.Overhead ? length + 2 : length + 0.6 * BaseWidth(type, kind);
         }
 
         /// <summary>Where the base (the close pattern: its turn to the final, rolling out there) is, along the runway (negative: before the threshold).</summary>
         private static double BaseAlong(CircuitType type, PerformanceClass kind) =>
-            type == CircuitType.Close ? -kind.RollOutNM : -BaseWidth(type, kind);
+            type is CircuitType.Close or CircuitType.Overhead ? -kind.RollOutNM : -BaseWidth(type, kind);
 
         /// <summary>
         /// The point the aircraft flies to is passed now (a turn anticipated, a waveoff turn): the next one is flown to. From
