@@ -1,0 +1,43 @@
+# Builds TWR Trainer on GitHub's Windows machines at every push.
+# Today: the simulation engine and the maps library with their self-tests, and ATCRoom Map Creator. The ready-to-run
+# Map Creator is attached to each run as an artifact (Actions tab -> latest run -> Artifacts; a GitHub account is
+# needed to download it). It does not require .NET to be installed. No release yet.
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+
+      # Checks the simulation engine (turns, climbs, speeds, clock, callsigns, placement on the Earth): the build
+      # fails if a check fails.
+      - name: Self-test of the simulation engine
+        run: dotnet run --project Sim/SelfTest/ATCRoom.Sim.SelfTest.csproj -c Release
+
+      # Checks the map format and the importers: the build fails if a check fails.
+      - name: Self-test of the map format and importers
+        run: dotnet run --project MapCreator/SelfTest/ATCRoom.Maps.SelfTest.csproj -c Release
+
+      # ATCRoom Map Creator: makes the map files (open ATCRoom map format) from the user's own files.
+      - name: Build ATCRoom Map Creator
+        run: >
+          dotnet publish MapCreator/App/ATCRoomMapCreator.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish-mapcreator
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ATCRoomMapCreator-win-x64
+          path: publish-mapcreator/ATCRoomMapCreator.exe

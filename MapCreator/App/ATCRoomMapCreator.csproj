@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ATCRoom Map Creator: converts map files of other formats (IVAO sector files, EuroScope .ese, AIP tables in PDF) into the
+       open ATCRoom map format read by AuroraPAR v2 Trainer: many files at once, one picture, categories, a cut around an
+       airport, one map file per airport. A window with drag & drop; no settings. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ATCRoomMapCreator</AssemblyName>
+    <RootNamespace>ATCRoom.MapCreator</RootNamespace>
+    <ApplicationIcon>ATCRoomMapCreator.ico</ApplicationIcon>
+    <!-- Version of the Map Creator, shown in the title bar. -->
+    <Version>1.8.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Own icon (MAP, a coast, a FIX and a VRP), loaded by the window under the name AuroraPAR.ico. -->
+    <Resource Include="ATCRoomMapCreator.ico" Link="AuroraPAR.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\ATCRoom.Maps.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PDF reading for the AIP tables (Apache 2.0 license). -->
+    <PackageReference Include="PdfPig" Version="0.1.14" />
+  </ItemGroup>
+
+</Project>

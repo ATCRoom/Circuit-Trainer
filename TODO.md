@@ -1,0 +1,154 @@
+# TWR Trainer — to do
+
+Tower circuit simulator (instructor / student). Name provisional: **TWR Trainer** (other candidate: Circuit Trainer).
+Repository **ATCRoom/TWR-Trainer** (own repository, option B, decided 2 Nov 2026). Work rules in `CLAUDE.md`.
+
+## Status
+
+- **2 Nov 2026, step 1 (go of the user): structure of the repository.** Copied from ATCRoom/AuroraPAR-v2 `master`
+  commit `408abbb` (without history): the engine `Sim/Engine` + `Sim/SelfTest` with `Earth.cs`, the maps library
+  `MapCreator/Core`, ATCRoom Map Creator `MapCreator/App`, `MapCreator/SelfTest`, `docs/MAP-FORMAT.md`, `LICENSE`
+  (MIT of the original author, kept). Workflow: builds, the two self-tests, Map Creator as an artifact; no release yet.
+  The TWR Trainer program itself is not there yet. Next: the ground layout in the map format and the Map Creator
+  (see the decisions below), then the engine (circuits), then the program.
+- **Fixed rule (decision 2 Nov): the home of ATCRoom Map Creator and of the maps library is THIS repository.** Before
+  every new release of AuroraPAR v2 Trainer (ATCRoom/AuroraPAR-v2), copy `MapCreator/` from here into AuroraPAR-v2.
+  A fix of the engine (`Sim/Engine`) found here or there is copied by hand to the other when it applies.
+
+Below: the notes written in AuroraPAR-v2 (`TODO-TowerSim.md`, 30 Oct - 2 Nov) with all the decisions taken so far.
+Notes that speak of "the branch `tower`", "waits for the merge" or of a downloads repository / token are history:
+the decisions marked DECIDED / CORRECTION further down replace them.
+
+---
+
+(Original first lines, 30 Oct:) First step: answer the questions below and make a few mock-ups, no code.
+
+## Starting point: what already exists (AuroraPAR v2 Trainer, repository ATCRoom/AuroraPAR-v2, branch `trainer`)
+
+Two libraries without WPF, already separate projects (net9.0) — the natural base:
+
+- **`Sim/Engine` = ATCRoom.Sim** (`SimEngine.cs`, `SimAircraft.cs`, `PerformanceClass.cs`, `LocalPlane.cs`,
+  `MetarWind.cs`; links the root `Earth.cs`) with its self-test `Sim/SelfTest` (run by the CI). Flight model in a local
+  plane around a reference runway: heading / altitude / speed / rate commands with pilot reaction, turn rates, wind and
+  gusts, pause (all or one aircraft), ROUTE (waypoints with altitude and speed, Direct to, Next WPT) and MANUAL modes,
+  "Slow dwn to final", performance classes editable by the user (`performance.json`: Light, Turboprop, Jet; min /
+  final / initial / max speeds...). The "manual mode" and the "pre-set routes" of this project already exist in it as
+  MANUAL / ROUTE; missing: circuit legs built from the runway, landing / touch-and-go / go-around, helicopters (hover,
+  slow speeds), ground.
+- **`MapCreator/Core` = ATCRoom.Maps** (open map format `docs/MAP-FORMAT.md`, one file per airport, categories
+  incl. ATZ / CTR / VRP / FIX; importers IVAO / Aurora, EuroScope `.ese` / `.sct`, KML / KMZ, AIP PDF tables) with
+  its self-test, and the program **ATCRoom Map Creator** (`MapCreator/App`). Maps: personal use only, never
+  distributed.
+
+WPF parts of the Trainer (folder `Trainer/`, compiled with the root files of AuroraPAR v2 under `#if TRAINER`), to
+reuse by copy or by moving them into a shared library (to decide):
+
+- **Top view** `PlanView.cs` (+ `.Labels.cs`, `.RouteEdit.cs`): maps by airport and category with symbols, range
+  rings, runway and centreline, tracks with history dots, labels (drag, hide, larger label with clickable / wheel
+  fields), CENTRE modes (FREE, MOUSE, AIRPORT, TRAFFIC), routes drawn and edited by click / drag, points snapped to
+  VRP / FIX. `MapLibrary.cs`, `MapsWindow.cs`, `CustomSymbols.cs`.
+- **Instructor station** `InstructorWindow*.cs` (root `InstructorWindow.cs` + `Trainer/InstructorWindow.*.cs`):
+  floating panels (`FloatingPanel.cs`), flight plans and scenarios (`FlightPlans.cs`, `.Fpl.cs`), TRAFFIC LIST, aircraft
+  control, commands on the label, keys / macro keyboard (`.Keys.cs`), performance table (`PerformanceWindow.cs`), QNH
+  and METAR from the internet (`.Qnh.cs`, `OnlineMetar.cs`). `InstructorBridge.cs` (root): engine → traffic, the
+  "Aurora-like" positions.
+- **Lesson between two PCs** `LessonLink.cs`, `LessonWindow.cs`, `MainWindow.Lesson.cs`: public MQTT relays
+  (`CoordinationLink.Brokers` in `Coordination.cs`), channel from a lesson code, JSON messages both ways.
+- Build and release pattern: `.github/workflows/build.yml` (self-tests, single-file publish, releases with their own
+  tag prefix and "not latest"), own icon linked as `AuroraPAR.ico`, portable settings file.
+- Docs and tutorials style: `docs/TRAINER.md`, `docs/tutorials/`.
+
+## Questions to answer first (before any code)
+
+1. **Name** of the program and **repository**: a new repository in the ATCRoom organisation, or a new folder / branch
+   in ATCRoom/AuroraPAR-v2?
+2. **Sharing with the Trainer:** move ATCRoom.Sim / ATCRoom.Maps (and the top view) into a shared place that both
+   use, or copy them into the new project (simpler, but two copies to keep)?
+3. **What the student sees** exactly: the top view of the aerodrome as in Aurora (which map categories, labels, tags),
+   anything else (strips, wind, QNH, ATIS)?
+4. **The instructor's "two levels"**: what each one shows (mock-ups first).
+5. **Circuit routes**: built automatically from the runway in use (left / right circuit, circuit height, downwind
+   distance) or drawn by the instructor per aerodrome? Which legs and actions (joining, downwind, base, final,
+   touch-and-go, full stop, go-around, departure, orbit, extend downwind, hold)?
+6. **Aircraft database**: which types / classes (aeroplanes slow and fast, helicopters), which data, how the user adds
+   types (the performance table of the Trainer is a start).
+7. **IVAO**: is the simulated traffic ever mixed with IVAO traffic (as in the Trainer: only between instructor and
+   student, never on the network)? Does it work without Aurora (as the Trainer)?
+
+## Answers of the user (1 Nov 2026) and decisions
+
+- **Name:** undecided; working name "Tower Trainer". A trainer for the tower, specialised on **traffic in flight**; ground is secondary (almost absent).
+- **Ground layout (minimum):** the aerodromes also get a small ground layout (proposal: runway outlines, taxiway centrelines with names, aprons, holding points; no stands or signs). Needs a new map category "Ground" in the map format and an importer in the Map Creator; samples wanted from the user (IVAO `[TAXIWAY]` / `[GATES]` / `[RUNWAY]`, or KML) of a small and a medium aerodrome.
+- **Student screen:** top view as proposed, plus a box with the **METAR line** (full raw line; needed for simulations not connected to IVAO). Strips / ATIS later.
+- **Instructor two levels:** as proposed (close view of the aerodrome + wide view ~20-30 NM). Mock-ups first.
+- **Circuits are built from the runway in use; every distance, height and speed is set by the user, per aircraft class, saved in files.** Heights per class, editable.
+  - **Long final:** like an ILS, distance set by the user, default **10 NM**.
+  - **Initial Point (IP):** set by the user, default **3 NM** (on the extended centreline).
+  - **Conventional (rectangular) circuit.**
+  - **Overhead pattern** (Jet Circuit in Italy, "run and break" in the UK): from the IP, heights and speeds by aircraft type; the **break can be anywhere**: default **mid-runway**, or forced at the **beginning** or at the **end** of the runway, or at another point ("standby for break" then "break now"); the break turn is much tighter than a standard turn (higher bank); the distance from the runway depends on the speed of execution and does **not exceed 1 NM**.
+  - **Close pattern:** same width as the jet circuit; like the overhead pattern without the initial-break part. From the downwind a 180° turn to final; from a go-around a 180° turn straight to the downwind (no base / cross leg).
+  - **Normal pattern / outside downwind:** a wider circuit outside the published ones, to reposition for a new jet circuit or a final; as a conventional circuit made wider (external), or through VRP points (VRP later).
+  - **SFO (simulated flame-out):** starts over the aerodrome at a variable height (by performance), engine at idle, a **spiral** to the runway threshold; either side; the low-key point is variable, like a downwind (heading about 180° to the runway); speed = **best glide** of the class; ends in a landing **or** a go-around.
+  - **Re-insertion** (wide ↔ close): re-joining the wide circuit is to go back to the IP or to "decompress" the ATC work; re-joining the close circuit avoids flying the whole circuit and passing the IP again.
+  - **Actions:** touch-and-go, full stop, go-around, departure, orbit, extend downwind, hold (manual).
+- **Helicopters:** conventional circuit, direct landing on a helipad.
+
+## Still open (asked 1 Nov)
+
+Best-glide speed and descent per class (proposal below), where the helipad is (a point on the map?), how "another point" for the break is given (click on the map?), samples for the ground layout, the name.
+
+## Samples of the ground layout (1 Nov 2026, LIBN; the data is not kept in the repository)
+
+Two files for the same aerodrome, made by the user (same data in two forms):
+- **`.pol` (filled polygons, 416 lines):** blocks that start with a header `STATIC;TYPE;1;TYPE;` (TYPE = GRASS, TAXIWAY, APRON, CONCRETE, BUILDING, RUNWAY; meaning of the `1` not known), a `//name` comment before the header, then one vertex per row `lat;lon;` (dotted DMS with thousandths, as the other Aurora files); a block ends at a blank line, a comment or the next header; the polygon is not repeated at the end (closed by the reader). Content: 1 boundary (GRASS), 4 TAXIWAY polygons (DFAB, E, I, G), 4 APRON, 2 CONCRETE (run-up areas), 3 BUILDING, 1 RUNWAY.
+- **`.geo` (lines, 684 lines):** the same polygons as segments `lat;lon;lat;lon;TYPE;` (the segment tags are BUILDING also for the boundary and the concrete areas, so the tag is NOT the category: the section comments are), plus what the `.pol` does not have: **taxiway centrelines** (TAXI_CENTER, 12 paths: DFA, runup, B, E, oscar...) and **stop lines** (STOPLINE, 4: C, B, A, RU); the STAND section is empty.
+- **Quirks:** the `.geo` has two rectangles both named 14/32 (about 1840 x 56 m and about 2140 x 62 m; the `.pol` has only the longer one); centreline names like `Esplit`, `E_out`, `M_in_split` are technical, not taxiway labels. (Corrected after the KML: the "jumps" in the TAXIWAY polygons are long straight edges of the taxiways, not errors.)
+- **KML of the same aerodrome (1 Nov 2026, `LIBN_Lecce_Galatina_AB.kml`, 55 KB, Google Earth, coordinates `lon,lat,0`, no descriptions or extended data; not kept in the repository):** it is the source of the other two. **Folders = categories:** Ad_Boundaries (LineString), Ad_Concrete_Areas (apron and run-up polygons), Aprons (empty), Buildings, Twys (4 polygons), Ad_Grass_Holes (empty), Rwys, Rwy_Boundaries, TwyCtrls (12 LineStrings), Stopbars (4), Stands (empty). It answers the runway question: **Rwys = the paved rectangle (2144 x 60 m), Rwy_Boundaries = the runway proper (1836 x 57 m, = the 1830 m of `runways.par`)**; the long one extends past both ends (overruns). **TwyCtrls also holds 21 Point placemarks `A_C`, `B_C`, `F_C`... = the taxiway label points** (the letter + `_C`; letters repeat where the label is shown more than once; `RUNUP_W` / `RUNUP_E`); the `.pol` / `.geo` do not have them. The `.pol` order of the blocks is a draw order (boundary, taxiways, aprons, concrete, buildings, runway): keep it. A preview made from the KML (scratchpad) looks right: boundary, taxiway ring, aprons, buildings, runway, centrelines.
+- **Proposal (to confirm):** category "Ground" with parts runway, taxiway, apron, concrete, building, boundary (areas with outline + light fill) and taxiway centreline, stop line (lines); each on / off with its colour; the Map Creator reads either file or both (the polygons of the `.geo` are rebuilt by joining the chained segments); shown only when zoomed in. Taxiway labels off for now.
+
+**Decided 1 Nov (the user): the Map Creator reads all the formats for the ground layout: KML / KMZ, `.pol` and `.geo`** (also together for the same aerodrome, merged into the category Ground). Defaults proposed, to confirm: taxiway labels off at first (KML label points kept in the file); apron recognised by name or folder also when it is in the concrete folder; the category of each block chosen by the user in the preview with the suggestion from the folder / section / header name. Still no code: it waits for the go.
+
+**Taxiway and apron labels: file `.txi` (1 Nov 2026, `libn.txi`, 22 rows, not kept in the repository; the user: "use this format").** One row per label: `TEXT;ICAO;lat;lon;`, no header, no comments. Coordinates in the same file in two spellings: compact `N0401404403` (= N 040° 14′ 04.403″, no dots) and dotted `N040.14.31.724`. It is the same data as the KML label points (`A_C` = row `A` to the 4th decimal), refined: where the KML has one point `M_C`, `O_C`, `T_C`, the `.txi` has two (`M west` / `M east`, `O north` / `O south`, `T west` / `T east`); the same text repeats where the label is shown more than once (`A` x2, `E` x2, `F` x3, `RUNUP` x2). One file for taxiways and aprons together (letters of aprons such as M, O, T, N, I, L are mixed with the taxiway letters A-G): **one label category "Ground labels"**, not two (proposal). **Quirks:** the ICAO field of a row can be wrong (`LINB` for LIBN, row `M east`): the airport comes from the file name (`libn.txi`) and a different one is only reported in the preview; typo in a text (`O notrh`); a text with a suffix (`M west`): proposal = the label shows the first word (`M`) and the suffix stays as a note (to confirm). Labels on by default, visible only when zoomed in (the earlier "off at first" is replaced). Format of the ground layout therefore: areas (`.pol` / KML), lines (`.geo` / KML) and labels (`.txi` / KML points).
+
+**Coordinate formats that every importer must read (1 Nov 2026, the user, from the IVAO description "Coordinates Format"):** (1) DMS with 14 characters, zero padded: `N038.10.04.627;E024.33.34.904;`; (2) DMS without separators, 11 characters: `N0381004627;E0243334904;`; (3) decimal, at most 13 characters, no letters, south and west negative with a minus: `38.02235785;24.12223578;`; (4) reference point: a FIX / VOR / NDB name instead of the coordinates, `NAME;NAME;`. IVAO warns against the abbreviated forms with or without delimiter (`S040`, `N038.10`, `E024.33.34`, `N03810`, `E0243334`): unpredictable, usually truncated results. **State of the code** (`MapCreator/Core/MapCoordinates.cs`, read only): (1), (2) and (3) are read (also lowercase letters, 4 decimals of the seconds, EuroScope `N013.32861`); **missing:** (4) the lookup of the name in the FIX / VOR / NDB files read together (planned with the STAR step, unknown names listed in the preview, not guessed); the **abbreviated forms are not refused**: `N038.10` is read as 38.10 degrees and `S040` as 40 degrees without a warning, and the plain decimal accepts a latitude above 90 (the limit is 180 for both). **Decided 1 Nov (the user): the abbreviated forms are ACCEPTED too, all of them (ignore the IVAO warning):** a missing part counts as zero: `S040` = 40°, `N038.10` = 38°10′, `E024.33.34` = 24°33′34″, `N03810` = 38°10′, `E0243334` = 24°33′34″ (the digits tell the parts: latitude DD, DDMM, DDMMSS, longitude DDD, DDDMM, DDDMMSS, optional decimals of the last part). The only ambiguity left: a letter and one dot (`N038.10`) is degrees and minutes in the IVAO / Aurora files, a decimal in the EuroScope files (`.ese`, `.sct`, `N013.32861`): the reader knows the kind of file. The plain decimal checks ±90 for the latitude. KML has its own decimal `lon,lat,alt` (already read by `KmlImport.cs`, not yet checked on this sample).
+
+**Decided 1 Nov (the user), evening:** (1) labels of the ground layout are shown **exactly as written** in the file (`M west` in full, no shortening); (2) best glide and the SFO descent: provisional values per class, **tested with various speeds** (values editable in `performance.json`); (3) the helipad is a **point on the map** chosen by the instructor; (4) the break at "another point" is given by a **click on the map** ("standby for break" then "break now" from the label). Next step: mock-ups (student view, instructor level 1 and level 2) with the ground of LIBN.
+
+**Mock-ups made 1 Nov evening (scratchpad `mock/`: `student.png`, `instructor.png`, `label.png`; invented traffic and values; LIBN ground from the KML and the `.txi`).** Student: top view with the ground, extended centreline with ticks every NM, rings 1 / 2 NM, tags, METAR line. Instructor: level 1 (the aerodrome, with the circuits drawn), level 2 (wide area 30 NM, IP, long final), side panel (selected aircraft, circuit, actions, traffic list). Label with commands (like the Instructor+ of the Trainer): larger label of the selected aircraft with fields NEXT, CCT, LEG, BRK; click = list, wheel = change, right click = menu; overhead: [STBY] and [BREAK NOW]. **Decided 1 Nov (the user): build BOTH the commands on the label and the side panel; after the tests the user chooses whether to keep both or only one** (so the code of the commands must be shared by the two, not written twice). Seen in the mock-ups: the ground is small at the scale of a circuit, so ground and labels only when zoomed in (wheel zoom as in the Trainer).
+
+**Decided 1 Nov (the user): ONE Map Creator for all the programs** (Trainer, tower simulator, later ones): one source (`MapCreator/App` + `MapCreator/Core` = ATCRoom.Maps), one open format (`docs/MAP-FORMAT.md`), no copy for the tower. Consequences, to design before any code: (1) every new thing of the format must be **backward compatible**: read in `MapCreator/Core/MapFile.cs` (read only): the file has Lines, Labels and Points, each with a `Category`, `CurrentFormatVersion` = 2; **a category a reader does not know becomes "" (empty)** (`MapCategory.Normal(...) ?? ""`), so a Trainer 1.0.0 that opens a file with the new Ground category could show those items as uncategorised: to check on the Trainer's drawing before the format changes; (2) the ground needs **areas with fill** (taxiway, apron, concrete, building, grass, runway), which the format does not have (only lines, labels, points): a new optional element (and the draw order of the `.pol`), so older readers ignore it; the category list (`MapCategory.All`) gets Ground and Ground labels; (3) the Map Creator is built and shipped from the same source in each package; the Trainer 1.0.0 on `trainer` is not touched, the changes live on `tower` and reach the Trainer with its next release.
+
+**Decided 2 Nov (the user): the maps folder is COMMON to all the programs** (option 1): e.g. `%AppData%\ATCRoom\Maps`, or a `Maps` folder beside the program in portable mode; the Map Creator button becomes "Save into the maps" (today "Save into the maps of the Trainer", folder `%AppData%\AuroraPARTrainer\Maps`, see `MapCreator/App/MainWindow.cs`; "Open an existing map" the same); the Trainer reads the new folder and also the old one, so the maps already made are not lost (in its next release, not in 1.0.0). **Tower view, cleaner screen (the user, 2 Nov): some maps are not shown — MVA, CTR and FIX** (proposal: off by default in the tower, still switchable in its Maps window; the other categories as the user sets them: ground, ground labels, ATZ, VRP, airports, boundaries). **Confirmed 2 Nov (the user): MVA, CTR and FIX stay in the Maps window of the tower, OFF by default.**
+
+**CORRECTION 2 Nov: the Trainer 1.0.0 IS PUBLISHED** (release `trainer-v1.0.0` of 31 Oct 20:00 UTC, with AuroraPAR v2 2.0.2 one second later; `trainer` is merged into `master`; the site has `trainer.html`). The notes above that say "waits for the merge" or "not published" (and the first line of this file) were written from the old `TODO.md` of the branch and are out of date. The branch `tower` is now rebased on `master`.
+
+**Decided 2 Nov (the user): ATCRoom Map Creator is a SEPARATE download (its own release), not inside the zip of each program.** What it changes (the Trainer 1.0.0 zip, published, DOES contain `ATCRoomMapCreator.exe`, workflow on `master`): a new Trainer release (1.0.1 or 1.1.0) without it; the work (written for the situation before the release, to read as a list of what to change): (1) workflow `build.yml`: the Trainer zip loses `ATCRoomMapCreator.exe` (lines 75-76, 88, 136) and the release notes "with ATCRoom Map Creator" (143); a new step publishes the Map Creator release with its own tag (e.g. `mapcreator-v<Version>`, "not latest", like the Trainer); (2) the Trainer: the "Open ATCRoom Map Creator" button of the Maps window (`Trainer/MapsWindow.cs`, enabled only if `ATCRoomMapCreator.exe` is beside the program, `MapLibrary.MapCreatorPath`) should also look in the folder where the Map Creator is (and, when it is missing, say where to download it); (3) docs: `docs/TRAINER.md`, tutorial 5 ("installed with the Trainer"), `docs/trainer.html` ("with ATCRoom Map Creator"), README, a download link on the site. **Same trap as the tower:** AuroraPAR v2 skips only the tags that begin with `trainer-` (`UpdateCheck.cs` line 80): a `mapcreator-` tag, like a `tower-` one, would look like a new version to its users (and the Trainer looks only at `trainer-v…`): the check must accept only tags `v<number>`. **2.0.2 was published WITHOUT this fix** (`UpdateCheck.cs` on `master`, line 80, still skips only `trainer-`), and the installed 2.0.0 / 2.0.1 / 2.0.2 cannot be changed: every release of this repository with a tag that is not `v…` or `trainer-…` shows "new version" to their users. So **no `mapcreator-` or `tower-` release in this repository** (or: only after an AuroraPAR v2 release with the fix is out, and even then the installed older ones would warn). Proposal: **the Map Creator and the tower in their own repositories of ATCRoom** (the AuroraPAR v2 check looks only at its own repository), which also answers question 1 of this file differently from the first proposal. All of this touches the workflow: to do only with the user's go.
+
+**DECIDED 2 Nov 10:26 (the user), replaces "Map Creator as a separate download" above:**
+- **1b: ONE Map Creator (one source), shipped INSIDE the zip of each program** (Trainer and tower). The Trainer 1.0.0 stays as it is: no new Trainer release now; the new things of the Map Creator (ground, common maps folder) reach the Trainer with its next release. **Before the first tower release:** a Map Creator must never lose what it does not know: when it opens a map of a newer format or with unknown categories / elements, it keeps them on save (or refuses to overwrite the file with a clear message), because two copies of different versions may be on the same PC and both use the common maps folder.
+- **2c: the code stays in ATCRoom/AuroraPAR-v2; the releases of the tower are published by the CI in a separate repository of ATCRoom used only for the downloads** (so the update check of the installed AuroraPAR v2 2.0.0-2.0.2, which skips only `trainer-` tags, never sees them). To prepare before the first tower release: the downloads repository (name with the program name), a token in the Secrets of AuroraPAR-v2 that can publish there (to renew; the user creates it), the tower's own update check looking at that repository, the site page. The issues of the users will arrive on the downloads repository.
+
+**DECIDED 2 Nov 10:40 (the user), replaces 2c above: option B, its own repository.** No token, no downloads repository, no change to the update check of AuroraPAR v2. **Name (provisional): "TWR Trainer"** (the other candidate was "Circuit Trainer"); repository proposed `ATCRoom/TWR-Trainer`, created empty by the user (Claude cannot create repositories). Layout: copies of the engine (`Sim/Engine` + self-test, will diverge for the tower), of the maps library and the Map Creator (`MapCreator/Core`, `/App`, `/SelfTest`), of the plan view and the few base files (`Earth.cs`, coordinate parser...), adapted; own workflow, own releases (tags `v…` of that repository), own update check, own `CLAUDE.md` and TODO (this file moves there). **The home of the Map Creator becomes the TWR Trainer repository** (one Map Creator for all, decision 1b still valid: shipped in each zip); AuroraPAR-v2 keeps its copy as it is and **before every new Trainer release the Map Creator / maps library are copied from TWR Trainer into AuroraPAR-v2** (a fixed step of the publishing rules). A bug found in the engine of one is fixed in the other by hand when it applies.
+
+## The idea
+
+A simulation environment for training **tower control of traffic in the circuit**: the **instructor** flies the aircraft, the **student** controls them as a tower controller.
+
+- **Base (decided 13 Oct):** the shared engine library of the Instructor (*ATCRoom Sim*: flight model, scenarios, instructor controls, top view, link, open data format) + its own tower view; **not** the PAR radar views. Originally: possibly the same foundation as AuroraPAR and AuroraPAR Instructor (WPF program, test traffic flight model, instructor/student link through the coordination relay with a session code, same PC / two PCs / over the network).
+- **Views:**
+  - **Student:** only the view "from above", as Aurora for IVAO (radar-like top view of the aerodrome and its circuit).
+  - **Instructor:** views on **two levels**, for a wider picture (e.g. the same top view plus a wider area / a second level of detail — to be defined).
+- **Aircraft database:** aeroplanes and **helicopters**, **slow and fast** (performance per type: speeds in the circuit, climb / descent rates, turn rates; helicopters with their own manoeuvres such as hover).
+- **Pre-set routes:** each aircraft starts with a **pre-set route** (e.g. joining, downwind, base, final, touch-and-go, departure, circuit...) and flies it by itself.
+- **Go around key** (idea from the PAR test traffic, not needed there): the aircraft climbs away on the missed approach / circuit.
+- **Manual mode:** when needed the instructor **switches an aircraft to manual** and flies it to do manoeuvres not in the pre-set route (orbit, extend downwind, go-around, hold a position, ...), then back to a route.
+
+## To decide when we start (older list, merged into the questions above)
+
+- Name of the project and its repository (probably in the dedicated GitHub organisation, see TODO.md).
+- What is shared with AuroraPAR (code library or copy) and what is new.
+- What the student sees exactly (labels, data from Aurora-like tags, aerodrome map, runways and circuit drawing).
+- How the instructor's two levels look (mockups first).
+- The aircraft database: which types, which data, how the user can add types.
+- Pre-set routes: how they are defined and edited (per aerodrome and runway in use).
+- Whether the simulated traffic is ever mixed with IVAO traffic (as for the PAR Instructor: only between instructor and student, never on the network).
