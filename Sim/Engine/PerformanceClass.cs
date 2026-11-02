@@ -47,6 +47,14 @@ namespace ATCRoom.Sim
         public double OverheadHeightFt { get; set; }
         public double OverheadSpeedKt { get; set; }
         public double BreakBankDegrees { get; set; }
+        /// <summary>Overhead pattern: the height at the break (ft above the threshold): it descends to it along the initial; 0: the circuit height.</summary>
+        public double BreakHeightFt { get; set; }
+        /// <summary>Simulated flame out: High Key and Low Key heights (ft above the threshold) and the best glide speed (kt).</summary>
+        public double HighKeyFt { get; set; }
+        public double LowKeyFt { get; set; }
+        public double BestGlideKt { get; set; }
+        /// <summary>A helicopter: it can hover (minimum speed 0) and hold its place over the ground.</summary>
+        public bool CanHover { get; set; }
 
         /// <summary>Fields of a newer version of the file, kept as they are.</summary>
         [JsonExtensionData]
@@ -63,7 +71,7 @@ namespace ATCRoom.Sim
         public void Normalize()
         {
             Name = (Name ?? "").Trim();
-            MinSpeedKt = Clamp(MinSpeedKt, 30, 400, 100);
+            MinSpeedKt = CanHover ? 0 : Clamp(MinSpeedKt, 30, 400, 100);
             MaxSpeedKt = Clamp(MaxSpeedKt, MinSpeedKt + 10, SimEngine.MaxSpeed, Math.Max(MinSpeedKt + 10, 250));
             ApproachSpeedKt = Clamp(ApproachSpeedKt, MinSpeedKt, MaxSpeedKt, (MinSpeedKt + MaxSpeedKt) / 2);
             FinalSpeedKt = Clamp(FinalSpeedKt, MinSpeedKt, ApproachSpeedKt, MinSpeedKt + (ApproachSpeedKt - MinSpeedKt) / 3);
@@ -86,7 +94,25 @@ namespace ATCRoom.Sim
             OverheadHeightFt = Clamp(OverheadHeightFt, 500, 5000, overheadHeight);
             OverheadSpeedKt = Clamp(OverheadSpeedKt, CircuitSpeedKt, MaxSpeedKt, overheadSpeed);
             BreakBankDegrees = Clamp(BreakBankDegrees, 30, 80, breakBank);
+            BreakHeightFt = Clamp(BreakHeightFt, 300, 5000, CircuitHeightFt);
+            (double highKey, double lowKey, double glide) = SfoDefaults(Name, CircuitHeightFt, CircuitSpeedKt);
+            HighKeyFt = Clamp(HighKeyFt, 500, 15000, highKey);
+            LowKeyFt = Clamp(LowKeyFt, 300, HighKeyFt, Math.Min(lowKey, HighKeyFt));
+            BestGlideKt = Clamp(BestGlideKt, FinalSpeedKt, MaxSpeedKt, glide);
         }
+
+        /// <summary>
+        /// The simulated flame out values of the first classes (and of a class without them): High Key and Low Key (ft above the
+        /// threshold), best glide speed (kt). Provisional values of 2 Nov 2026, to be tested with various speeds by the user.
+        /// </summary>
+        public static (double HighKey, double LowKey, double Glide) SfoDefaults(string? name, double circuitHeightFt, double circuitSpeedKt) =>
+            (name ?? "").Trim().ToUpperInvariant() switch
+            {
+                "LIGHT" => (2500, 1200, 70),
+                "TURBOPROP" => (4000, 2000, 125),
+                "JET" => (7000, 3500, 180),
+                _ => (circuitHeightFt * 2.5, circuitHeightFt * 1.2, circuitSpeedKt)
+            };
 
         /// <summary>
         /// The overhead values of the first classes (and of a class without them): initial height (ft above the threshold) and
@@ -114,27 +140,36 @@ namespace ATCRoom.Sim
                 "LIGHT" => (1000, 90, 1.0, 0.6, 2.5, 30, 0.5, 250),
                 "TURBOPROP" => (1500, 150, 1.2, 0.8, 3.0, 45, 0.75, 350),
                 "JET" => (1500, 200, 1.5, 1.2, 3.5, 60, 1.0, 450),
+                "HELICOPTER" => (700, 70, 0.8, 0.5, 1.5, 30, 0.5, 250),
                 _ => (1000, approachSpeedKt, 1.2, 0.8, 3.0, Math.Max(maxBank, 30), 0.75, 350)
             };
 
         private static double Clamp(double value, double min, double max, double fallback) =>
             double.IsFinite(value) && value > 0 ? Math.Clamp(value, min, max) : Math.Clamp(fallback, min, max);
 
-        /// <summary>The classes of a first start: a light aircraft, a turboprop and a jet.</summary>
+        /// <summary>The classes of a first start: a light aircraft, a turboprop, a jet and a helicopter.</summary>
         public static List<PerformanceClass> Defaults() =>
         [
             new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70, MaxClimbFpm = 800, MaxDescentFpm = 1500,
                 AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 1.5, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1000, CircuitSpeedKt = 90, DownwindNM = 1.0, CloseDownwindNM = 0.6, WideDownwindNM = 2.5, CircuitBankDegrees = 30,
-                RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 110, BreakBankDegrees = 45 },
+                RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 110, BreakBankDegrees = 45,
+                BreakHeightFt = 1000, HighKeyFt = 2500, LowKeyFt = 1200, BestGlideKt = 70 },
             new() { Name = "Turboprop", MinSpeedKt = 90, MaxSpeedKt = 280, ApproachSpeedKt = 140, FinalSpeedKt = 110, MaxClimbFpm = 2000, MaxDescentFpm = 3000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 150, DownwindNM = 1.2, CloseDownwindNM = 0.8, WideDownwindNM = 3.0, CircuitBankDegrees = 45,
-                RollOutNM = 0.75, RollOutHeightFt = 350, OverheadHeightFt = 1500, OverheadSpeedKt = 220, BreakBankDegrees = 60 },
+                RollOutNM = 0.75, RollOutHeightFt = 350, OverheadHeightFt = 1500, OverheadSpeedKt = 220, BreakBankDegrees = 60,
+                BreakHeightFt = 1500, HighKeyFt = 4000, LowKeyFt = 2000, BestGlideKt = 125 },
             new() { Name = "Jet", MinSpeedKt = 120, MaxSpeedKt = 350, ApproachSpeedKt = 180, FinalSpeedKt = 140, MaxClimbFpm = 3000, MaxDescentFpm = 4000,
                 AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 200, DownwindNM = 1.5, CloseDownwindNM = 1.2, WideDownwindNM = 3.5, CircuitBankDegrees = 60,
-                RollOutNM = 1.0, RollOutHeightFt = 450, OverheadHeightFt = 1500, OverheadSpeedKt = 300, BreakBankDegrees = 75 }
+                RollOutNM = 1.0, RollOutHeightFt = 450, OverheadHeightFt = 1500, OverheadSpeedKt = 300, BreakBankDegrees = 75,
+                BreakHeightFt = 1500, HighKeyFt = 7000, LowKeyFt = 3500, BestGlideKt = 180 },
+            new() { Name = "Helicopter", CanHover = true, MinSpeedKt = 0, MaxSpeedKt = 140, ApproachSpeedKt = 80, FinalSpeedKt = 40, MaxClimbFpm = 1000, MaxDescentFpm = 1000,
+                AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 2, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
+                CircuitHeightFt = 700, CircuitSpeedKt = 70, DownwindNM = 0.8, CloseDownwindNM = 0.5, WideDownwindNM = 1.5, CircuitBankDegrees = 30,
+                RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 100, BreakBankDegrees = 45,
+                BreakHeightFt = 700, HighKeyFt = 1750, LowKeyFt = 840, BestGlideKt = 70 }
         ];
 
         /// <summary>The class a new aircraft gets when none is chosen (by the engine).</summary>

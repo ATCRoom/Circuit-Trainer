@@ -254,9 +254,9 @@ const double RunwayHeading = 325.80;
     try
     {
         var created = PerformanceFile.Load(path);
-        Check(File.Exists(path) && created.Classes.Count == 3 && !created.ReadOnly && created.Message == null, "performance.json missing: written with the 3 default classes");
+        Check(File.Exists(path) && created.Classes.Count == 4 && !created.ReadOnly && created.Message == null, "performance.json missing: written with the 4 default classes");
         var again = PerformanceFile.Load(path);
-        Check(again.Classes.Select(c => c.Name).SequenceEqual(new[] { "Light", "Turboprop", "Jet" }), "performance.json read back: the same classes");
+        Check(again.Classes.Select(c => c.Name).SequenceEqual(new[] { "Light", "Turboprop", "Jet", "Helicopter" }), "performance.json read back: the same classes");
 
         List<PerformanceClass> defaults = PerformanceClass.Defaults();
         Check(defaults[1].ApproachSpeedKt == 140 && defaults[1].FinalSpeedKt == 110 && defaults[2].ApproachSpeedKt == 180 && defaults[2].FinalSpeedKt == 140,
@@ -288,7 +288,7 @@ const double RunwayHeading = 325.80;
 
         File.WriteAllText(path, "{ not json");
         var damaged = PerformanceFile.Load(path);
-        Check(File.Exists(path + ".bad") && damaged.Classes.Count == 3 && damaged.Message != null, "Damaged performance.json: kept as .bad, defaults written");
+        Check(File.Exists(path + ".bad") && damaged.Classes.Count == 4 && damaged.Message != null, "Damaged performance.json: kept as .bad, defaults written");
     }
     finally
     {
@@ -1104,6 +1104,93 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     OrbitTest("close pattern, Jet", CircuitStart.Downwind, CircuitType.Close, "Jet", 1.2, st => StraightOn(st) && Frame(st).Along < 0.6);
     OrbitTest("overhead pattern, Jet", CircuitStart.InitialPoint, CircuitType.Overhead, "Jet", 1.2, st => StraightOn(st) && Frame(st).Along < 0.3);
 
+    // 19. The circuits of the aerodrome: the side of the runway, the heights of the Jet (initial 2500, break 2000, circuit 2000).
+    {
+        string json = "{ \"Airport\": \"lixx\", \"Runways\": [ { \"Runway\": \"14\", \"Side\": \"Right\" }, { \"Runway\": \"32\", \"Side\": \"Left\" } ], "
+            + "\"Classes\": [ { \"Class\": \"jet\", \"CircuitHeightFt\": 2000, \"InitialHeightFt\": 2500, \"BreakHeightFt\": 2000, \"Tower\": \"kept\" } ], \"Future\": 1 }";
+        AerodromeCircuits here = AerodromeCircuits.Parse(json);
+        string again = JsonSerializer.Serialize(here, AerodromeCircuits.JsonOptions);
+        Check(here.Airport == "LIXX" && here.SideOf("14") == CircuitSide.Right && here.SideOf("32") == CircuitSide.Left && here.SideOf("05") == null
+            && again.Contains("\"Future\"") && again.Contains("\"Tower\""), "Aerodrome file: the side of each runway, unknown fields kept");
+        PerformanceClass jet = here.Apply(PerformanceClass.Defaults().First(k => k.Name == "Jet"));
+        PerformanceClass light = here.Apply(PerformanceClass.Defaults().First(k => k.Name == "Light"));
+        Check(jet is { CircuitHeightFt: 2000, OverheadHeightFt: 2500, BreakHeightFt: 2000, HighKeyFt: 7000 } && light.CircuitHeightFt == 1000,
+            "Aerodrome file: the heights it gives (Jet), the class's for the others (Light)");
+        bool bad = false;
+        try { AerodromeCircuits.Parse("{ not json"); } catch (InvalidDataException) { bad = true; }
+        Check(bad, "Aerodrome file: a damaged one is refused with a readable message");
+
+        SimEngine sim = NewCircuitEngine();
+        sim.SetAerodrome(here, "14");
+        string cs = sim.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, null, EndAction.FullStop, performanceClass: "Jet");
+        List<AircraftState> flown = [sim.Get(cs)!];
+        flown.AddRange(Fly(sim, cs, 1200));
+        int lastInitial = flown.FindLastIndex(st => st.Leg == "INITIAL");
+        List<AircraftState> downwind = flown.Where(StraightOn).ToList();
+        Check(flown[0].CircuitSide == CircuitSide.Right && Near(Height(flown[0]), 2500, 5) && lastInitial > 0 && Near(Height(flown[lastInitial]), 2000, 120)
+            && downwind.Count > 5 && Near(downwind.Average(Height), 2000, 60) && LandedOnRunway(flown),
+            "Aerodrome (runway 14, right; Jet initial 2500, break 2000): right-hand, descends along the initial to the break, downwind at 2000, lands",
+            lastInitial > 0 ? $"side {flown[0].CircuitSide}, at the break {Height(flown[lastInitial]):F0} ft, downwind {(downwind.Count > 0 ? downwind.Average(Height) : double.NaN):F0} ft" : "no initial");
+        pictures.Add(("Aerodrome file: overhead right-hand, initial 2500 ft, break 2000 ft, circuit 2000 ft (Jet)", flown));
+
+        // The side changed in flight by the instructor (the default stays the aerodrome's).
+        SimEngine sim2 = NewCircuitEngine();
+        sim2.SetAerodrome(here, "14");
+        string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, null, EndAction.FullStop, performanceClass: "Light");
+        AircraftState first2 = sim2.Get(cs2)!;
+        sim2.RunFor(5);
+        sim2.SetCircuit(cs2, CircuitType.Conventional, CircuitSide.Left);
+        List<AircraftState> flown2 = Fly(sim2, cs2, 1200);
+        List<AircraftState> downwind2 = flown2.Where(StraightOn).ToList();
+        Check(first2.CircuitSide == CircuitSide.Right && sim2.DefaultSide == CircuitSide.Right && downwind2.Count > 5 && downwind2.All(st => st.CircuitSide == CircuitSide.Left)
+            && Near(downwind2.Average(st => Frame(st).Lateral), 1.0, 0.25) && LandedOnRunway(flown2),
+            "Aerodrome: starts on the side of the runway (right), the instructor changes it to the left in flight", downwind2.Count > 0 ? $"downwind {downwind2.Average(st => Frame(st).Lateral):F2} NM to the left" : "no downwind");
+        pictures.Add(("Aerodrome right-hand, changed to left in flight (Light)", new List<AircraftState> { first2 }.Concat(flown2).ToList()));
+    }
+
+    // 20-22. Simulated flame out: High Key over the runway, 180° to the Low Key, gliding down to the final.
+    void Sfo(string kind, CircuitSide side, double highKey, double lowFrom, double lowTo)
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Conventional, side, EndAction.FullStop, performanceClass: kind);
+        List<AircraftState> flown = [sim.Get(cs)!];
+        flown.AddRange(Fly(sim, cs, 1200));
+        AircraftState? atHigh = flown.LastOrDefault(st => st.Leg == "HIGH KEY");
+        // The Low Key: the first moment on the downwind heading after the turn.
+        AircraftState? atLow = flown.FirstOrDefault(st => st.Leg == "LOW KEY" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 180)) < 10);
+        Check(flown[0].Circuit == CircuitType.Sfo && atHigh != null && Near(Height(atHigh), highKey, 100) && Between(Frame(atHigh).Along, 0, CircuitLength)
+            && atLow != null && Between(Height(atLow), lowFrom, lowTo) && Frame(atLow).Lateral > 0.3 && flown.All(st => st.Leg is not ("CROSSWIND" or "BASE"))
+            && LandedOnRunway(flown),
+            $"SFO ({kind}, {side}): High Key over the runway at about {highKey} ft, Low Key abeam on the {side.ToString().ToLowerInvariant()}, lands",
+            atHigh != null && atLow != null ? $"High Key {Height(atHigh):F0} ft at {Frame(atHigh).Along:F2} NM, Low Key {Height(atLow):F0} ft {Frame(atLow).Lateral:F2} NM out" : "no High or Low Key");
+        pictures.Add(($"SFO, {kind}, {side.ToString().ToLowerInvariant()}", flown));
+    }
+    Sfo("Jet", CircuitSide.Left, 7000, 3000, 5600);
+    Sfo("Jet", CircuitSide.Right, 7000, 3000, 5600);
+    Sfo("Light", CircuitSide.Left, 2500, 900, 1600);
+    Sfo("Turboprop", CircuitSide.Right, 4000, 1500, 2800);
+
+    // 23. Helicopter: the conventional circuit, landing on a pad beside the runway, hovering down.
+    {
+        SimEngine sim = NewCircuitEngine();
+        sim.SetWind(CircuitCourse + 60, 10, 0);
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Helicopter");
+        (double padX, double padY) = Place(0.3, -0.3, CircuitSide.Left);
+        sim.SetHelipad(cs, padX, padY);
+        List<AircraftState> flown = Fly(sim, cs, 1200);
+        AircraftState? down = flown.FirstOrDefault(st => st.Contact == GroundContact.Landed);
+        List<AircraftState> hover = flown.Where(st => st.Contact == GroundContact.Airborne && st.SpeedKt < 1).ToList();
+        double drift = hover.Count > 1 ? Math.Sqrt(Math.Pow(hover[^1].X - hover[0].X, 2) + Math.Pow(hover[^1].Y - hover[0].Y, 2)) : double.NaN;
+        List<AircraftState> downwind = OnLeg(flown, "DOWNWIND");
+        Check(downwind.Count > 10 && Near(Height(downwind[0]), 700, 60) && Near(downwind.Average(st => Frame(st).Lateral), 0.8, 0.25),
+            "Helicopter: circuit at 700 ft, downwind about 0.8 NM", downwind.Count > 0 ? $"{Height(downwind[0]):F0} ft, {downwind.Average(st => Frame(st).Lateral):F2} NM" : "no downwind");
+        Check(down != null && Math.Sqrt(Math.Pow(down.X - padX, 2) + Math.Pow(down.Y - padY, 2)) < 0.05 && hover.Count > 2 && drift < 0.01
+            && flown.All(st => st.Contact != GroundContact.Rolling) && sim.Get(cs) == null,
+            "Helicopter: hovers over its pad (not moved by the wind), down to it (no touch and go), then removed",
+            down != null ? $"{Math.Sqrt(Math.Pow(down.X - padX, 2) + Math.Pow(down.Y - padY, 2)):F3} NM from the pad, {hover.Count} s of hover, drift {drift:F3} NM" : "never landed");
+        pictures.Add(("Helicopter, conventional circuit, landing on a pad beside the runway", flown));
+    }
+
     // 10. The instructor takes it, then gives it back.
     SimEngine e10 = NewCircuitEngine();
     string c10 = e10.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
@@ -1124,7 +1211,7 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         {
             ["INITIAL"] = "#a0a8ff", ["UPWIND"] = "#d0d0d0", ["CROSSWIND"] = "#ffd24a", ["DOWNWIND"] = "#4ab0ff", ["BASE"] = "#c586c0",
             ["FINAL"] = "#7dff9a", ["GO AROUND"] = "#ff5050", ["JOIN"] = "#ffffff", ["ROLL"] = "#ff9f40", ["LANDED"] = "#ff9f40",
-            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5"
+            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5", ["HIGH KEY"] = "#ff8c3a", ["LOW KEY"] = "#ffe08a"
         };
         string Colour(string leg) => colours.TryGetValue(leg, out string? found) ? found : "#888888";
         System.Text.StringBuilder html = new();

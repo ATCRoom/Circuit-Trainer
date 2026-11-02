@@ -258,3 +258,32 @@ A simulation environment for training **tower control of traffic in the circuit*
 - **Orbits on the downwind (asked 2 Nov, conventional, overhead and close):** `Orbit(callsign, right?)`: a 360° turn on a
   circle (circuit bank), by default away from the runway (the outside of the circuit), then on along the leg from there;
   leg ORBIT. Not on the final, not during another turn.
+
+## Aerodrome circuits, SFO, helicopter (step 3b, part 2) — WRITTEN 2 Nov (the user's "Ok"), to check on circuits.html
+
+- **File of the circuits of an aerodrome (the user, 2 Nov: "every aerodrome has its circuit"):** `AerodromeCircuits`,
+  one JSON file per aerodrome named with its ICAO code (e.g. `LIBN.json`; where it lives is decided with the program):
+  `Runways` [{`Runway`, `Side`}] = the side of the circuit of each runway (the default of every circuit of that runway;
+  the instructor still changes it in flight with `SetCircuit`), `Classes` [{`Class`, `CircuitHeightFt`,
+  `InitialHeightFt`, `BreakHeightFt`, `HighKeyFt`, `LowKeyFt`}] = the heights of the classes that fly there differently
+  (missing: the class's from `performance.json`; break missing: the circuit height of the file). Unknown fields kept.
+  Example: `{ "Airport": "LIXX", "Runways": [ { "Runway": "14", "Side": "Right" } ], "Classes": [ { "Class": "Jet",
+  "CircuitHeightFt": 2000, "InitialHeightFt": 2500, "BreakHeightFt": 2000 } ] }`. Engine: `SetAerodrome(file, runway)`,
+  `DefaultSide`; `AddInCircuit` side null = the aerodrome's.
+- **Break height:** the overhead descends along the initial so it is at `BreakHeightFt` at the break (standby: it stays
+  at the initial height and the break turn descends); the downwind at circuit height.
+- **SFO** (`CircuitType.Sfo`, start `CircuitStart.HighKey` 1 NM before it): High Key over the runway (a third of the way
+  along it) at its height and the best glide speed, a 180° turn to the Low Key abeam (width of the close pattern), the
+  downwind gliding down, the 180° turn to the final, landing or go-around (then the close pattern). Provisional values:
+  High Key Light 2500 / Turboprop 4000 / Jet 7000 ft, Low Key 1200 / 2000 / 3500 ft, best glide 70 / 125 / 180 kt
+  (`HighKeyFt`, `LowKeyFt`, `BestGlideKt` in `performance.json`). `SetCircuit(Sfo)`: back to the High Key the way of
+  the overhead. Known: with the jet the Low Key comes higher than 3500 (a 180° on 1.2 NM is short for 3500 ft) — to
+  look at on circuits.html.
+- **Helicopter** (4th default class `Helicopter`, `CanHover`): circuit 700 ft, 70 kt, downwind 0.8 NM;
+  `SetHelipad(callsign, x, y)` = the pad given by the instructor (a point on the map): the final goes there, slowing
+  down, a hover at about 30 ft over it, then down to the ground (landed, removed as on the runway); with a pad the end
+  is always a full stop. Below 20 kt a helicopter flies over the ground (no drift; the hover holds its place).
+- Review 2 Nov (independent, read-only): no compile errors found; fixed: the helicopter stops on the pad (not 45 m
+  before), an aircraft arriving from outside gets the aerodrome heights too. Known, low: a `performance.json` written
+  by an earlier build has no Helicopter class (delete it to get the 4 defaults); the SFO jet/turboprop Low Key comes
+  higher than the class value (values to tune).

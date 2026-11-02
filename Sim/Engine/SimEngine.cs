@@ -744,16 +744,19 @@ namespace ATCRoom.Sim
                 double lateral = plane.X * Math.Cos(course) - plane.Y * Math.Sin(course);
                 onRunway = along >= -BeforeThresholdForLanding && along <= runwayLength && Math.Abs(lateral) <= RunwayHalfWidthForLanding;
             }
+            // A helicopter on its pad has landed there.
+            bool onPad = plane.Circuit is { HasPad: true } pad
+                && Math.Sqrt((pad.PadX - plane.X) * (pad.PadX - plane.X) + (pad.PadY - plane.Y) * (pad.PadY - plane.Y)) <= PadRadius;
             // In a circuit with a touch and go (or a departure after it): it rolls on and takes off again.
-            if (onRunway && TouchAndGo(plane)) return;
-            plane.Contact = onRunway ? GroundContact.Landed : GroundContact.OnGround;
+            if (onRunway && !onPad && TouchAndGo(plane)) return;
+            plane.Contact = onRunway || onPad ? GroundContact.Landed : GroundContact.OnGround;
             plane.LandedStep = steps;
             plane.Route = null;
             plane.Navigation = NavigationMode.Manual;
             plane.VerticalSpeedFpm = 0;
             plane.VerticalMode = VerticalMode.Altitude;
             plane.TargetAltitudeFt = plane.AltitudeFt;
-            if (!onRunway)
+            if (!onRunway || onPad)
             {
                 plane.SpeedKt = plane.TargetSpeedKt = 0;
                 plane.GroundSpeedKt = 0;
@@ -761,9 +764,23 @@ namespace ATCRoom.Sim
             }
         }
 
+        /// <summary>Below this speed (kt) a helicopter flies over the ground, not in the air mass: no drift, its hover holds its place.</summary>
+        private const double HoverSpeed = 20;
+
+        /// <summary>A helicopter slower than <see cref="HoverSpeed"/>: the wind does not move it.</summary>
+        private static bool GroundReferenced(SimAircraft plane) => plane.Class.CanHover && plane.SpeedKt < HoverSpeed;
+
         /// <summary>Speed and direction over the ground: the speed along the heading plus the wind.</summary>
         private static void Ground(SimAircraft plane, (double East, double North) wind)
         {
+            if (GroundReferenced(plane))
+            {
+                // A helicopter slow or hovering flies over the ground (it holds its place, whatever the wind).
+                plane.GroundSpeedKt = plane.SpeedKt < 1 ? 0 : plane.SpeedKt;
+                plane.TrackTrue = plane.HeadingTrue;
+                plane.DriftDegrees = 0;
+                return;
+            }
             double heading = plane.HeadingTrue * Math.PI / 180;
             double east = plane.SpeedKt * Math.Sin(heading) + wind.East;
             double north = plane.SpeedKt * Math.Cos(heading) + wind.North;
@@ -846,7 +863,7 @@ namespace ATCRoom.Sim
                     double legX = point.X - plane.LegStartX;
                     double legY = point.Y - plane.LegStartY;
                     double course = Math.Sqrt(legX * legX + legY * legY) > 0.01 ? Normalize(Math.Atan2(legX, legY) * 180 / Math.PI) : plane.TrackTrue;
-                    plane.TargetHeading = HeadingForCourse(course, plane.SpeedKt);
+                    plane.TargetHeading = GroundReferenced(plane) ? course : HeadingForCourse(course, plane.SpeedKt);
                     plane.TurnDirection = TurnDirection.Shortest;
                     // All points passed: MANUAL, on along that course (the route is kept: a point can be given again).
                     plane.RouteNext = plane.Route.Count;
@@ -876,7 +893,8 @@ namespace ATCRoom.Sim
                     return;
                 }
             }
-            plane.TargetHeading = HeadingForCourse(Normalize(Math.Atan2(dx, dy) * 180 / Math.PI), plane.SpeedKt);
+            double toPoint = Normalize(Math.Atan2(dx, dy) * 180 / Math.PI);
+            plane.TargetHeading = GroundReferenced(plane) ? toPoint : HeadingForCourse(toPoint, plane.SpeedKt);
             plane.TurnDirection = TurnDirection.Shortest;
         }
 
