@@ -69,7 +69,7 @@ namespace ATCRoom.Sim
         private const double LowPassHeight = 100;
         /// <summary>The go-around of the end action "go around": at this height (ft above the threshold), on the short final (NM before the threshold at most).</summary>
         private const double GoAroundHeight = 200;
-        private const double GoAroundShortFinal = 0.4;
+        private const double GoAroundShortFinal = 0.7;
         /// <summary>Seconds of the roll after a touchdown before the aircraft accelerates again.</summary>
         private const double TouchAndGoRoll = 3;
 

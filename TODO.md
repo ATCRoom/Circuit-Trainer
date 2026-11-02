@@ -193,7 +193,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   (review 2 Nov: as points a jet overshot and circled).
 - **Starts:** long final (10 NM, `LongFinalNM`), initial point (3 NM, `InitialPointNM`), downwind, runway (take-off).
 - **End of the final (`EndAction`):** full stop, touch and go (roll 3 s, lift-off at the final speed), go-around (at
-  200 ft on the short final, within 0.4 NM), low pass (about 100 ft over the runway), departure (touch and go, then
+  200 ft on the short final, within 0.7 NM: so a conventional circuit goes around right at 200 ft), low pass (about 100 ft over the runway), departure (touch and go, then
   straight out at circuit height). Commands: `SetCircuit` (re-join close / wide / another circuit from where it is),
   `SetEndAction`, `GoAround`; a heading or the stick takes the aircraft out of the circuit (MANUAL) until it is given again.
 - **The final:** the descent is steered to a point 0.15 NM past the threshold (low pass: to 100 ft), unless the
