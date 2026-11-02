@@ -1133,19 +1133,41 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
             lastInitial > 0 ? $"side {flown[0].CircuitSide}, at the break {Height(flown[lastInitial]):F0} ft, downwind {(downwind.Count > 0 ? downwind.Average(Height) : double.NaN):F0} ft" : "no initial");
         pictures.Add(("Aerodrome file: overhead right-hand, initial 2500 ft, break 2000 ft, circuit 2000 ft (Jet)", flown));
 
-        // The side changed in flight by the instructor (the default stays the aerodrome's).
-        SimEngine sim2 = NewCircuitEngine();
-        sim2.SetAerodrome(here, "14");
-        string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, null, EndAction.FullStop, performanceClass: "Light");
-        AircraftState first2 = sim2.Get(cs2)!;
-        sim2.RunFor(5);
-        sim2.SetCircuit(cs2, CircuitType.Conventional, CircuitSide.Left);
-        List<AircraftState> flown2 = Fly(sim2, cs2, 1200);
-        List<AircraftState> downwind2 = flown2.Where(StraightOn).ToList();
-        Check(first2.CircuitSide == CircuitSide.Right && sim2.DefaultSide == CircuitSide.Right && downwind2.Count > 5 && downwind2.All(st => st.CircuitSide == CircuitSide.Left)
-            && Near(downwind2.Average(st => Frame(st).Lateral), 1.0, 0.25) && LandedOnRunway(flown2),
-            "Aerodrome: starts on the side of the runway (right), the instructor changes it to the left in flight", downwind2.Count > 0 ? $"downwind {downwind2.Average(st => Frame(st).Lateral):F2} NM to the left" : "no downwind");
-        pictures.Add(("Aerodrome right-hand, changed to left in flight (Light)", new List<AircraftState> { first2 }.Concat(flown2).ToList()));
+        // The side changed in flight by the instructor (the default stays the aerodrome's): on the downwind an S over the
+        // aerodrome onto the new downwind (it does not leave the circuit); on the final a go-around, then the new downwind.
+        void SideChange(string title, Func<AircraftState, bool> when, bool goAround)
+        {
+            SimEngine sim2 = NewCircuitEngine();
+            sim2.SetAerodrome(here, "14");
+            string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, null, EndAction.FullStop, performanceClass: "Light");
+            AircraftState first2 = sim2.Get(cs2)!;
+            bool changed = false;
+            int changedAt = -1;
+            List<AircraftState> flown2 = [first2];
+            flown2.AddRange(Fly(sim2, cs2, 1500, st =>
+            {
+                if (!changed && when(st)) { changed = true; changedAt = flown2.Count; sim2.SetCircuit(cs2, CircuitType.Conventional, CircuitSide.Left); }
+            }));
+            List<AircraftState> after2 = changedAt < 0 ? [] : flown2.Skip(changedAt + 1).ToList();
+            List<AircraftState> downwind2 = after2.Where(StraightOn).ToList();
+            // Where it crossed the runway track before landing: over the aerodrome.
+            List<double> crossings = [];
+            for (int n = 1; n < after2.Count; n++)
+            {
+                if (after2[n].Contact != GroundContact.Airborne || after2[n].Leg == "FINAL") break;
+                double l0 = Frame(after2[n - 1] with { CircuitSide = CircuitSide.Left }).Lateral, l1 = Frame(after2[n] with { CircuitSide = CircuitSide.Left }).Lateral;
+                if (after2[n].Leg == "JOIN" && Math.Sign(l0) != Math.Sign(l1) && Math.Abs(l0) < 0.5) crossings.Add(Frame(after2[n]).Along);
+            }
+            bool overField = goAround ? after2.Any(st => st.Leg == "GO AROUND") : crossings.Count > 0 && crossings.All(c => Between(c, -0.2, CircuitLength + 0.3));
+            Check(first2.CircuitSide == CircuitSide.Right && sim2.DefaultSide == CircuitSide.Right && changed && after2.All(st => st.Leg != "MANUAL") && overField
+                && downwind2.Count > 5 && Near(downwind2.Average(st => Frame(st).Lateral), 1.0, 0.25) && LandedOnRunway(flown2),
+                $"Aerodrome right-hand, the instructor changes to the left {title}",
+                (crossings.Count > 0 ? $"crossed at {string.Join(", ", crossings.Select(c => c.ToString("F2", CultureInfo.InvariantCulture)))} NM, " : "")
+                + (downwind2.Count > 0 ? $"downwind {downwind2.Average(st => Frame(st).Lateral):F2} NM to the left" : "no downwind"));
+            pictures.Add(($"Aerodrome right-hand, changed to left {title} (Light)", flown2));
+        }
+        SideChange("on the downwind: S over the aerodrome", st => StraightOn(st) && Frame(st).Along < 1.2, goAround: false);
+        SideChange("on the final: go-around, new downwind", st => st.Leg == "FINAL" && Frame(st).Along > -0.8, goAround: true);
     }
 
     // 20-22. Simulated flame out: High Key over the runway, 180° to the Low Key, gliding down to the final.

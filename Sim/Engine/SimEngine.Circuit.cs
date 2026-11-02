@@ -250,6 +250,8 @@ namespace ATCRoom.Sim
                 bool inCircuit = a.Circuit is { Suspended: false, Departed: false };
                 (double alongNow, double lateralNow) = RunwayFrame(a.X, a.Y, side);
                 bool onFinal = a.Circuit is { OnFinal: true } && Math.Abs(lateralNow) < 0.3 && alongNow < runwayLength;
+                // The same circuit on the other side, in flight: an S over the aerodrome to the new downwind (on the final: a go-around).
+                if (inCircuit && a.Contact == GroundContact.Airborne && type == a.Circuit!.Type && side != a.Circuit.Side && ChangeSide(a, side, onFinal)) return;
                 if (inCircuit && (a.Contact == GroundContact.Rolling || onFinal || (type == CircuitType.Close && a.Circuit!.Type != CircuitType.Close)))
                 {
                     // Flown after the next go-around or touch and go.
@@ -299,6 +301,60 @@ namespace ATCRoom.Sim
                     ]);
                 }
             });
+
+        /// <summary>
+        /// The side of the circuit changed in flight (the user, 2 Nov): it does not leave the circuit. On the upwind (the
+        /// initial, before the High Key) the circuit goes on to the new side; on the crosswind or the downwind an S over the
+        /// aerodrome (across the runway, at circuit height) onto the new downwind; on the base or the final a go-around,
+        /// then the new downwind. False: not in one of these legs (joining from outside: as a new join).
+        /// </summary>
+        private bool ChangeSide(SimAircraft a, CircuitSide side, bool onFinal)
+        {
+            CircuitState circuit = a.Circuit!;
+            RoutePoint? target = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext] : null;
+            if (target?.Name == "JOIN" && circuit.Type is not (CircuitType.Overhead or CircuitType.Sfo)) return false;
+            circuit.Side = side;
+            circuit.NextType = null;
+            circuit.Suspended = false;
+            if (onFinal || target == null || target.Name is "BASE" or "FINAL")
+            {
+                StartGoAround(a);
+                return true;
+            }
+            (double along, _) = RunwayFrame(a.X, a.Y, side);
+            switch (target.Name)
+            {
+                case "UPWIND" or "GO AROUND":
+                    List<RoutePoint> upwind = Loop(a, Math.Max(UpwindAlong(circuit.Type, a.Class), along + 0.3), withUpwind: true);
+                    upwind[0] = upwind[0] with { Name = target.Name };
+                    GiveRoute(a, upwind);
+                    return true;
+                case "INITIAL":
+                    GiveRoute(a, OverheadRoute(a));
+                    return true;
+                case "HIGH KEY":
+                    GiveRoute(a, SfoRoute(a));
+                    return true;
+                case "JOIN":
+                    GiveRoute(a, ToInitialPoint(a));
+                    return true;
+            }
+            // The S: across the runway over the aerodrome, then onto the new downwind (both turns anticipated).
+            double width = Width(circuit.Type, a.Class, side);
+            double length = Math.Max(runwayLength, 0.3);
+            double cross = Math.Clamp(along - 0.5, 0.1, length - 0.1);
+            double entry = cross - 0.5;
+            double height = runwayElevation + a.Class.CircuitHeightFt;
+            double speed = a.Class.CircuitSpeedKt;
+            List<RoutePoint> downwind = Loop(a, UpwindAlong(circuit.Type, a.Class), withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList();
+            GiveRoute(a,
+            [
+                Point(cross, 0, side, height, speed, "JOIN"),
+                Point(entry, width, side, height, speed, "JOIN"),
+                .. downwind.Where(p => p.Name != "DOWNWIND" || AlongOf(p, side) < entry - 0.05)
+            ]);
+            return true;
+        }
 
         /// <summary>What the aircraft does at the end of each final, at once (it can be changed at any time).</summary>
         public void SetEndAction(string callsign, EndAction action) => Change(callsign, a =>

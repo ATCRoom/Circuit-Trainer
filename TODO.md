@@ -287,3 +287,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   before), an aircraft arriving from outside gets the aerodrome heights too. Known, low: a `performance.json` written
   by an earlier build has no Helicopter class (delete it to get the 4 defaults); the SFO jet/turboprop Low Key comes
   higher than the class value (values to tune).
+- **Side changed in flight (the user, 2 Nov: "it does not leave the circuit unless the controller orders it"):** in the
+  circuit an S over the aerodrome (across the runway at circuit height) onto the new downwind; on the base or the final a
+  go-around, then the new downwind; on the upwind / initial / before the High Key the circuit simply goes on to the new
+  side. (The first version with the 45° join from outside is replaced.)
