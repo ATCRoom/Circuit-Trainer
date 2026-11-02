@@ -153,7 +153,32 @@ A simulation environment for training **tower control of traffic in the circuit*
 - Pre-set routes: how they are defined and edited (per aerodrome and runway in use).
 - Whether the simulated traffic is ever mixed with IVAO traffic (as for the PAR Instructor: only between instructor and student, never on the network).
 
-## Step 2 (ground in the map format and the Map Creator) — plan proposed 2 Nov, waiting for the go
+## Step 2 (ground in the map format and the Map Creator) — WRITTEN 2 Nov (go of the user), to test
+
+- **Map format version 3:** block `Ground` (Areas, Lines, Labels) with ten ground categories (`GroundGrass`, `GroundTaxiway`,
+  `GroundApron`, `GroundConcrete`, `GroundBuilding`, `GroundRunway` = areas drawn in this order; `GroundRunwayOutline`,
+  `GroundCentreline`, `GroundStopBar` = lines; `GroundLabels`). In memory the ground items are in Lines / Labels with their
+  categories; only the file keeps them apart, so AuroraPAR v2 Trainer 1.0.0 and Map Creator 1.x neither see nor spoil them
+  (Map Creator 1.8 keeps unknown top-level fields when it merges into an existing file). A file without ground stays
+  version 2. **Nothing lost:** unknown categories are kept with their name (before: emptied), unknown fields of the file,
+  lines, labels, points and of the Ground block are written back.
+- **Coordinates:** all the IVAO short forms (IVAO / Aurora files; `N038.10` = 38°10′, but more than two digits after the
+  dot = decimal degrees as before, `N041.00850773`), EuroScope letter + one dot stays decimal.
+- **Known, accepted (review 2 Nov):** a KML part with label points put into the ground (TwyCtrls with `A_C`) also
+  replaces the ground labels already saved (e.g. from a `.txi`): the confirmation says "Replaced: Ground: labels".
+  Opening a map again: categories of a newer program are not shown (a note says so) and stay in the file with "Save
+  into the maps", not with "Save as...".
+- **Importers:** `.pol` (new), `.txi` (new), `.geo` ground tags suggested, KML folders → ground categories (aprons among
+  the concrete areas a part of their own; no automatic labels of area names in the ground; point labels cut at the
+  underscore). Into a ground category points and labels become ground labels; the ground-labels category takes no lines.
+- **Map Creator 2.0.0:** shared maps folder `%AppData%\ATCRoom\Maps` (portable: `Maps` beside it when
+  `AuroraPARTrainer.settings.json` or `TWRTrainer.settings.json` is beside it — the name of the TWR Trainer settings
+  file is a guess, to keep when the program is written); "Save into the maps"; "Open an existing map" lists the shared
+  folder and the old one of the Trainer 1.0.0; the preview fills the ground areas. Trainer 1.0.0 users: "Save as..."
+  into `%AppData%\AuroraPARTrainer\Maps`.
+- Not done: reference points `NAME;NAME;` (needs the fix lookup, STAR step); the ground in the Trainer (its next release).
+- **To test (checklist after the build):** drop the LIBN KML, `.pol`, `.geo`, `.txi` together; check the suggestions,
+  the preview (areas filled, runway on top, labels `A`, `M west`), save, open it again, the "Open an existing map" list.
 
 - **KML taxiway / apron labels (decided 2 Nov, the user):** divisions may write them in different ways; when the name of
   a KML label point has an **underscore, what follows it is not part of the name** and is dropped (`A_C` → `A`,
