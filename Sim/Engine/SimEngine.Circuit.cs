@@ -314,7 +314,8 @@ namespace ATCRoom.Sim
                 double change = after.AltitudeFt - plane.AltitudeFt;
                 plane.VerticalMode = VerticalMode.Altitude;
                 plane.TargetAltitudeFt = Math.Clamp(after.AltitudeFt, runwayElevation, MaxAltitude);
-                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes), Math.Min(300, plane.Class.MaxDescentFpm), plane.Class.MaxDescentFpm);
+                // (A margin: it slows down in the turn, which then lasts less, and the level-off takes its time.)
+                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, plane.Class.MaxDescentFpm), plane.Class.MaxDescentFpm);
             }
             if (!plane.SpeedGiven && double.IsFinite(after.SpeedKt)) plane.TargetSpeedKt = Math.Clamp(after.SpeedKt, plane.Class.MinSpeedKt, plane.Class.MaxSpeedKt);
         }
