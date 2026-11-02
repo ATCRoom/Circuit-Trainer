@@ -100,7 +100,13 @@ namespace ATCRoom.TwrTrainer
                 back.EndLatitude = tLat;
                 back.EndLongitude = tLon;
                 back.ElevationFt = elevationFt;
-                if (!existed) back.Side = runway.Side;
+                if (!existed)
+                {
+                    back.Side = runway.Side;
+                    back.ConventionalSide = runway.ConventionalSide;
+                    back.JetSide = runway.JetSide;
+                    back.SfoSide = runway.SfoSide;
+                }
             }
         }
 

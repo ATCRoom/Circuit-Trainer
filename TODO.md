@@ -317,3 +317,8 @@ A simulation environment for training **tower control of traffic in the circuit*
   follows it, a point is taken on a click (the map can be dragged meanwhile), unexpected errors are said and the
   program goes on, the saved runway missing → the first, the layers saved as those turned off, lines without a
   category drawn, hints in the empty view, the elevation required. Later: an icon.
+- **A side for each circuit (the user, 3 Nov: "every circuit has its own side: conventional right, jet circuit left, SFO
+  too"):** in the aerodrome file each runway has `ConventionalSide` (conventional, wide), `JetSide` (overhead, close),
+  `SfoSide` (missing: the runway's `Side`). The program: three choices under the runway; a new aircraft with
+  "Aerodrome's" gets its circuit's side; for the selected one, another circuit chosen sets the side of that circuit.
+  The SFO after a touch and go / go-around flies the close pattern on the jet side.

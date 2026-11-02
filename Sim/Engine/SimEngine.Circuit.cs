@@ -156,6 +156,12 @@ namespace ATCRoom.Sim
             get { lock (sync) return aerodrome?.SideOf(aerodromeRunway) ?? CircuitSide.Left; }
         }
 
+        /// <summary>The side of a circuit at the runway in use: the aerodrome's for its group, else the runway's, else left.</summary>
+        public CircuitSide SideFor(CircuitType type)
+        {
+            lock (sync) return aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
+        }
+
         /// <summary>Distance of the long final (NM from the threshold), 3–20, default 10.</summary>
         public double LongFinalNM
         {
@@ -182,11 +188,11 @@ namespace ATCRoom.Sim
             lock (sync)
             {
                 if (double.IsNaN(glidePathCourse)) throw new InvalidOperationException("No runway: a circuit needs the runway in use.");
-                CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway) ?? CircuitSide.Left;
                 // The overhead pattern starts at the initial point, the flame out at the High Key; elsewhere they are the close
                 // pattern (their second part).
                 if (start == CircuitStart.HighKey) type = CircuitType.Sfo;
                 else if (type == CircuitType.Sfo || (type == CircuitType.Overhead && start != CircuitStart.InitialPoint)) type = CircuitType.Close;
+                CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
                 PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                     ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
                 PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
@@ -925,8 +931,12 @@ namespace ATCRoom.Sim
             ];
         }
 
-        /// <summary>After a go-around or a touch and go: the circuit ordered meanwhile, else the overhead goes on as the close pattern.</summary>
-        private static void NextCircuit(CircuitState circuit)
+        /// <summary>
+        /// After a go-around or a touch and go: the circuit ordered meanwhile, else the overhead goes on as the close pattern
+        /// (the same jet side), the SFO as the close pattern on the jet side of the aerodrome (it is on the runway track: it
+        /// just turns to that side).
+        /// </summary>
+        private void NextCircuit(CircuitState circuit)
         {
             if (circuit.NextType is CircuitType next)
             {
@@ -936,6 +946,7 @@ namespace ATCRoom.Sim
             }
             else if (circuit.Type is CircuitType.Overhead or CircuitType.Sfo)
             {
+                if (circuit.Type == CircuitType.Sfo && aerodrome?.SideOf(aerodromeRunway, CircuitType.Close) is CircuitSide jet) circuit.Side = jet;
                 circuit.Type = CircuitType.Close;
             }
         }

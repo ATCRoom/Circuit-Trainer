@@ -36,11 +36,24 @@ namespace ATCRoom.Sim
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
 
-        /// <summary>The side of the circuit of a runway ("14", "32R"; not case sensitive), or null when the file does not say.</summary>
-        public CircuitSide? SideOf(string? runway)
+        /// <summary>
+        /// The side of the circuit of a runway ("14", "32R"; not case sensitive), or null when the file does not say. With a
+        /// circuit: the side of its group at that runway (conventional and wide; the jet circuits, overhead and close; SFO),
+        /// else the runway's.
+        /// </summary>
+        public CircuitSide? SideOf(string? runway, CircuitType? type = null)
         {
             string name = (runway ?? "").Trim();
-            return Runways.FirstOrDefault(r => r != null && string.Equals((r.Runway ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase))?.Side;
+            RunwayCircuit? found = Runways.FirstOrDefault(r => r != null && string.Equals((r.Runway ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase));
+            if (found == null) return null;
+            CircuitSide? own = type switch
+            {
+                CircuitType.Conventional or CircuitType.Wide => found.ConventionalSide,
+                CircuitType.Close or CircuitType.Overhead => found.JetSide,
+                CircuitType.Sfo => found.SfoSide,
+                _ => null
+            };
+            return own ?? found.Side;
         }
 
         /// <summary>
@@ -99,6 +112,10 @@ namespace ATCRoom.Sim
     {
         public string Runway { get; set; } = "";
         public CircuitSide Side { get; set; } = CircuitSide.Left;
+        /// <summary>The side of each group of circuits at this runway (missing: <see cref="Side"/>): conventional and wide; the jet circuits (overhead, close); SFO.</summary>
+        public CircuitSide? ConventionalSide { get; set; }
+        public CircuitSide? JetSide { get; set; }
+        public CircuitSide? SfoSide { get; set; }
         public double? ThresholdLatitude { get; set; }
         public double? ThresholdLongitude { get; set; }
         public double? EndLatitude { get; set; }

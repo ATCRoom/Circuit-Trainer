@@ -40,7 +40,10 @@ namespace ATCRoom.TwrTrainer
         private readonly StackPanel panel = new() { Margin = new Thickness(10) };
         private readonly TextBlock mapText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly ComboBox runwayBox = new();
-        private readonly ComboBox runwaySideBox = Combo<CircuitSide>([(CircuitSide.Left, "Left"), (CircuitSide.Right, "Right")]);
+        /// <summary>The side of each group of circuits at the runway in use: conventional and wide, jet (overhead, close), SFO.</summary>
+        private readonly ComboBox conventionalSideBox = SideCombo();
+        private readonly ComboBox jetSideBox = SideCombo();
+        private readonly ComboBox sfoSideBox = SideCombo();
         private readonly TextBox newRunwayName = new() { Width = 50 };
         private readonly TextBox newRunwayElevation = new() { Width = 60 };
         private readonly ComboBox heightClassBox = new();
@@ -151,14 +154,11 @@ namespace ATCRoom.TwrTrainer
             {
                 if (!updating && runwayBox.SelectedItem is string name) UseRunway(name);
             };
-            Row("Circuit side", runwaySideBox);
-            runwaySideBox.SelectionChanged += (_, _) =>
-            {
-                if (updating || airfield.Runway == null || runwaySideBox.SelectedItem is not ComboBoxItem { Tag: CircuitSide side }) return;
-                airfield.Runway.Side = side;
-                Say(airfield.Save());
-                engine.SetAerodrome(airfield.Circuits, airfield.Runway.Runway);
-            };
+            Note("The side of each circuit at this runway:");
+            Row("Conventional, wide", conventionalSideBox);
+            Row("Jet (overhead, close)", jetSideBox);
+            Row("SFO", sfoSideBox);
+            foreach (ComboBox box in new[] { conventionalSideBox, jetSideBox, sfoSideBox }) box.SelectionChanged += (_, _) => SaveSides();
             Note("New runway (or its place again): its name and elevation, then click its threshold and its end on the map.");
             Row("Name / elevation ft", Inline(newRunwayName, newRunwayElevation));
             Buttons(("Place on the map", PlaceRunway), ("Remove runway", RemoveRunway));
@@ -202,6 +202,11 @@ namespace ATCRoom.TwrTrainer
             panel.Children.Add(selectedText);
             panel.Children.Add(selectedPanel);
             Row("Circuit", selCircuitBox, selectedPanel);
+            // Another circuit chosen: the side of that circuit at this runway (it can still be changed before flying it).
+            selCircuitBox.SelectionChanged += (_, _) =>
+            {
+                if (!updating) SelectTag(selSideBox, engine.SideFor(TagOf<CircuitType>(selCircuitBox)));
+            };
             Row("Side", selSideBox, selectedPanel);
             Buttons(selectedPanel, ("Fly this circuit", () => WithSelected(cs =>
                 commands.FlyCircuit(cs, TagOf<CircuitType>(selCircuitBox), TagOf<CircuitSide>(selSideBox)))));
@@ -222,6 +227,21 @@ namespace ATCRoom.TwrTrainer
             panel.Children.Add(message);
             Note($"Maps: {Paths.MapsFolderText} (made with ATCRoom Map Creator). Aerodromes and settings: {Paths.FolderText}.");
             ShowSelected();
+        }
+
+        private static ComboBox SideCombo() => Combo<CircuitSide>([(CircuitSide.Left, "Left"), (CircuitSide.Right, "Right")]);
+
+        /// <summary>The sides of the circuits of the runway in use, saved in the aerodrome file (the runway's own side: the conventional's).</summary>
+        private void SaveSides()
+        {
+            if (updating || airfield.Runway == null) return;
+            CircuitSide conventional = TagOf<CircuitSide>(conventionalSideBox);
+            airfield.Runway.Side = conventional;
+            airfield.Runway.ConventionalSide = conventional;
+            airfield.Runway.JetSide = TagOf<CircuitSide>(jetSideBox);
+            airfield.Runway.SfoSide = TagOf<CircuitSide>(sfoSideBox);
+            Say(airfield.Save());
+            engine.SetAerodrome(airfield.Circuits, airfield.Runway.Runway);
         }
 
         private static ComboBox Combo<T>(IEnumerable<(T Value, string Text)> items)
@@ -402,7 +422,10 @@ namespace ATCRoom.TwrTrainer
             runwayBox.Items.Clear();
             foreach (RunwayCircuit runway in airfield.PlacedRunways) runwayBox.Items.Add(runway.Runway);
             runwayBox.SelectedItem = airfield.Runway?.Runway;
-            if (airfield.Runway != null) SelectTag(runwaySideBox, airfield.Runway.Side); else runwaySideBox.SelectedIndex = -1;
+            foreach ((ComboBox box, CircuitType type) in new[] { (conventionalSideBox, CircuitType.Conventional), (jetSideBox, CircuitType.Close), (sfoSideBox, CircuitType.Sfo) })
+            {
+                if (airfield.Runway != null) SelectTag(box, airfield.Circuits.SideOf(airfield.Runway.Runway, type) ?? CircuitSide.Left); else box.SelectedIndex = -1;
+            }
             if (airfield.Runway != null)
             {
                 newRunwayName.Text = airfield.Runway.Runway;

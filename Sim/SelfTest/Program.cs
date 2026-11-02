@@ -1182,6 +1182,36 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         SideChange("on the final: go-around, new downwind", st => st.Leg == "FINAL" && Frame(st).Along > -0.8, goAround: true);
     }
 
+    // 19b. A side for each group of circuits at a runway: conventional right, jet (overhead, close) left, SFO right; the
+    // SFO after its touch and go: the close pattern on the jet side.
+    {
+        AerodromeCircuits sides = AerodromeCircuits.Parse("{ \"Airport\": \"LIXX\", \"Runways\": [ { \"Runway\": \"14\", \"Side\": \"Left\", "
+            + "\"ConventionalSide\": \"Right\", \"JetSide\": \"Left\", \"SfoSide\": \"Right\" } ] }");
+        SimEngine sim = NewCircuitEngine();
+        sim.SetAerodrome(sides, "14");
+        CircuitSide SideOf(CircuitStart start, CircuitType type) => sim.Get(sim.AddInCircuit(start, type, null, EndAction.FullStop, performanceClass: "Jet"))!.CircuitSide;
+        bool groups = SideOf(CircuitStart.Downwind, CircuitType.Conventional) == CircuitSide.Right && SideOf(CircuitStart.Downwind, CircuitType.Wide) == CircuitSide.Right
+            && SideOf(CircuitStart.InitialPoint, CircuitType.Overhead) == CircuitSide.Left && SideOf(CircuitStart.Downwind, CircuitType.Close) == CircuitSide.Left
+            && SideOf(CircuitStart.HighKey, CircuitType.Sfo) == CircuitSide.Right && sim.SideFor(CircuitType.Sfo) == CircuitSide.Right;
+        Check(groups && sides.SideOf("14") == CircuitSide.Left, "Aerodrome: a side for each group of circuits (conventional and wide right, overhead and close left, SFO right)");
+
+        SimEngine sfo = NewCircuitEngine();
+        sfo.SetAerodrome(sides, "14");
+        string cs = sfo.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, null, EndAction.TouchAndGo, performanceClass: "Jet");
+        bool rolled = false;
+        List<AircraftState> flown = [sfo.Get(cs)!];
+        flown.AddRange(Fly(sfo, cs, 1500, st =>
+        {
+            if (!rolled && st.Contact == GroundContact.Rolling) { rolled = true; sfo.SetEndAction(cs, EndAction.FullStop); }
+        }));
+        int roll = flown.FindIndex(st => st.Contact == GroundContact.Rolling);
+        List<double> after = StraightDownwind(flown.Skip(Math.Max(0, roll)).ToList());
+        Check(flown[0].CircuitSide == CircuitSide.Right && roll > 0 && flown.Skip(roll + 5).All(st => st.Circuit == CircuitType.Close && st.CircuitSide == CircuitSide.Left)
+            && Parallel(after, 1.2) && LandedOnRunway(flown),
+            "SFO on the right, after the touch and go the close pattern on the jet side (left), then lands", Describe(after));
+        pictures.Add(("SFO right-hand, touch and go, then the close pattern left-hand (aerodrome sides per circuit), Jet", flown));
+    }
+
     // 20-22. Simulated flame out: High Key over the runway, 180° to the Low Key, gliding down to the final.
     void Sfo(string kind, CircuitSide side, double highKey, double lowFrom, double lowTo)
     {
