@@ -153,7 +153,7 @@ A simulation environment for training **tower control of traffic in the circuit*
 - Pre-set routes: how they are defined and edited (per aerodrome and runway in use).
 - Whether the simulated traffic is ever mixed with IVAO traffic (as for the PAR Instructor: only between instructor and student, never on the network).
 
-## Step 2 (ground in the map format and the Map Creator) — WRITTEN 2 Nov (go of the user), to test
+## Step 2 (ground in the map format and the Map Creator) — TESTED OK 2 Nov (all 10 checks of the user), build of `dev` 41444447654
 
 - **Map format version 3:** block `Ground` (Areas, Lines, Labels) with ten ground categories (`GroundGrass`, `GroundTaxiway`,
   `GroundApron`, `GroundConcrete`, `GroundBuilding`, `GroundRunway` = areas drawn in this order; `GroundRunwayOutline`,
