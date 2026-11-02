@@ -221,6 +221,6 @@ A simulation environment for training **tower control of traffic in the circuit*
 - **Crosswind correction of the downwind:** 0.1 NM per 10 kt of crosswind component (wider when the wind blows towards
   the runway, narrower when away).
 - **Close / jet downwind: at most 1.5 NM** (decided by the user 2 Nov: 1 to 1.5 NM, even 2 NM happens with a gentle turn
-  or a high speed; stay within 1.5). Defaults unchanged (Light 0.6, Turboprop 0.8, Jet 0.9).
+  or a high speed; stay within 1.5). Defaults: Light 0.6, Turboprop 0.8, **Jet 1.2** (the user, 2 Nov).
 - Kneeboard also: initial 3-5 NM on the runway track at circuit height (1500 ft), 300-400 kt; break over the first half
   of the runway or as soon as practical, a level turn tight enough to meet the abeam distance (for step 3b).
