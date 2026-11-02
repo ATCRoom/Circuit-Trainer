@@ -984,7 +984,11 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     List<AircraftState> d7b = OnLeg(t7b, "DOWNWIND");
     Check(joining.Circuit == CircuitType.Close && joining.Leg == "JOIN" && d7b.Count > 3 && Near(Frame(d7b.Last()).Lateral, 0.8, 0.25) && LandedOnRunway(t7b),
         "From outside the circuits: joins the close pattern at once, then lands", d7b.Count > 0 ? $"{joining.Leg}, downwind end {Frame(d7b.Last()).Lateral:F2} NM" : joining.Leg);
-    pictures.Add(("Arriving from outside the circuits, into the close pattern (Turboprop)", t7b));
+    List<double> s7b = StraightDownwind(t7b);
+    List<AircraftState> j7b = OnLeg(t7b, "JOIN");
+    Check(Parallel(s7b, 0.8) && j7b.Count > 0 && j7b.Min(st => Frame(st).Lateral) > 0.65,
+        "From outside: a 45° entry from the outside onto the downwind, parallel at 0.8 NM, never nearer the runway", Describe(s7b) + (j7b.Count > 0 ? $", nearest while joining {j7b.Min(st => Frame(st).Lateral):F2}" : ""));
+    pictures.Add(("Arriving from outside the circuits, 45° entry into the close pattern (Turboprop)", t7b));
 
     // 8. Crosswind: 15 kt from the left of the runway.
     SimEngine e8 = NewCircuitEngine();
@@ -1075,6 +1079,31 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         "Overhead with touch and go: then the close pattern (not the initial point again), then landed");
     pictures.Add(("Overhead with touch and go, then close pattern, full stop (Jet)", t15));
 
+    // 16-18. An orbit on the downwind (away from the runway) in the conventional, close and overhead patterns.
+    void OrbitTest(string title, CircuitStart start, CircuitType type, string kind, double width, Func<AircraftState, bool> when)
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(start, type, CircuitSide.Left, EndAction.FullStop, performanceClass: kind);
+        bool asked = false;
+        List<AircraftState> flown = Fly(sim, cs, 1500, st =>
+        {
+            if (!asked && when(st)) { asked = true; sim.Orbit(cs); }
+        });
+        List<AircraftState> orbit = OnLeg(flown, "ORBIT");
+        double turned = 0;
+        for (int n = 1; n < orbit.Count; n++) turned += Math.Abs(SimEngine.Wrap(orbit[n].HeadingTrue - orbit[n - 1].HeadingTrue));
+        int end = flown.FindLastIndex(st => st.Leg == "ORBIT");
+        List<double> after = StraightDownwind(flown.Skip(end + 1).ToList());
+        Check(orbit.Count > 10 && turned > 300 && orbit.Min(st => Frame(st).Lateral) > width - 0.15 && after.Count > 2 && Near(after.Average(), width, 0.2) && LandedOnRunway(flown),
+            $"Orbit on the downwind ({title}): a 360° turn away from the runway, then on along the downwind, then landed",
+            orbit.Count > 0 ? $"turned {turned:F0}°, nearest {orbit.Min(st => Frame(st).Lateral):F2} NM, downwind after {(after.Count > 0 ? after.Average() : double.NaN):F2} NM" : "no orbit");
+        pictures.Add(($"Orbit on the downwind, {title}", flown));
+    }
+    bool StraightOn(AircraftState st) => st.Leg == "DOWNWIND" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 180)) < 10;
+    OrbitTest("conventional circuit, Light", CircuitStart.Downwind, CircuitType.Conventional, "Light", 1.0, st => StraightOn(st) && Frame(st).Along < 0.8);
+    OrbitTest("close pattern, Jet", CircuitStart.Downwind, CircuitType.Close, "Jet", 1.2, st => StraightOn(st) && Frame(st).Along < 0.6);
+    OrbitTest("overhead pattern, Jet", CircuitStart.InitialPoint, CircuitType.Overhead, "Jet", 1.2, st => StraightOn(st) && Frame(st).Along < 0.3);
+
     // 10. The instructor takes it, then gives it back.
     SimEngine e10 = NewCircuitEngine();
     string c10 = e10.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
@@ -1095,7 +1124,7 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         {
             ["INITIAL"] = "#a0a8ff", ["UPWIND"] = "#d0d0d0", ["CROSSWIND"] = "#ffd24a", ["DOWNWIND"] = "#4ab0ff", ["BASE"] = "#c586c0",
             ["FINAL"] = "#7dff9a", ["GO AROUND"] = "#ff5050", ["JOIN"] = "#ffffff", ["ROLL"] = "#ff9f40", ["LANDED"] = "#ff9f40",
-            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888"
+            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5"
         };
         string Colour(string leg) => colours.TryGetValue(leg, out string? found) ? found : "#888888";
         System.Text.StringBuilder html = new();

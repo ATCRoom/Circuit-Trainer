@@ -94,6 +94,9 @@ namespace ATCRoom.Sim
         public BreakPoint Break = BreakPoint.Middle;
         public double BreakAlong;
         public bool BreakNow;
+        /// <summary>An orbit (a 360° turn) going on: 1 the first half, 2 the second; the heading it started on.</summary>
+        public int Orbit;
+        public double OrbitHeading;
     }
 
     public sealed partial class SimEngine
@@ -233,8 +236,15 @@ namespace ATCRoom.Sim
                 }
                 else
                 {
-                    // Elsewhere: to the start of the downwind, then the circuit.
-                    GiveRoute(a, [Point(upwind, width, side, runwayElevation + a.Class.CircuitHeightFt, a.Class.CircuitSpeedKt, "JOIN"), .. downwind]);
+                    // Elsewhere: a 45° entry from the outside: to a point 1 NM outside the downwind and 1 NM before its start,
+                    // then onto the downwind at its start (both turns anticipated): on it parallel, with the runway reciprocal.
+                    double joinHeight = runwayElevation + a.Class.CircuitHeightFt;
+                    GiveRoute(a,
+                    [
+                        Point(upwind + 1, width + 1, side, joinHeight, a.Class.CircuitSpeedKt, "JOIN"),
+                        Point(upwind, width, side, joinHeight, a.Class.CircuitSpeedKt, "JOIN"),
+                        .. downwind
+                    ]);
                 }
             });
 
@@ -260,6 +270,42 @@ namespace ATCRoom.Sim
                 // Only on the initial (else it would break at once on the next initial).
                 if (a.Circuit != null && a.Route != null && a.RouteNext < a.Route.Count && a.Route[a.RouteNext].Name == "INITIAL") a.Circuit.BreakNow = true;
             });
+
+        /// <summary>
+        /// Instruction: one orbit (a 360° turn) where it is, then on along its circuit from there (on the downwind: to make room
+        /// ahead of it). <paramref name="right"/>: the side of the turn; null: away from the runway (the outside of the
+        /// circuit). Not on the final, not during another turn.
+        /// </summary>
+        public void Orbit(string callsign, bool? right = null) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                CircuitState? circuit = a.Circuit;
+                if (circuit == null || circuit.Suspended || circuit.Departed || circuit.Turning || circuit.OnFinal || a.Contact != GroundContact.Airborne
+                    || a.Route == null || a.RouteNext >= a.Route.Count || double.IsNaN(glidePathCourse)) return;
+                // Away from the runway: the opposite of the side of the circuit (a left-hand circuit has the runway on its left).
+                bool turnRight = right ?? circuit.Side == CircuitSide.Left;
+                double s = turnRight ? 1 : -1;
+                double rate = Math.Min(MaxTurnRate, RateForBank(a));
+                double radius = Math.Max(0.1, Math.Max(30, a.GroundSpeedKt) / 3600 / (rate * Math.PI / 180));
+                double h = a.HeadingTrue * Math.PI / 180;
+                // The centre to the side of the turn, moved ahead by the roll-in.
+                double rollIn = Math.Max(30, a.GroundSpeedKt) / 3600 * (rate / TurnRateChange) / 2;
+                circuit.CentreX = a.X + rollIn * Math.Sin(h) + s * radius * Math.Cos(h);
+                circuit.CentreY = a.Y + rollIn * Math.Cos(h) - s * radius * Math.Sin(h);
+                circuit.Radius = radius;
+                circuit.TurnBank = a.Class.CircuitBankDegrees;
+                circuit.Orbit = 1;
+                circuit.OrbitHeading = a.HeadingTrue;
+                circuit.Turning = true;
+                a.Navigation = NavigationMode.Manual;
+                a.CircuitBankDegrees = circuit.TurnBank;
+                a.TurnDirection = turnRight ? TurnDirection.Right : TurnDirection.Left;
+                a.TargetHeading = Normalize(a.HeadingTrue + s * 180);
+                circuit.TurnHeading = a.TargetHeading;
+            });
+
+        /// <summary>The turn rate of the circuit bank at the aircraft's speed (°/s).</summary>
+        private static double RateForBank(SimAircraft plane) => RateForBank(plane.Class.CircuitBankDegrees, plane.SpeedKt);
 
         /// <summary>Instruction: go around now: climbs to circuit height along the runway, then flies its circuit again.</summary>
         public void GoAround(string callsign) =>
@@ -315,15 +361,15 @@ namespace ATCRoom.Sim
                         PassPoint(plane, fromHere: true);
                     }
                 }
-                else if (circuit.Type == CircuitType.Close)
+                else if (circuit.Type == CircuitType.Close && target.Name is "UPWIND" or "GO AROUND")
                 {
                     // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind at once, climbing.
-                    if (target.Name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
+                    if (plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
                     {
                         PassPoint(plane, fromHere: true);
                     }
                 }
-                else if (circuit.Type is CircuitType.Conventional or CircuitType.Wide && target.Name is "CROSSWIND" or "DOWNWIND" or "BASE")
+                else if (!next.Turn180 && (target.Name == "JOIN" || (circuit.Type is CircuitType.Conventional or CircuitType.Wide && target.Name is "CROSSWIND" or "DOWNWIND" or "BASE")))
                 {
                     // The turn at a corner starts before it, so the next leg starts on its line (not wide of it).
                     double legCourse = Math.Atan2(target.X - plane.LegStartX, target.Y - plane.LegStartY);
@@ -431,6 +477,7 @@ namespace ATCRoom.Sim
             {
                 // The instructor gave a heading (or took the stick) during the turn: the circuit waits.
                 circuit.Turning = false;
+                circuit.Orbit = 0;
                 circuit.Suspended = true;
                 circuit.OnFinal = false;
                 plane.CircuitBankDegrees = 0;
@@ -447,8 +494,29 @@ namespace ATCRoom.Sim
             double off = (Math.Sqrt(dx * dx + dy * dy) - circuit.Radius) / circuit.Radius;
             double rate = Math.Max(30, plane.GroundSpeedKt) / 3600 / circuit.Radius * (1 + 1.5 * off) * 180 / Math.PI;
             plane.SelectedTurnRateDps = Math.Clamp(rate, MinTurnRate, MaxTurnRate);
+            if (circuit.Orbit == 1)
+            {
+                // Past two thirds of the first half: the target becomes the heading it started on (the same side, 240° still to
+                // turn), so the turn goes on without rolling out half way.
+                if (Math.Abs(Wrap(plane.HeadingTrue - plane.TargetHeading)) > 60) return;
+                circuit.Orbit = 2;
+                plane.TargetHeading = circuit.OrbitHeading;
+                circuit.TurnHeading = plane.TargetHeading;
+                return;
+            }
             if (Math.Abs(Wrap(plane.HeadingTrue - plane.TargetHeading)) > 0.5 || Math.Abs(plane.TurnRateDps) > 0.2) return;
             circuit.Turning = false;
+            if (circuit.Orbit == 2)
+            {
+                // The orbit done: on along the leg it was flying, from here.
+                circuit.Orbit = 0;
+                plane.LegStartX = plane.X;
+                plane.LegStartY = plane.Y;
+                plane.RouteApproached = false;
+                plane.Navigation = NavigationMode.Route;
+                plane.SelectedTurnRateDps = MaxTurnRate;
+                return;
+            }
             if (plane.Route == null) return;
             plane.RouteNext = Math.Min(plane.RouteNext + 1, plane.Route.Count);
             plane.LegStartX = plane.X;
@@ -746,6 +814,7 @@ namespace ATCRoom.Sim
             {
                 plane.Circuit.LegIndex = -1;
                 plane.Circuit.Turning = false;
+                plane.Circuit.Orbit = 0;
             }
             StartLeg(plane);
         }

@@ -252,3 +252,9 @@ A simulation environment for training **tower control of traffic in the circuit*
   touch and go); labels on the outer side, moved so they do not cover each other.
 - Known, low: arriving from outside abeam the runway end, the join may make a turn towards the runway before settling
   on the downwind (review 2 Nov).
+- **Join from outside (the user, 2 Nov: "it must turn earlier and be on the close downwind with the runway reciprocal"):**
+  a 45° entry from the outside: to a point 1 NM outside the downwind and 1 NM before its start, then onto the downwind at
+  its start (both turns anticipated; the joins of the overhead's way back to the initial point too).
+- **Orbits on the downwind (asked 2 Nov, conventional, overhead and close):** `Orbit(callsign, right?)`: a 360° turn on a
+  circle (circuit bank), by default away from the runway (the outside of the circuit), then on along the leg from there;
+  leg ORBIT. Not on the final, not during another turn.
