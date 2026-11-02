@@ -1192,11 +1192,15 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         AircraftState? atHigh = flown.LastOrDefault(st => st.Leg == "HIGH KEY");
         // The Low Key: the first moment on the downwind heading after the turn.
         AircraftState? atLow = flown.FirstOrDefault(st => st.Leg == "LOW KEY" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 180)) < 10);
+        // The roll out on the final: nearly on the runway.
+        AircraftState? rolled = flown.FirstOrDefault(st => st.Leg == "FINAL" && st.Contact == GroundContact.Airborne && Math.Abs(Frame(st).Lateral) < 0.15
+            && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) < 15);
         Check(flown[0].Circuit == CircuitType.Sfo && atHigh != null && Near(Height(atHigh), highKey, 100) && Between(Frame(atHigh).Along, 0, CircuitLength)
             && atLow != null && Between(Height(atLow), lowFrom, lowTo) && Frame(atLow).Lateral > 0.3 && flown.All(st => st.Leg is not ("CROSSWIND" or "BASE"))
-            && LandedOnRunway(flown),
-            $"SFO ({kind}, {side}): High Key over the runway at about {highKey} ft, Low Key abeam on the {side.ToString().ToLowerInvariant()}, lands",
-            atHigh != null && atLow != null ? $"High Key {Height(atHigh):F0} ft at {Frame(atHigh).Along:F2} NM, Low Key {Height(atLow):F0} ft {Frame(atLow).Lateral:F2} NM out" : "no High or Low Key");
+            && rolled != null && Between(Frame(rolled).Along, -0.5, 0.1) && Height(rolled) < 400 && LandedOnRunway(flown),
+            $"SFO ({kind}, {side}): High Key over the runway at about {highKey} ft, Low Key abeam on the {side.ToString().ToLowerInvariant()}, out of the last turn nearly on the runway, lands",
+            atHigh != null && atLow != null ? $"High Key {Height(atHigh):F0} ft at {Frame(atHigh).Along:F2} NM, Low Key {Height(atLow):F0} ft {Frame(atLow).Lateral:F2} NM out"
+                + (rolled != null ? $", on the final {-Frame(rolled).Along:F2} NM before the threshold at {Height(rolled):F0} ft" : ", never on the final") : "no High or Low Key");
         pictures.Add(($"SFO, {kind}, {side.ToString().ToLowerInvariant()}", flown));
     }
     Sfo("Jet", CircuitSide.Left, 7000, 3000, 5600);

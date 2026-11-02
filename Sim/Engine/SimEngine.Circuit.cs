@@ -127,6 +127,9 @@ namespace ATCRoom.Sim
         private const double PadSlowdown = 150;
         private const double PadDescent = 400;
         private const double PadRadius = 0.05;
+        /// <summary>SFO: the turn to the final starts this far before the threshold (NM) and ends at this height (ft): nearly on the runway.</summary>
+        private const double SfoTurnStartNM = 0.2;
+        private const double SfoRollOutHeight = 120;
 
         private double longFinal = 10;
         private double initialPoint = 3;
@@ -554,7 +557,7 @@ namespace ATCRoom.Sim
                     double climb = point.AltitudeFt - plane.AltitudeFt;
                     double minutes = Math.Sqrt((point.X - plane.X) * (point.X - plane.X) + (point.Y - plane.Y) * (point.Y - plane.Y)) / Math.Max(30, plane.GroundSpeedKt) * 60;
                     plane.SelectedVerticalRateFpm = climb > 0 ? Math.Max(MinVerticalRate, plane.Class.MaxClimbFpm * 0.8)
-                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, plane.Class.MaxDescentFpm), plane.Class.MaxDescentFpm);
+                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, MaxDescent(plane)), MaxDescent(plane));
                 }
             }
             if (!circuit.OnFinal) return;
@@ -582,7 +585,7 @@ namespace ATCRoom.Sim
                 ? -(height - floor) / (distance / Math.Max(30, plane.GroundSpeedKt) * 60)
                 : floor > 0 ? 0 : -400;
             plane.VerticalMode = VerticalMode.Rate;
-            plane.CommandedVerticalSpeedFpm = Math.Clamp(wanted, -plane.Class.MaxDescentFpm, 300);
+            plane.CommandedVerticalSpeedFpm = Math.Clamp(wanted, -MaxDescent(plane), 300);
         }
 
         /// <summary>
@@ -649,7 +652,7 @@ namespace ATCRoom.Sim
                 plane.VerticalMode = VerticalMode.Altitude;
                 plane.TargetAltitudeFt = Math.Clamp(after.AltitudeFt, runwayElevation, MaxAltitude);
                 // (A margin: it slows down in the turn, which then lasts less, and the level-off takes its time.)
-                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, plane.Class.MaxDescentFpm), plane.Class.MaxDescentFpm);
+                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, MaxDescent(plane)), MaxDescent(plane));
             }
             if (!plane.SpeedGiven && double.IsFinite(after.SpeedKt)) plane.TargetSpeedKt = Math.Clamp(after.SpeedKt, plane.Class.MinSpeedKt, plane.Class.MaxSpeedKt);
         }
@@ -861,10 +864,10 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// The simulated flame out from 1 NM before the High Key: the High Key over the runway (a third of the way along it)
+        /// The simulated flame out from 1 NM before the High Key: the High Key over the middle of the runway
         /// at its height and the best glide speed, the 180° turn to the Low Key abeam it (the width of the close pattern),
-        /// the downwind gliding down to the start of the 180° turn to the final (as much height per NM as from the Low Key
-        /// to the roll out), that turn, the final.
+        /// a short downwind along the runway gliding down to the threshold (as much height per NM as from the Low Key to the
+        /// roll out), the 180° turn to the final there: it rolls out nearly on the runway (the user's drawing, 2 Nov).
         /// </summary>
         private List<RoutePoint> SfoRoute(SimAircraft plane)
         {
@@ -872,9 +875,10 @@ namespace ATCRoom.Sim
             CircuitSide side = plane.Circuit!.Side;
             double width = Width(CircuitType.Sfo, kind, side);
             double highKey = HighKeyAlong();
-            double turn = BaseAlong(CircuitType.Sfo, kind);
+            // The turn to the final starts at the threshold: at its end the aircraft is nearly on the runway.
+            double turn = -SfoTurnStartNM;
             double lowKey = runwayElevation + kind.LowKeyFt;
-            double rollOut = runwayElevation + Math.Min(kind.RollOutHeightFt, kind.LowKeyFt);
+            double rollOut = runwayElevation + Math.Min(SfoRollOutHeight, kind.LowKeyFt);
             // The downwind and the half circle to the final, gliding at one slope.
             double downwind = Math.Max(0, highKey - turn);
             double finalTurn = Math.PI * width / 2;
@@ -889,8 +893,15 @@ namespace ATCRoom.Sim
             ];
         }
 
-        /// <summary>The High Key along the runway (NM from the threshold): a third of the way along it.</summary>
-        private double HighKeyAlong() => 0.3 * Math.Max(runwayLength, 0.3);
+        /// <summary>The High Key along the runway (NM from the threshold): over its middle.</summary>
+        private double HighKeyAlong() => 0.5 * Math.Max(runwayLength, 0.3);
+
+        /// <summary>
+        /// The descent limit (ft/min): in the simulated flame out one and a half times the class's (idle, speed brakes), so
+        /// the compact pattern around the runway loses the height from the High Key.
+        /// </summary>
+        internal static double MaxDescent(SimAircraft plane) =>
+            plane.Class.MaxDescentFpm * (plane.Circuit is { Type: CircuitType.Sfo, Suspended: false, Departed: false } ? 1.5 : 1);
 
         /// <summary>
         /// Back to the initial point for a new overhead (or to the High Key for a new flame out): out on the wide downwind to

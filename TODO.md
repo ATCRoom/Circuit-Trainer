@@ -294,3 +294,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   Corrected the same evening from the user's drawing: the S turns towards the runway, crosses it over the aerodrome
   towards its far end, then turns onto the new downwind at its start (from a point on its line 0.5 NM before it); the
   go-around from the final turns the same way onto the new downwind. The self-test fails on a loop (270°+ one way).
+- **SFO more compact (the user, 2 Nov, from a flameout-pattern picture: "at the end of the turn to the final it is
+  nearly on the runway"):** High Key over the middle of the runway, the 180° to the Low Key, a short downwind along the
+  runway, the turn to the final starting about at the threshold (0.2 NM before it), rolling out nearly on the runway
+  (about 120 ft). In the SFO the descent limit is 1.5 × the class's (idle, speed brakes).

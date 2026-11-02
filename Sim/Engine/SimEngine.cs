@@ -1001,7 +1001,7 @@ namespace ATCRoom.Sim
                     wanted = plane.BestVerticalSpeedFpm;
                     break;
             }
-            wanted = Math.Clamp(wanted, -kind.MaxDescentFpm, kind.MaxClimbFpm);
+            wanted = Math.Clamp(wanted, -MaxDescent(plane), kind.MaxClimbFpm);
             plane.VerticalSpeedFpm += Math.Clamp(wanted - plane.VerticalSpeedFpm, -change, change);
             double before = plane.AltitudeFt;
             plane.AltitudeFt += plane.VerticalSpeedFpm / 60 * Step;
