@@ -1142,11 +1142,12 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
             string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, null, EndAction.FullStop, performanceClass: "Light");
             AircraftState first2 = sim2.Get(cs2)!;
             bool changed = false;
-            int changedAt = -1;
+            int changedAt = -1, seen = 0;
             List<AircraftState> flown2 = [first2];
             flown2.AddRange(Fly(sim2, cs2, 1500, st =>
             {
-                if (!changed && when(st)) { changed = true; changedAt = flown2.Count; sim2.SetCircuit(cs2, CircuitType.Conventional, CircuitSide.Left); }
+                seen++;
+                if (!changed && when(st)) { changed = true; changedAt = seen; sim2.SetCircuit(cs2, CircuitType.Conventional, CircuitSide.Left); }
             }));
             List<AircraftState> after2 = changedAt < 0 ? [] : flown2.Skip(changedAt + 1).ToList();
             List<AircraftState> downwind2 = after2.Where(StraightOn).ToList();
