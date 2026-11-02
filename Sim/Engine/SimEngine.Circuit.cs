@@ -557,7 +557,7 @@ namespace ATCRoom.Sim
                     double climb = point.AltitudeFt - plane.AltitudeFt;
                     double minutes = Math.Sqrt((point.X - plane.X) * (point.X - plane.X) + (point.Y - plane.Y) * (point.Y - plane.Y)) / Math.Max(30, plane.GroundSpeedKt) * 60;
                     plane.SelectedVerticalRateFpm = climb > 0 ? Math.Max(MinVerticalRate, plane.Class.MaxClimbFpm * 0.8)
-                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, MaxDescent(plane)), MaxDescent(plane));
+                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
                 }
             }
             if (!circuit.OnFinal) return;
@@ -585,7 +585,7 @@ namespace ATCRoom.Sim
                 ? -(height - floor) / (distance / Math.Max(30, plane.GroundSpeedKt) * 60)
                 : floor > 0 ? 0 : -400;
             plane.VerticalMode = VerticalMode.Rate;
-            plane.CommandedVerticalSpeedFpm = Math.Clamp(wanted, -MaxDescent(plane), 300);
+            plane.CommandedVerticalSpeedFpm = Math.Clamp(wanted, -DescentLimit(plane), 300);
         }
 
         /// <summary>
@@ -652,7 +652,7 @@ namespace ATCRoom.Sim
                 plane.VerticalMode = VerticalMode.Altitude;
                 plane.TargetAltitudeFt = Math.Clamp(after.AltitudeFt, runwayElevation, MaxAltitude);
                 // (A margin: it slows down in the turn, which then lasts less, and the level-off takes its time.)
-                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, MaxDescent(plane)), MaxDescent(plane));
+                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
             }
             if (!plane.SpeedGiven && double.IsFinite(after.SpeedKt)) plane.TargetSpeedKt = Math.Clamp(after.SpeedKt, plane.Class.MinSpeedKt, plane.Class.MaxSpeedKt);
         }
@@ -900,7 +900,7 @@ namespace ATCRoom.Sim
         /// The descent limit (ft/min): in the simulated flame out one and a half times the class's (idle, speed brakes), so
         /// the compact pattern around the runway loses the height from the High Key.
         /// </summary>
-        internal static double MaxDescent(SimAircraft plane) =>
+        internal static double DescentLimit(SimAircraft plane) =>
             plane.Class.MaxDescentFpm * (plane.Circuit is { Type: CircuitType.Sfo, Suspended: false, Departed: false } ? 1.5 : 1);
 
         /// <summary>
