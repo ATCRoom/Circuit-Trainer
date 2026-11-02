@@ -152,3 +152,9 @@ A simulation environment for training **tower control of traffic in the circuit*
 - The aircraft database: which types, which data, how the user can add types.
 - Pre-set routes: how they are defined and edited (per aerodrome and runway in use).
 - Whether the simulated traffic is ever mixed with IVAO traffic (as for the PAR Instructor: only between instructor and student, never on the network).
+
+## Step 2 (ground in the map format and the Map Creator) — plan proposed 2 Nov, waiting for the go
+
+- **KML taxiway / apron labels (decided 2 Nov, the user):** divisions may write them in different ways; when the name of
+  a KML label point has an **underscore, what follows it is not part of the name** and is dropped (`A_C` → `A`,
+  `RUNUP_W` → `RUNUP`). The `.txi` labels stay exactly as written (`M west`).
