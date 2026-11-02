@@ -298,3 +298,22 @@ A simulation environment for training **tower control of traffic in the circuit*
   nearly on the runway"):** High Key over the middle of the runway, the 180° to the Low Key, a short downwind along the
   runway, the turn to the final starting about at the threshold (0.2 NM before it), rolling out nearly on the runway
   (about 120 ft). In the SFO the descent limit is 1.5 × the class's (idle, speed brakes).
+
+## Step 4a (the program: the instructor's window) — WRITTEN 3 Nov (go of the user)
+
+- `Trainer/` (TWRTrainer.exe, version 0.1.0, code-only WPF): the top view (map in the engine's plane, runway in use,
+  extended centreline with a tick every NM, aircraft with labels "callsign / height above the runway in hundreds of ft
+  and ground speed / leg, circuit and side, end action", trails, the route still to fly of the selected one; wheel zoom,
+  drag, click to select; F1 level 1 ~7 NM, F2 level 2 ~40 NM) and the side panel: open map (shared maps folder),
+  runway in use, a new runway placed with two clicks (threshold, end) and its elevation (the same runway the other way
+  made at once), its circuit side, the heights of a class at this aerodrome, METAR wind, pause, speed x1/x2/x4, long
+  final and IP distances, map layers (MVA, CTR, FIX off by default), a new aircraft, the commands of the selected one
+  (circuit and side, end action, break middle/beginning/end/standby/point on the map/BREAK NOW, orbit, go around,
+  helipad on the map, remove). The commands are in one class (`TowerCommands`) for the label of step 4b.
+- The aerodrome file (`%AppData%\ATCRoom\TWRTrainer\Aerodromes\<ICAO>.json`) now also holds where each runway is
+  (threshold, end, elevation).
+- The build artifact `TWRTrainer-win-x64` holds TWRTrainer.exe and ATCRoomMapCreator.exe.
+- Review 3 Nov (independent, read-only): no compile errors found; fixed: the other way of a runway placed again
+  follows it, a point is taken on a click (the map can be dragged meanwhile), unexpected errors are said and the
+  program goes on, the saved runway missing → the first, the layers saved as those turned off, lines without a
+  category drawn, hints in the empty view, the elevation required. Later: an icon.

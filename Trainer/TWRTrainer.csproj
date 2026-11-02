@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- TWR Trainer: the tower circuit simulator (instructor / student). Step 4a: the instructor's window (map, runway,
+       traffic in the circuits, side panel). The engine (Sim/Engine) and the maps library (MapCreator/Core) are shared. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>TWRTrainer</AssemblyName>
+    <RootNamespace>ATCRoom.TwrTrainer</RootNamespace>
+    <!-- Version of TWR Trainer, shown in the title bar. -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sim\Engine\ATCRoom.Sim.csproj" />
+    <ProjectReference Include="..\MapCreator\Core\ATCRoom.Maps.csproj" />
+  </ItemGroup>
+
+</Project>

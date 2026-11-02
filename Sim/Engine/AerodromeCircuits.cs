@@ -91,11 +91,41 @@ namespace ATCRoom.Sim
         }
     }
 
-    /// <summary>The circuit side of one runway of an aerodrome.</summary>
+    /// <summary>
+    /// One runway of an aerodrome: its circuit side and (TWR Trainer, given by two clicks on the map) where it is: the
+    /// threshold and the end (degrees), the elevation of the threshold (ft). Missing: the runway has only its side.
+    /// </summary>
     public sealed class RunwayCircuit
     {
         public string Runway { get; set; } = "";
         public CircuitSide Side { get; set; } = CircuitSide.Left;
+        public double? ThresholdLatitude { get; set; }
+        public double? ThresholdLongitude { get; set; }
+        public double? EndLatitude { get; set; }
+        public double? EndLongitude { get; set; }
+        public double? ElevationFt { get; set; }
+
+        /// <summary>Its threshold and its end are known.</summary>
+        [JsonIgnore]
+        public bool HasPlace => ThresholdLatitude is double a && ThresholdLongitude is double b && EndLatitude is double c && EndLongitude is double d
+            && double.IsFinite(a + b + c + d) && (a != c || b != d);
+
+        /// <summary>
+        /// The name of the same runway in the other direction: 14 → 32, 09L → 27R, 36C → 18C (null when the name is not a
+        /// runway number).
+        /// </summary>
+        public static string? Reciprocal(string? name)
+        {
+            string text = (name ?? "").Trim().ToUpperInvariant();
+            int digits = 0;
+            while (digits < text.Length && digits < 2 && char.IsAsciiDigit(text[digits])) digits++;
+            if (digits == 0 || !int.TryParse(text[..digits], out int number) || number < 1 || number > 36) return null;
+            string letter = text[digits..];
+            if (letter.Length > 1 || (letter.Length == 1 && letter[0] is not ('L' or 'R' or 'C'))) return null;
+            int other = (number + 18 - 1) % 36 + 1;
+            string otherLetter = letter switch { "L" => "R", "R" => "L", _ => letter };
+            return other.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + otherLetter;
+        }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }

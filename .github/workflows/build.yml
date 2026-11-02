@@ -1,7 +1,7 @@
 # Builds TWR Trainer on GitHub's Windows machines at every push.
-# Today: the simulation engine and the maps library with their self-tests, and ATCRoom Map Creator. The ready-to-run
-# Map Creator is attached to each run as an artifact (Actions tab -> latest run -> Artifacts; a GitHub account is
-# needed to download it). It does not require .NET to be installed. No release yet.
+# The simulation engine and the maps library with their self-tests, TWR Trainer (the instructor's window, step 4a) and
+# ATCRoom Map Creator. Both programs are attached to each run as one artifact (Actions tab -> latest run -> Artifacts; a
+# GitHub account is needed to download it). They do not require .NET to be installed. No release yet.
 name: Build
 
 on:
@@ -45,7 +45,19 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish-mapcreator
 
+      # TWR Trainer: the program (one exe), with the Map Creator beside it.
+      - name: Build TWR Trainer
+        run: >
+          dotnet publish Trainer/TWRTrainer.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish-trainer
+
+      - name: Put the Map Creator beside TWR Trainer
+        run: Copy-Item publish-mapcreator/ATCRoomMapCreator.exe publish-trainer/
+
       - uses: actions/upload-artifact@v5
         with:
-          name: ATCRoomMapCreator-win-x64
-          path: publish-mapcreator/ATCRoomMapCreator.exe
+          name: TWRTrainer-win-x64
+          path: |
+            publish-trainer/TWRTrainer.exe
+            publish-trainer/ATCRoomMapCreator.exe
