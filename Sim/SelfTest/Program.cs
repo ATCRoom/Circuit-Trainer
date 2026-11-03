@@ -1283,7 +1283,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         List<AircraftState> late = hold.Skip(hold.Count / 3).ToList();
         Check(released && late.Count > 10 && late.All(st => Near(Height(st), 7000, 150)) && far < 2.5 && flown.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(flown),
             "SFO hold at the High Key: circles over the field at 7000 ft, three turns, then start SFO and lands",
-            hold.Count > 0 ? $"turned {turned:F0}°, at most {far:F2} NM from the High Key, heights {late.Min(Height):F0}-{late.Max(Height):F0} ft" : "no hold");
+            (hold.Count > 0 ? $"turned {turned:F0}°, at most {far:F2} NM from the High Key, heights {late.Min(Height):F0}-{late.Max(Height):F0} ft" : "no hold")
+            + "; legs " + string.Join(">", flown.Select(st => st.Leg).Where((leg, i) => i == 0 || leg != flown[i - 1].Leg)) + $"; last {flown[^1].Contact} {Height(flown[^1]):F0} ft");
         pictures.Add(("SFO hold at the High Key, three turns, then start (Jet, right)", flown));
     }
 
