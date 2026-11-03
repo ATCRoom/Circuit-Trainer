@@ -417,3 +417,6 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
   conventional or the wide** (no IP or HK after a take-off); (5) **continuous orbits** until cleared to go on:
   proposed: a button ORBIT ∞ (and Shift+ORBIT) that turns into CONTINUE (yellow, outlined) while it orbits; the label
   shows ORBITS and a CONT button.
+- **Immediate orders during an orbit (the user, 3 Nov):** EXTEND DWN and TURN BASE are ignored during an orbit (and
+  during the 180° turns of the jet circuits), so they seem to wait for its end. Agreed: TURN BASE ends the orbit and
+  turns to the base from there; EXTEND DWN ends the orbit on the downwind heading and goes on extended.
