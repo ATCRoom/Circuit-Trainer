@@ -728,9 +728,8 @@ namespace ATCRoom.Sim
             Instruct(callsign, Kind.Heading, a =>
             {
                 if (a.Circuit is not { Type: CircuitType.Sfo } circuit) return;
+                // (Before the High Key: it goes onto the circle once its first turn is to the side of the SFO, see CircuitStep.)
                 circuit.Hold = hold;
-                if (hold && !circuit.Spiral && !circuit.Suspended && a.Contact == GroundContact.Airborne && a.Route != null
-                    && a.RouteNext < a.Route.Count && a.Route[a.RouteNext].Name == "HIGH KEY") StartSpiral(a, circuit);
             });
 
         /// <summary>Instruction: go around now: climbs to circuit height along the runway, then flies its circuit again.</summary>
@@ -780,7 +779,7 @@ namespace ATCRoom.Sim
                 // (From the runway track: once the circle is to the side of the SFO, so the first turn is to that side.)
                 double side = circuit.Side == CircuitSide.Right ? 1 : -1;
                 bool sideward = side * Wrap(SpiralCourse(plane, circuit).Course - plane.HeadingTrue) > -2;
-                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && circuit.Hold))
+                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && circuit.Hold && sideward))
                 {
                     StartSpiral(plane, circuit);
                     return;

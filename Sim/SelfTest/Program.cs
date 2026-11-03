@@ -882,7 +882,9 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
 
     // 2. Close pattern, Jet, right, from the runway, touch and go then full stop.
     SimEngine e2 = NewCircuitEngine();
-    string c2 = e2.AddInCircuit(CircuitStart.Runway, CircuitType.Close, CircuitSide.Right, EndAction.TouchAndGo, performanceClass: "Jet");
+    // (After a take-off only the conventional or the wide: the close pattern ordered while rolling, flown from the lift-off.)
+    string c2 = e2.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Right, EndAction.TouchAndGo, performanceClass: "Jet");
+    e2.SetCircuit(c2, CircuitType.Close, CircuitSide.Right);
     int rolls = 0;
     GroundContact last2 = GroundContact.Rolling;
     List<AircraftState> t2 = Fly(e2, c2, 1200, st =>
