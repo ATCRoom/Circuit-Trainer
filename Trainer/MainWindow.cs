@@ -670,7 +670,7 @@ namespace ATCRoom.TwrTrainer
 
         private List<MenuItem> BreakItems(string callsign, BreakPoint now)
         {
-            List<MenuItem> items = TowerCommands.Breaks.Select(b => Item(b.Text, () => commands.SetBreak(callsign, b.Break), b.Break == now)).ToList();
+            List<MenuItem> items = TowerCommands.Breaks.Select(b => Item(b.Text, () => { commands.SetBreak(callsign, b.Break); ShowSelected(); }, b.Break == now)).ToList();
             items.Add(Item("Point on the map...", () => view.AskPoint($"{callsign}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(callsign, x, y)), now == BreakPoint.Point));
             return items;
         }

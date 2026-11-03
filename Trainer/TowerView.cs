@@ -303,7 +303,8 @@ namespace ATCRoom.TwrTrainer
                     from = to;
                 }
             }
-            foreach (AircraftState a in Traffic)
+            // (The selected one last: its label on top.)
+            foreach (AircraftState a in Traffic.OrderBy(t => t.Callsign == Selected))
             {
                 bool selected = a.Callsign == Selected;
                 bool onGround = a.Contact != GroundContact.Airborne;
