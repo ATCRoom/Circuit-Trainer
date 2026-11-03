@@ -481,3 +481,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   it fills the box and applies the wind. The whole METAR always shown in a line at the top of the map (wrapping). A
   flag "Wind + QNH only": the line shows only code, time, wind and QNH (the box keeps it whole); remembered. The QNH
   only shown (heights are above the field). VRB: a direction changing slowly instead of 000°.
+- **Names (the user, 3 Nov; next group):** in the plain label CCT becomes CONV (as in the selected label), with a space
+  before the side: `FINAL CONV R T/G` (CLS L, WIDE R...). From CIRC becomes PTRN (CIRC could be read as circling; old
+  CIRC / IN CCT plans still load). Sides stay L/R (arrows would read as directions).
+- **Traffic List (the user, 3 Nov; next group):** the Flight plans part renamed Traffic List (as in the PAR Trainer),
+  dockable / floating and resizable like the other parts, its place remembered.
+- **Height and speed from the label (proposed, 3 Nov; the user to choose A wheel / B strip / C typed / A+B):** the
+  aircraft stays in its circuit; the value given until AUTO, a REJOIN or a new circuit; shown as `015↑020`.
