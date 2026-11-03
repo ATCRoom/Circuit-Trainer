@@ -10,8 +10,9 @@ namespace ATCRoom.TwrTrainer
     {
         public const string Runway = "RWY";
         public const string LongFinal = "LONG FIN";
-        /// <summary>(Scenarios of 3 Nov: "IN CCT".)</summary>
-        public const string InCircuit = "CIRC";
+        /// <summary>(Scenarios of 3 Nov: "IN CCT", then "CIRC": read as this.)</summary>
+        public const string InCircuit = "PTRN";
+        public static bool IsInCircuit(string from) => from is InCircuit or "CIRC" or "IN CCT";
     }
 
     /// <summary>

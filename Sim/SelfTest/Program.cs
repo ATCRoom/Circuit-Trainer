@@ -305,6 +305,21 @@ const double RunwayHeading = 325.80;
     bool ok4 = MetarWind.TryParse("LIBN 181650Z 9999 CAVOK", out _, out _, out _);
     Check(ok1 && f1 == 270 && s1 == 15 && g1 == 10 && ok2 && double.IsNaN(f2) && s2 == 3 && g2 == 0 && ok3 && f3 == 270 && Near(s3, 15.55, 0.01) && g3 == 0 && !ok4,
         "METAR wind: knots with gusts, variable, metres per second, none");
+    Check(MetarWind.WindAndQnh("METAR LIPI 031250Z 06012G22KT 020V100 9999 FEW030 15/08 Q1018 NOSIG") == "LIPI 031250Z 06012G22KT 020V100 Q1018"
+        && MetarWind.WindAndQnh("KJFK 031251Z 27008KT 10SM CLR 12/03 A2992") == "KJFK 031251Z 27008KT A2992" && MetarWind.WindAndQnh("  ") == "",
+        "METAR: only the wind and the QNH (station, time, wind, its variable directions, QNH)");
+    SimEngine vrb = new();
+    vrb.SetWind(double.NaN, 4, 0);
+    double vrbFirst = vrb.Wind.FromTrue, vrbMost = 0, vrbStep = 0;
+    for (int i = 0; i < 300; i++)
+    {
+        double before = vrb.Wind.FromTrue;
+        vrb.RunFor(1);
+        vrbStep = Math.Max(vrbStep, Math.Abs(SimEngine.Wrap(vrb.Wind.FromTrue - before)));
+        vrbMost = Math.Max(vrbMost, Math.Abs(SimEngine.Wrap(vrb.Wind.FromTrue - vrbFirst)));
+    }
+    Check(vrb.WindVariable && vrb.Wind.SpeedKt == 4 && vrbMost > 20 && vrbStep <= 2.01,
+        "Variable wind (VRB): its direction changes slowly (at most 2° a second)", $"{vrbMost:F0}° from the first in 5 minutes, {vrbStep:F1}°/s at most");
 }
 
 // --- Clock, pause, freeze, instructions -----------------------------------------------------------------------------
@@ -1538,6 +1553,27 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             onDownwind != null ? $"{Height(first):F0} ft at the gate, {Height(onDownwind):F0} ft on the downwind" : "no downwind");
     }
 
+    // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
+    // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Circling, CircuitType.Close, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        AircraftState first = sim.Get(cs)!;
+        List<AircraftState> flown = Fly(sim, cs, 1500);
+        List<AircraftState> circlingLeg = OnLeg(flown, "CIRCLING");
+        List<AircraftState> circlingDownwind = OnLeg(flown, "DOWNWIND");
+        AircraftState? landing = flown.FirstOrDefault(st => st.Contact == GroundContact.Landed);
+        double circlingLowest = circlingLeg.Count > 0 ? circlingLeg.Min(st => Height(st)) : double.NaN;
+        Check(first.Circuit == CircuitType.Conventional && Frame(first).Along > CircuitLength + 5 && Math.Abs(SimEngine.Wrap(first.HeadingTrue - CircuitCourse - 180)) < 1
+            && circlingLeg.Count > 10 && circlingLeg.All(st => Frame(st).Lateral > -0.3) && circlingLowest > 900
+            && circlingDownwind.Count > 10 && Near(Height(circlingDownwind[0]), 1000, 80) && Near(circlingDownwind.Average(st => Frame(st).Lateral), 1.0, 0.25)
+            && landing != null && Frame(landing).Along > -0.05 && Frame(landing).Along < CircuitLength && Math.Abs(Frame(landing).Lateral) < 0.05 && sim.Get(cs) == null,
+            "Circling: from the opposite long final at circuit height, aside onto the downwind (1000 ft, about 1 NM), lands on the runway in use",
+            $"lowest circling {circlingLowest:F0} ft, downwind {(circlingDownwind.Count > 0 ? $"{Height(circlingDownwind[0]):F0} ft {circlingDownwind.Average(st => Frame(st).Lateral):F2} NM" : "none")}, "
+            + (landing != null ? $"down at {Frame(landing).Along:F2} NM, {Frame(landing).Lateral:F2} NM aside" : "never down"));
+        pictures.Add(("Circling from the opposite long final onto the downwind, landing (Light)", flown));
+    }
+
     // 33. Crossing the zone: from a gate over the field to the opposite gate, at its height, never landing, gone there;
     // orbits until continue on the way, a heading (MANUAL), back onto its way.
     {
@@ -1625,7 +1661,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         {
             ["INITIAL"] = "#a0a8ff", ["UPWIND"] = "#d0d0d0", ["CROSSWIND"] = "#ffd24a", ["DOWNWIND"] = "#4ab0ff", ["BASE"] = "#c586c0",
             ["FINAL"] = "#7dff9a", ["GO AROUND"] = "#ff5050", ["JOIN"] = "#ffffff", ["ROLL"] = "#ff9f40", ["LANDED"] = "#ff9f40",
-            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5", ["HIGH KEY"] = "#ff8c3a", ["LOW KEY"] = "#ffe08a", ["CLIMB"] = "#9fe1cb", ["HOLD"] = "#5dcaa5"
+            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5", ["HIGH KEY"] = "#ff8c3a", ["LOW KEY"] = "#ffe08a", ["CLIMB"] = "#9fe1cb", ["HOLD"] = "#5dcaa5", ["TRANSIT"] = "#f0997b", ["CIRCLING"] = "#afa9ec"
         };
         string Colour(string leg) => colours.TryGetValue(leg, out string? found) ? found : "#888888";
         System.Text.StringBuilder html = new();

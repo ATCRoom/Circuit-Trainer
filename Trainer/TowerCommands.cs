@@ -100,6 +100,11 @@ namespace ATCRoom.TwrTrainer
 
         public void Speed(string callsign, double speedKt) => engine.SetSpeed(callsign, speedKt);
 
+        /// <summary>AUTO: the height (the speed) of its circuit or its way again.</summary>
+        public void HeightAuto(string callsign) => engine.ResumeRouteAltitude(callsign);
+
+        public void SpeedAuto(string callsign) => engine.ResumeRouteSpeed(callsign);
+
         /// <summary>Back into its circuit (the one it was flying, on its side) from where it is; a crossing one: back onto its way.</summary>
         public void Rejoin(string callsign)
         {

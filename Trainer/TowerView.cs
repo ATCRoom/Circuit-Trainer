@@ -81,6 +81,9 @@ namespace ATCRoom.TwrTrainer
         public string? Selected { get; private set; }
         /// <summary>A line of text at the top (PAUSED, the simulation time...).</summary>
         public string Status { get; set; } = "";
+        /// <summary>The METAR (whole, or only its wind and QNH), always shown at the top (empty: none).</summary>
+        public string Metar { get; set; } = "";
+        private static readonly Brush MetarBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xC8, 0xD4, 0xDE)));
         /// <summary>What to do first (no map, no runway), in the middle of the view.</summary>
         public string Hint { get; set; } = "";
         public event Action<string?>? SelectionChanged;
@@ -88,6 +91,13 @@ namespace ATCRoom.TwrTrainer
         /// The circuit chosen with the wheel on the label and not yet ordered (shown with a "?"), or null.
         /// </summary>
         public CircuitType? PendingCircuit { get; set; }
+        /// <summary>The height (ft above the field) and the speed (kt) chosen with the wheel on the label and not yet ordered, or null.</summary>
+        public double? PendingHeightFt { get; set; }
+        public double? PendingSpeedKt { get; set; }
+        /// <summary>The speeds offered under the label's speed field for an aircraft (its class), set by the window.</summary>
+        public Func<AircraftState, IReadOnlyList<double>>? SpeedChoices { get; set; }
+        /// <summary>The heights offered under the label's height field (ft above the field).</summary>
+        public static readonly double[] HeightChoices = [500, 700, 1000, 1500, 2000, 2500, 3000];
 
         /// <summary>
         /// A button of the label of the selected aircraft clicked (callsign, what: SIDE, BREAKNOW, HOLD, START, ORBIT, GA, or a
@@ -181,6 +191,7 @@ namespace ATCRoom.TwrTrainer
             Selected = callsign;
             strip = null;
             PendingCircuit = null;
+            PendingHeightFt = PendingSpeedKt = null;
             SelectionChanged?.Invoke(callsign);
             InvalidateVisual();
         }
@@ -244,10 +255,21 @@ namespace ATCRoom.TwrTrainer
                 };
                 dc.DrawText(hint, new Point(40, height / 2 - hint.Height / 2));
             }
+            double top = 10;
             if (Status.Length > 0)
             {
                 FormattedText text = new(Status, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 15, PromptBrush, dip);
-                dc.DrawText(text, new Point(12, 10));
+                dc.DrawText(text, new Point(12, top));
+                top += text.Height + 4;
+            }
+            if (Metar.Length > 0)
+            {
+                FormattedText metar = new(Metar, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 13, MetarBrush, dip)
+                {
+                    MaxTextWidth = Math.Max(100, width - 24)
+                };
+                dc.DrawRectangle(LabelBack, null, new Rect(8, top - 2, Math.Min(width - 16, metar.WidthIncludingTrailingWhitespace + 8), metar.Height + 4));
+                dc.DrawText(metar, new Point(12, top));
             }
             DrawScale(dc, dip);
         }
@@ -472,8 +494,15 @@ namespace ATCRoom.TwrTrainer
             List<List<(string Field, string Text, bool Button)>> rows =
             [
                 [("", $"{a.Callsign}  {a.PerformanceClass}", false)],
-                [("", $"{heightSpeed}  {a.Leg}{next}", false)]
+                [("ALT", HeightText(a), false), ("SPD", SpeedText(a), false), ("", $"{a.Leg}{next}", false)]
             ];
+            // The buttons of the height or the speed clicked (any aircraft): AUTO (its circuit's again) and the values.
+            List<(string, string, bool)> values = strip switch
+            {
+                "ALT" => [("ALT=AUTO", "AUTO", !a.RouteAltitude && a.Route != null && a.Navigation == NavigationMode.Route), .. HeightChoices.Select(h => ($"ALT={h:0}", $"{h:0}", true))],
+                "SPD" => [("SPD=AUTO", "AUTO", !a.RouteSpeed && a.Route != null && a.Navigation == NavigationMode.Route), .. (SpeedChoices?.Invoke(a) ?? []).Select(v => ($"SPD={v:0}", $"{v:0}", true))],
+                _ => []
+            };
             if (a.Transit)
             {
                 // Crossing the zone: only its orbits.
@@ -506,6 +535,7 @@ namespace ATCRoom.TwrTrainer
                 };
                 if (choices.Count > 0) rows.Add(choices);
             }
+            if (values.Count > 0) rows.Add(values);
             const double pad = 4, gap = 6, lineGap = 3;
             double width = 0, height = pad;
             List<List<(string Field, FormattedText Text, bool Button)>> made = [];
@@ -547,6 +577,31 @@ namespace ATCRoom.TwrTrainer
                 }
                 y += lineHeight + lineGap;
             }
+        }
+
+        /// <summary>
+        /// The height in hundreds of feet above the field; with the height given by the instructor and not yet reached (or
+        /// chosen with the wheel, with a "?"): 015↑020.
+        /// </summary>
+        private string HeightText(AircraftState a)
+        {
+            double now = Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt) / 100));
+            string text = $"{now:000}";
+            double? target = PendingHeightFt ?? (!a.RouteAltitude && a.VerticalMode == VerticalMode.Altitude ? a.TargetAltitudeFt - ElevationFt : null);
+            if (target is double t && (PendingHeightFt != null || Math.Abs(t - (a.AltitudeFt - ElevationFt)) > 50))
+            {
+                text += $"{(t > a.AltitudeFt - ElevationFt ? "↑" : "↓")}{Math.Max(0, Math.Round(t / 100)):000}{(PendingHeightFt != null ? "?" : "")}";
+            }
+            return text;
+        }
+
+        /// <summary>The ground speed; with the speed given by the instructor and not yet reached (or chosen with the wheel, "?"): 090→110.</summary>
+        private string SpeedText(AircraftState a)
+        {
+            string text = $"{Math.Round(a.GroundSpeedKt):0}";
+            double? target = PendingSpeedKt ?? (!a.RouteSpeed ? a.TargetSpeedKt : null);
+            if (target is double t && (PendingSpeedKt != null || Math.Abs(t - a.SpeedKt) > 3)) text += $"→{t:0}{(PendingSpeedKt != null ? "?" : "")}";
+            return text;
         }
 
         private static string Short(CircuitType type) => type switch
@@ -608,7 +663,7 @@ namespace ATCRoom.TwrTrainer
                 CircuitType.Wide => "WIDE",
                 CircuitType.Overhead => "OVH",
                 CircuitType.Sfo => "SFO",
-                _ => "CCT"
+                _ => "CONV"
             };
             string end = a.EndAction switch
             {
@@ -619,7 +674,7 @@ namespace ATCRoom.TwrTrainer
                 _ => "FS"
             };
             string next = a.NextCircuit is CircuitType n ? $">{n.ToString().ToUpperInvariant()[..Math.Min(3, n.ToString().Length)]}" : "";
-            return $"{a.Leg} {circuit}{(a.CircuitSide == CircuitSide.Left ? "L" : "R")} {end}{next}".Trim();
+            return $"{a.Leg} {circuit} {(a.CircuitSide == CircuitSide.Left ? "L" : "R")} {end}{next}".Trim();
         }
 
         private void DrawScale(DrawingContext dc, double dip)
@@ -645,7 +700,7 @@ namespace ATCRoom.TwrTrainer
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             Point at = e.GetPosition(this);
-            if (Selected != null && FieldAt(at) is ("NEXT" or "BRK" or "CIRC") and string field)
+            if (Selected != null && FieldAt(at) is ("NEXT" or "BRK" or "CIRC" or "ALT" or "SPD") and string field)
             {
                 FieldWheel?.Invoke(Selected, field, e.Delta < 0 ? 1 : -1);
                 e.Handled = true;
@@ -735,7 +790,7 @@ namespace ATCRoom.TwrTrainer
             }
             if (Selected != null && FieldAt(at) is string clicked)
             {
-                if (clicked is "CIRC" or "NEXT" or "BRK")
+                if (clicked is "CIRC" or "NEXT" or "BRK" or "ALT" or "SPD")
                 {
                     // Its buttons open under the label (closed by a second click).
                     strip = strip == clicked ? null : clicked;

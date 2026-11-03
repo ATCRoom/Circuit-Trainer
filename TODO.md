@@ -476,15 +476,19 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   user's answer). Orbits (until continue) also for it (the user: yes); a heading: MANUAL; REJOIN: back onto its way.
   In the flight plans and scenarios too. Leg TRANSIT. A crossing given a circuit (next circuit, rejoin of a circuit)
   becomes an arrival.
-- **METAR (the user, 3 Nov; next group):** a Get METAR button beside the box: the newest METAR of the map's ICAO code
+- **METAR (the user, 3 Nov; done, build of 3 Nov night):** a Get METAR button beside the box: the newest METAR of the map's ICAO code
   from aviationweather.gov (as OnlineMetar in the PAR Trainer; only when pressed; no internet / no METAR: a message);
   it fills the box and applies the wind. The whole METAR always shown in a line at the top of the map (wrapping). A
   flag "Wind + QNH only": the line shows only code, time, wind and QNH (the box keeps it whole); remembered. The QNH
   only shown (heights are above the field). VRB: a direction changing slowly instead of 000°.
-- **Names (the user, 3 Nov; next group):** in the plain label CCT becomes CONV (as in the selected label), with a space
+- **Names (the user, 3 Nov; done):** in the plain label CCT becomes CONV (as in the selected label), with a space
   before the side: `FINAL CONV R T/G` (CLS L, WIDE R...). From CIRC becomes PTRN (CIRC could be read as circling; old
   CIRC / IN CCT plans still load). Sides stay L/R (arrows would read as directions).
-- **Traffic List (the user, 3 Nov; next group):** the Flight plans part renamed Traffic List (as in the PAR Trainer),
+- **Traffic List (the user, 3 Nov; done):** the Flight plans part renamed Traffic List (as in the PAR Trainer),
   dockable / floating and resizable like the other parts, its place remembered.
-- **Height and speed from the label (proposed, 3 Nov; the user to choose A wheel / B strip / C typed / A+B):** the
+- **Height and speed from the label (3 Nov; done as A+B, the proposal, the user not having chosen yet):** the fields ALT and SPD: wheel ±100 ft / ±10 kt (ordered 0.6 s after it stops), click: AUTO and the values; the
   aircraft stays in its circuit; the value given until AUTO, a REJOIN or a new circuit; shown as `015↑020`.
+- **Circling (the user, 3 Nov; done):** aerodromes with the approach on one runway only: from the long final of the
+  opposite runway, down to the conventional circuit height (the same heights of each class), aside by 45° onto the
+  conventional downwind of the runway in use, then the conventional circuit. New aircraft: Entry CIRCLING, only with
+  From LONG FIN (the circuit CONV). Leg CIRCLING until the downwind. Also in the Traffic List and scenarios.

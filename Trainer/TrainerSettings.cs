@@ -51,6 +51,8 @@ namespace ATCRoom.TwrTrainer
         public string Runway { get; set; } = "";
         /// <summary>The last METAR line given (for the wind).</summary>
         public string Metar { get; set; } = "";
+        /// <summary>The METAR on the map with only the wind and the QNH (the user, 3 Nov).</summary>
+        public bool MetarWindQnhOnly { get; set; }
         /// <summary>The map categories turned off (null: the defaults: MVA, CTR, FIX and the others off by default).</summary>
         public List<string>? CategoriesOff { get; set; }
         public double LongFinalNM { get; set; } = 10;

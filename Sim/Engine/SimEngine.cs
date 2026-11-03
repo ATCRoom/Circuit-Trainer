@@ -100,6 +100,12 @@ namespace ATCRoom.Sim
         private double gustNow;
         private double gustTarget;
         private long gustNextStep;
+        /// <summary>A variable wind (VRB): its direction drifts slowly to a new one every 20–40 s (degrees a second at most).</summary>
+        private bool windVariable;
+        private double windFromTarget;
+        private long windTurnStep;
+        private readonly Random variableRandom = new(2);
+        private const double VariableTurn = 2;
 
         /// <summary>Time of the simulation (s since the start): a whole number of steps.</summary>
         public double Time
@@ -145,6 +151,12 @@ namespace ATCRoom.Sim
             get { lock (sync) return classes.Select(c => c.Copy()).ToList(); }
         }
 
+        /// <summary>The wind is variable (VRB): its direction (<see cref="Wind"/>) changes slowly by itself.</summary>
+        public bool WindVariable
+        {
+            get { lock (sync) return windVariable; }
+        }
+
         /// <summary>Wind: direction it blows from (degrees true), speed and gusts above it (kt).</summary>
         public (double FromTrue, double SpeedKt, double GustKt) Wind
         {
@@ -169,8 +181,12 @@ namespace ATCRoom.Sim
         {
             lock (sync)
             {
-                windFrom = double.IsFinite(fromTrue) ? Normalize(fromTrue) : 0;
                 windSpeed = double.IsFinite(speedKt) ? Math.Clamp(speedKt, 0, MaxWind) : 0;
+                // (NaN: variable, VRB, the user 3 Nov: a direction changing slowly, not 000.)
+                windVariable = !double.IsFinite(fromTrue) && windSpeed > 0;
+                windFrom = double.IsFinite(fromTrue) ? Normalize(fromTrue) : windVariable ? Math.Floor(variableRandom.NextDouble() * 360) : 0;
+                windFromTarget = windFrom;
+                windTurnStep = steps;
                 windGust = double.IsFinite(gustKt) ? Math.Clamp(gustKt, 0, MaxGust) : 0;
                 if (windGust == 0) gustNow = gustTarget = 0;
             }
@@ -697,11 +713,23 @@ namespace ATCRoom.Sim
             gustNow += (gustTarget - gustNow) * Step;
         }
 
+        private void VariableWind()
+        {
+            if (!windVariable) return;
+            if (steps >= windTurnStep)
+            {
+                windFromTarget = Normalize(windFrom + (variableRandom.NextDouble() * 2 - 1) * 90);
+                windTurnStep = steps + (long)Math.Round((20 + 20 * variableRandom.NextDouble()) / Step);
+            }
+            windFrom = Normalize(windFrom + Math.Clamp(Wrap(windFromTarget - windFrom), -VariableTurn * Step, VariableTurn * Step));
+        }
+
         private void StepOnce()
         {
             ApplyPending();
             steps++;
             Gusts();
+            VariableWind();
             (double East, double North) wind = WindNow();
             foreach (SimAircraft plane in aircraft)
             {

@@ -72,7 +72,13 @@ namespace ATCRoom.Sim
         /// <summary>On the runway, at the threshold: it takes off.</summary>
         Runway,
         /// <summary>Simulated flame out: 1 NM before the High Key, along the runway at its height.</summary>
-        HighKey
+        HighKey,
+        /// <summary>
+        /// Circling (the user, 3 Nov: an aerodrome with the approach on one runway only, the wind for the other one): on the
+        /// long final of the opposite runway, down to the height of the conventional circuit, aside by 45° onto its
+        /// downwind, then the conventional circuit of the runway in use.
+        /// </summary>
+        Circling
     }
 
     /// <summary>How an aircraft coming from an entry gate (or from outside) joins its circuit.</summary>
@@ -87,7 +93,9 @@ namespace ATCRoom.Sim
         /// <summary>To the High Key, climbing on its circle (SFO), on hold there.</summary>
         HighKey,
         /// <summary>Straight in: onto the final 4 NM out.</summary>
-        Final
+        Final,
+        /// <summary>Circling from the long final of the opposite runway (only from the long final, <see cref="CircuitStart.Circling"/>; from elsewhere: the downwind).</summary>
+        Circling
     }
 
     /// <summary>The circuit of an aircraft (only the engine changes it, under its lock).</summary>
@@ -229,6 +237,7 @@ namespace ATCRoom.Sim
                 // The overhead pattern starts at the initial point, the flame out at the High Key; elsewhere they are the close
                 // pattern (their second part).
                 if (start == CircuitStart.HighKey) type = CircuitType.Sfo;
+                else if (start == CircuitStart.Circling) type = CircuitType.Conventional;
                 else if (type == CircuitType.Sfo || (type == CircuitType.Overhead && start != CircuitStart.InitialPoint)) type = CircuitType.Close;
                 // (The user, 3 Nov: after a take-off only the conventional or the wide circuit, or a departure.)
                 if (start == CircuitStart.Runway && type is not (CircuitType.Conventional or CircuitType.Wide)) type = CircuitType.Conventional;
@@ -246,6 +255,7 @@ namespace ATCRoom.Sim
                         : At(-initialPoint, 0, side, height, glidePathCourse, kind.CircuitSpeedKt),
                     CircuitStart.Downwind => At(DownwindStartAlong(type, kind), Width(type, kind, side), side, height, Normalize(glidePathCourse + 180), kind.CircuitSpeedKt),
                     CircuitStart.HighKey => At(HighKeyAlong() - 1, 0, side, runwayElevation + kind.HighKeyFt, glidePathCourse, kind.BestGlideKt),
+                    CircuitStart.Circling => At(Math.Max(runwayLength, 0.3) + longFinal, 0, side, runwayElevation + longFinal * glide, Normalize(glidePathCourse + 180), kind.ApproachSpeedKt),
                     _ => At(0.02, 0, side, runwayElevation, glidePathCourse, kind.MinSpeedKt)
                 };
                 string name = Add(x, y, altitude, heading, speed, callsign, kind.Name, takenElsewhere);
@@ -265,6 +275,9 @@ namespace ATCRoom.Sim
                         break;
                     case CircuitStart.HighKey:
                         GiveRoute(plane, SfoRoute(plane));
+                        break;
+                    case CircuitStart.Circling:
+                        GiveRoute(plane, CirclingRoute(plane));
                         break;
                     case CircuitStart.InitialPoint:
                         GiveRoute(plane, [Point(0, 0, side, height, kind.CircuitSpeedKt, "INITIAL"), .. Loop(plane, UpwindAlong(type, kind), withUpwind: true)]);
@@ -472,6 +485,11 @@ namespace ATCRoom.Sim
                     return true;
                 case "JOIN":
                     GiveRoute(a, ToInitialPoint(a));
+                    return true;
+                case "CIRCLING":
+                    // Still circling: the circling to the downwind of the other side.
+                    List<RoutePoint> circling = CirclingRoute(a);
+                    GiveRoute(a, along < AlongOf(circling[0], side) + 0.3 ? circling.Skip(1).ToList() : circling);
                     return true;
             }
             if (onFinal || target == null || target.Name is "BASE" or "FINAL")
@@ -698,6 +716,29 @@ namespace ATCRoom.Sim
             }
         }
 
+        /// <summary>
+        /// Instruction (the label's AUTO, the user 3 Nov): the altitude (or the speed) given by the instructor no more: those
+        /// of its route again (its circuit, its crossing), from now.
+        /// </summary>
+        public void ResumeRouteAltitude(string callsign) =>
+            Instruct(callsign, Kind.Vertical, a =>
+            {
+                // (Not flown by the instructor: its old route would give an old height.)
+                if (a.Route == null || !a.AltitudeGiven || a.Navigation != NavigationMode.Route || a.Circuit is { Suspended: true }) return;
+                a.AltitudeGiven = false;
+                // (The vertical rate of the leg worked out again; not in a 180° turn, which would start again.)
+                if (a.Circuit is { Turning: false } circuit) circuit.LegIndex = -1;
+                StartLeg(a);
+            });
+
+        public void ResumeRouteSpeed(string callsign) =>
+            Instruct(callsign, Kind.Speed, a =>
+            {
+                if (a.Route == null || !a.SpeedGiven || a.Navigation != NavigationMode.Route || a.Circuit is { Suspended: true }) return;
+                a.SpeedGiven = false;
+                StartLeg(a);
+            });
+
         /// <summary>Instruction to an aircraft crossing the zone flown by the instructor: back onto its way, straight to its exit gate.</summary>
         public void ResumeTransit(string callsign) =>
             Instruct(callsign, Kind.Heading, a =>
@@ -723,7 +764,7 @@ namespace ATCRoom.Sim
         private void Join(SimAircraft plane, CircuitEntry entry, CircuitType type, CircuitSide side)
         {
             CircuitState circuit = plane.Circuit!;
-            if (entry is CircuitEntry.Downwind or CircuitEntry.InitialPoint or CircuitEntry.HighKey)
+            if (entry is CircuitEntry.Downwind or CircuitEntry.InitialPoint or CircuitEntry.HighKey or CircuitEntry.Circling)
             {
                 FlyCircuitNow(plane, entry == CircuitEntry.InitialPoint ? CircuitType.Overhead : entry == CircuitEntry.HighKey ? CircuitType.Sfo : type, side);
                 return;
@@ -897,7 +938,7 @@ namespace ATCRoom.Sim
                         PassPoint(plane, fromHere: true);
                     }
                 }
-                else if (!next.Turn180 && (target.Name is "JOIN" or "BASE" || (circuit.Type is CircuitType.Conventional or CircuitType.Wide && target.Name is "CROSSWIND" or "DOWNWIND")))
+                else if (!next.Turn180 && (target.Name is "JOIN" or "BASE" or "CIRCLING" || (circuit.Type is CircuitType.Conventional or CircuitType.Wide && target.Name is "CROSSWIND" or "DOWNWIND")))
                 {
                     // The turn at a corner starts before it, so the next leg starts on its line (not wide of it).
                     double legCourse = Math.Atan2(target.X - plane.LegStartX, target.Y - plane.LegStartY);
@@ -1328,6 +1369,27 @@ namespace ATCRoom.Sim
             }
             points.Add(Point(0, 0, side, double.NaN, kind.FinalSpeedKt, "FINAL"));
             return points;
+        }
+
+        /// <summary>
+        /// Circling (see <see cref="CircuitStart.Circling"/>): along the opposite final, at the height of the conventional
+        /// circuit, to a point beyond the downwind start, aside by 45° to the downwind start, then the downwind, the base, the
+        /// final (the conventional circuit).
+        /// </summary>
+        private List<RoutePoint> CirclingRoute(SimAircraft plane)
+        {
+            PerformanceClass kind = plane.Class;
+            CircuitSide side = plane.Circuit!.Side;
+            double width = Width(CircuitType.Conventional, kind, side);
+            double upwind = UpwindAlong(CircuitType.Conventional, kind);
+            double height = runwayElevation + CircuitHeight(CircuitType.Conventional, kind);
+            List<RoutePoint> downwind = Loop(plane, upwind, withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList();
+            return
+            [
+                Point(upwind + width + 0.5, 0, side, height, kind.CircuitSpeedKt, "CIRCLING"),
+                Point(upwind, width, side, height, kind.CircuitSpeedKt, "CIRCLING"),
+                .. downwind
+            ];
         }
 
         /// <summary>

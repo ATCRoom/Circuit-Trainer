@@ -37,6 +37,9 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The circuit chosen with the wheel on the label: for which aircraft, since when (s of the clock).</summary>
         private string? pendingCallsign;
         private double pendingSince;
+        /// <summary>The height or the speed chosen with the wheel on the label: of this aircraft, since this time.</summary>
+        private string? valueCallsign;
+        private double valueSince;
         private bool updating;
 
         // The panel.
@@ -55,6 +58,10 @@ namespace ATCRoom.TwrTrainer
             highKeyHeight = new(), lowKeyHeight = new();
         private readonly TextBox metarBox = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock windText = new();
+        /// <summary>The METAR on the map: whole, or only the wind and the QNH.</summary>
+        private readonly ChoiceRow<bool> metarShowRow = new([(false, "WHOLE"), (true, "WIND + QNH")], (only, _) => only
+            ? "On the map only the station, the time, the wind and the QNH of the METAR." : "On the map the whole METAR.");
+        private string appVersion = "";
         private readonly Button pauseButton = new();
         private readonly ComboBox speedBox = Combo<double>([(1.0, "x1"), (2.0, "x2"), (4.0, "x4")]);
         private readonly TextBox longFinalBox = new() { Width = 45 };
@@ -65,7 +72,7 @@ namespace ATCRoom.TwrTrainer
         private ChoiceRow<string> fromRow = new([]);
         private readonly StackPanel fromHolder = new();
         private readonly ChoiceRow<CircuitEntry> entryRow = new([(CircuitEntry.Downwind, "DW"), (CircuitEntry.Base, "BASE"), (CircuitEntry.InitialPoint, "IP"),
-            (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL")], (_, t) => ChoiceTip("entry " + t));
+            (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL"), (CircuitEntry.Circling, "CIRCLING")], (_, t) => ChoiceTip("entry " + t));
         private readonly TextBox delayBox = new() { Width = 45, Text = "0" };
         /// <summary>An arrival or a crossing (to the gate To, straight or over the field).</summary>
         private readonly ChoiceRow<bool> typeRow = new([(false, "ARRIVAL"), (true, "TRANSIT")], (transit, _) => transit
@@ -103,14 +110,15 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The layer over the map where the parts taken out of the column float (empty: clicks go to the map).</summary>
         private readonly Canvas layer = new();
         /// <summary>The four parts of the panel (in the column or floating).</summary>
-        private DockablePart aerodromePart = null!, simulationPart = null!, newPart = null!, selectedPart = null!;
-        private readonly StackPanel aerodromeContent = new(), simulationContent = new(), newContent = new(), selectedContent = new();
+        private DockablePart aerodromePart = null!, simulationPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!;
+        private readonly StackPanel aerodromeContent = new(), simulationContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
         private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap, Foreground = WarnBrush, Margin = new Thickness(0, 8, 0, 0) };
 
         public MainWindow()
         {
             commands = new TowerCommands(engine, airfield);
             string version = Assembly.GetExecutingAssembly().GetName().Version is Version v ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
+            appVersion = version;
             Title = $"TWR Trainer {version} - instructor";
             Width = 1400;
             Height = 900;
@@ -132,6 +140,7 @@ namespace ATCRoom.TwrTrainer
             view.SelectionChanged += _ => ShowSelected();
             view.FieldClicked += LabelField;
             view.FieldWheel += LabelWheel;
+            view.SpeedChoices = SpeedChoices;
             view.MenuAsked += callsign => OpenMenu(Menu(callsign));
             view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back)."); };
             Loaded += (_, _) => Start();
@@ -158,6 +167,7 @@ namespace ATCRoom.TwrTrainer
             longFinalBox.Text = engine.LongFinalNM.ToString("0.#", CultureInfo.InvariantCulture);
             initialPointBox.Text = engine.InitialPointNM.ToString("0.#", CultureInfo.InvariantCulture);
             metarBox.Text = settings.Metar;
+            metarShowRow.Show(settings.MetarWindQnhOnly);
             ApplyMetar(quiet: true);
             if (settings.MapPath.Length > 0 && File.Exists(settings.MapPath)) OpenMap(settings.MapPath, settings.Runway);
             else ShowAerodrome();
@@ -185,6 +195,17 @@ namespace ATCRoom.TwrTrainer
                 }
                 pendingCallsign = null;
             }
+            if ((view.PendingHeightFt != null || view.PendingSpeedKt != null) && now - valueSince > 0.6)
+            {
+                // The wheel stopped: the height or the speed chosen is ordered.
+                if (valueCallsign != null && valueCallsign == view.Selected)
+                {
+                    if (view.PendingHeightFt is double feet) commands.Height(valueCallsign, feet);
+                    if (view.PendingSpeedKt is double knots) commands.Speed(valueCallsign, knots);
+                }
+                view.PendingHeightFt = view.PendingSpeedKt = null;
+                valueCallsign = null;
+            }
             if (++ticks % 10 == 0)
             {
                 ShowSelectedValues();
@@ -192,7 +213,7 @@ namespace ATCRoom.TwrTrainer
                 (double f, double sp, double g) = engine.Wind;
                 aerodromePart.SummaryText = airfield.Map == null ? "no map" : $"{airfield.Code} · {airfield.Runway?.Runway ?? "no runway"} · " + (sp < 0.5 ? "calm" : $"{f:000}/{sp:0}" + (g > 0 ? $"G{sp + g:0}" : ""));
                 simulationPart.SummaryText = $"{(engine.Paused ? "paused" : "running")} · x{speed:0}";
-                newPart.SummaryText = plans.Count > 0 ? $"{plans.Count} plans" : "";
+                trafficPart.SummaryText = plans.Count > 0 ? $"{plans.Count} aircraft" : "";
                 selectedPart.SummaryText = view.Selected ?? "";
             }
         }
@@ -217,6 +238,8 @@ namespace ATCRoom.TwrTrainer
             aerodromePart = new DockablePart("Aerodrome", aerodromeContent, panel, layer, Placement("Aerodrome"), settings.Save);
             simulationPart = new DockablePart("Simulation", simulationContent, panel, layer, Placement("Simulation"), settings.Save);
             newPart = new DockablePart("New aircraft", newContent, panel, layer, Placement("New aircraft"), settings.Save);
+            // (The user, 3 Nov: the flight plans as a part of their own, named as in the PAR trainer.)
+            trafficPart = new DockablePart("Traffic List", trafficContent, panel, layer, Placement("Traffic List"), settings.Save);
             selectedPart = new DockablePart("Selected aircraft", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
 
             current = aerodromeContent;
@@ -227,13 +250,13 @@ namespace ATCRoom.TwrTrainer
             newRunwayName.ToolTip = "The name of the runway (for example 14).";
             newRunwayElevation.ToolTip = "The elevation of its threshold (ft): the heights of the labels are above it.";
             heightClassBox.ToolTip = "The class whose heights at this aerodrome are below.";
-            metarBox.ToolTip = "A METAR line: its wind is used (for example LIPI 031250Z 06012KT CAVOK 15/08 Q1018).";
+            metarBox.ToolTip = "A METAR line (or Get METAR): its wind is used and it is shown on the map (for example LIPI 031250Z 06012KT CAVOK 15/08 Q1018).";
             newGateName.ToolTip = "The name of the new gate (empty: the name of the VRP clicked).";
             speedBox.ToolTip = "Speed of the simulation (x2, x4: the time runs faster).";
             longFinalBox.ToolTip = "Distance of the long final (NM): where LONG FIN starts.";
             initialPointBox.ToolTip = "Distance of the initial point before the threshold (NM).";
             callsignBox.ToolTip = "Empty: the next free callsign.";
-            delayBox.ToolTip = "For the flight plans: minutes after START ALL.";
+            delayBox.ToolTip = "For the Traffic List: minutes after START ALL.";
             headingBox.ToolTip = "Heading (degrees true) for GO.";
             heightBox.ToolTip = "Height above the runway (ft) for GO.";
             speedKtBox.ToolTip = "Speed (kt) for GO.";
@@ -261,8 +284,14 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(Labelled(("High Key (SFO)", highKeyHeight), ("Low Key (SFO)", lowKeyHeight)));
             Buttons(("Save heights", SaveHeights));
 
-            Row("METAR (wind)", metarBox);
-            Buttons(("Apply METAR", () => ApplyMetar(quiet: false)));
+            Row("METAR", metarBox);
+            Buttons(("Get METAR", GetMetar), ("Apply METAR", () => ApplyMetar(quiet: false)));
+            Row("On the map", metarShowRow);
+            metarShowRow.Picked += only =>
+            {
+                settings.MetarWindQnhOnly = only;
+                ShowMetar();
+            };
             current.Children.Add(windText);
 
             Note("Entry gates (where the arriving aircraft start, at least 5 NM out): a name (empty: the VRP clicked), then click it on the map.");
@@ -284,7 +313,7 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(layersBox);
 
             current = newContent;
-            Note("From an entry gate (it joins its circuit by itself), the long final, the runway (a take-off) or CIRC (already in the circuit, for tests). Then ADD NOW, or TO PLANS for the list below. AD: the aerodrome's side.");
+            Note("From an entry gate (it joins its circuit by itself), the long final, the runway (a take-off) or PTRN (already in the circuit, for tests). Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
             Row("From", fromHolder, null, 62);
             Row("Type", typeRow, null, 62);
             Row("To", toHolder, null, 62);
@@ -302,6 +331,7 @@ namespace ATCRoom.TwrTrainer
             {
                 if (entry == CircuitEntry.InitialPoint) circuitRow.Show(CircuitType.Overhead);
                 else if (entry == CircuitEntry.HighKey) circuitRow.Show(CircuitType.Sfo);
+                else if (entry == CircuitEntry.Circling) circuitRow.Show(CircuitType.Conventional);
                 else if (circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
             };
             circuitRow.Picked += type =>
@@ -312,6 +342,13 @@ namespace ATCRoom.TwrTrainer
                     circuitRow.Show(CircuitType.Conventional);
                     return;
                 }
+                if (fromRow.Value == From.LongFinal && type is CircuitType.Overhead or CircuitType.Sfo)
+                {
+                    Say("From the long final: the conventional, close or wide circuit (or CIRCLING).");
+                    circuitRow.Show(CircuitType.Conventional);
+                    return;
+                }
+                if (entryRow.Value == CircuitEntry.Circling && type != CircuitType.Conventional) entryRow.Show(CircuitEntry.Final);
                 if (type == CircuitType.Overhead) entryRow.Show(CircuitEntry.InitialPoint);
                 else if (type == CircuitType.Sfo) entryRow.Show(CircuitEntry.HighKey);
                 else if (entryRow.Value is CircuitEntry.InitialPoint or CircuitEntry.HighKey) entryRow.Show(CircuitEntry.Downwind);
@@ -324,11 +361,13 @@ namespace ATCRoom.TwrTrainer
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
             Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, 62);
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
-            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the plans: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
-            current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO PLANS", AddPlan)));
-            StackPanel plansGroup = Group("Flight plans", "▶ start now · ⏸ hold / go on · ⧉ duplicate · ✕ remove. START ALL: each after its delay.", current);
-            plansGroup.Children.Add(planList);
-            plansGroup.Children.Add(ActionRow(("START ALL", StartAllPlans), ("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR", ClearPlans)));
+            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
+            current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO LIST", AddPlan)));
+
+            current = trafficContent;
+            Note("▶ start now · ⏸ hold / go on · ⧉ duplicate · ✕ remove. START ALL: each after its delay.");
+            current.Children.Add(planList);
+            current.Children.Add(ActionRow(("START ALL", StartAllPlans), ("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR", ClearPlans)));
 
             current = selectedContent;
             current.Children.Add(selectedText);
@@ -500,7 +539,8 @@ namespace ATCRoom.TwrTrainer
             "entry BASE" => "Straight to the start of the base, then the final.",
             "entry IP" => "Straight to the initial point (overhead pattern).",
             "entry HK" => "To the High Key, climbing on its circle (SFO); it waits there until START SFO.",
-            "entry FINAL" => "Straight in: onto the final 4 NM out.",
+            "entry FINAL" => "Straight in: onto the final 4 NM out (from LONG FIN: from the long final).",
+            "entry CIRCLING" => "Only from LONG FIN: the approach to the opposite runway, then aside onto the downwind at circuit height and the conventional circuit of the runway in use.",
             "CONV" => "Conventional circuit: upwind, crosswind, downwind, base, final.",
             "CLS" => "Close pattern: the jet circuit without the initial (180° turns to the downwind and to the final).",
             "WIDE" => "Wide circuit (outside downwind).",
@@ -528,15 +568,16 @@ namespace ATCRoom.TwrTrainer
             ["Place on the map"] = "Write the name and the elevation of the runway, then click its threshold and its end on the map.",
             ["Remove runway"] = "Remove the runway in use (and the same runway the other way) from the aerodrome file.",
             ["Save heights"] = "Save the heights of this class at this aerodrome (for the aircraft added from now on).",
-            ["Apply METAR"] = "Take the wind from the METAR line.",
+            ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
+            ["Get METAR"] = "The newest METAR of this aerodrome from the internet (aviationweather.gov, by its ICAO code): into the box, its wind applied.",
             ["Level 1 (F1)"] = "The aerodrome and its circuits (about 7 NM).",
             ["Level 2 (F2)"] = "The area around the aerodrome (about 40 NM): gates, initial point, long final.",
             ["Remove all aircraft"] = "Remove all the aircraft flying (the flight plans stay).",
             ["ADD GATE"] = "Click the entry gate on the map: a VRP gives its name (or the name written). At least 5 NM out.",
             ["REMOVE GATE"] = "Remove the gate written (or the one chosen in From).",
             ["ADD NOW"] = "Start this aircraft now.",
-            ["TO PLANS"] = "Put it in the flight plans: started by ▶ or by START ALL after its delay.",
-            ["START ALL"] = "Start every flight plan waiting, each after its delay (held ones stay held).",
+            ["TO LIST"] = "Put it in the Traffic List: started by ▶ or by START ALL after its delay.",
+            ["START ALL"] = "Start every aircraft of the Traffic List waiting, each after its delay (held ones stay held).",
             ["SAVE..."] = "Save the flight plans as a scenario of this aerodrome.",
             ["LOAD..."] = "Load a scenario (its flight plans replace those of the list).",
             ["CLEAR"] = "Remove all the flight plans (the aircraft flying go on).",
@@ -851,11 +892,39 @@ namespace ATCRoom.TwrTrainer
             else if (!quiet)
             {
                 Say("No wind found in the METAR (for example 14012G22KT).");
+                ShowMetar();
                 return;
             }
             (double f, double s, double g) = engine.Wind;
-            windText.Text = s < 0.5 ? "Wind: calm" : $"Wind: {f:000}° {s:0} kt" + (g > 0 ? $", gusts +{g:0}" : "");
+            windText.Text = s < 0.5 ? "Wind: calm" : (engine.WindVariable ? $"Wind: variable {s:0} kt (changing slowly)" : $"Wind: {f:000}° {s:0} kt") + (g > 0 ? $", gusts +{g:0}" : "");
+            ShowMetar();
             if (!quiet) Say(null);
+        }
+
+        /// <summary>The METAR at the top of the map: whole, or only the wind and the QNH.</summary>
+        private void ShowMetar()
+        {
+            string metar = settings.Metar.Trim();
+            view.Metar = settings.MetarWindQnhOnly ? MetarWind.WindAndQnh(metar) : metar;
+            view.InvalidateVisual();
+        }
+
+        /// <summary>The METAR of the aerodrome from the internet (aviationweather.gov), only when asked: into the box, applied.</summary>
+        private async void GetMetar()
+        {
+            if (airfield.Map == null) { Say("Open a map first: its ICAO code is asked."); return; }
+            string code = airfield.Code.Trim().ToUpperInvariant();
+            if (code.Length != 4 || !code.All(char.IsAsciiLetterOrDigit)) { Say($"The map's code \"{code}\" is not an ICAO code (4 letters): write the METAR in the box."); return; }
+            Say($"Asking the METAR of {code} on the internet...");
+            string? metar = await OnlineMetar.FetchAsync(code, appVersion);
+            if (metar == null)
+            {
+                Say($"No METAR of {code} from the internet (no connection, or no METAR for it). You can write one in the box.");
+                return;
+            }
+            metarBox.Text = metar;
+            ApplyMetar(quiet: false);
+            Say($"METAR {code} {OnlineMetar.TimeOf(metar)} from the internet (aviationweather.gov).");
         }
 
         // ----- Simulation ------------------------------------------------------------------------------------------------
@@ -931,10 +1000,11 @@ namespace ATCRoom.TwrTrainer
             }
             if (plan.From == From.LongFinal)
             {
+                if (plan.Entry == CircuitEntry.Circling) return commands.Add(CircuitStart.Circling, CircuitType.Conventional, plan.Side, plan.End, kind, callsign, false, out added);
                 CircuitType type = plan.Circuit is CircuitType.Overhead or CircuitType.Sfo ? CircuitType.Conventional : plan.Circuit;
                 return commands.Add(CircuitStart.LongFinal, type, plan.Side, plan.End, kind, callsign, false, out added);
             }
-            if (plan.From is From.InCircuit or "IN CCT")
+            if (From.IsInCircuit(plan.From))
             {
                 CircuitStart start = plan.Entry switch
                 {
@@ -964,7 +1034,7 @@ namespace ATCRoom.TwrTrainer
             string side = p.Side is CircuitSide s ? (s == CircuitSide.Left ? " L" : " R") : "";
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
             string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
-            string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? "FINAL" : p.Entry.ToString().ToUpperInvariant();
+            string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
             if (p.Transit) return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  +{p.DelayMinutes:0.#}'";
             return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
@@ -997,7 +1067,7 @@ namespace ATCRoom.TwrTrainer
                 planList.Children.Add(row);
                 planRows.Add((p, status, hold));
             }
-            if (plans.Count == 0) planList.Children.Add(new TextBlock { Text = "No plans: choose in the rows above, then TO PLANS.", Foreground = DimBrush, FontSize = 11 });
+            if (plans.Count == 0) planList.Children.Add(new TextBlock { Text = "Empty: choose in New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
             UpdatePlans();
         }
 
@@ -1137,7 +1207,7 @@ namespace ATCRoom.TwrTrainer
             List<(string, string)> items = airfield.Gates.Select(g => (g.Name, g.Name)).ToList();
             items.Add((From.LongFinal, "LONG FIN"));
             items.Add((From.Runway, "RWY"));
-            items.Add((From.InCircuit, "CIRC"));
+            items.Add((From.InCircuit, "PTRN"));
             fromRow = new ChoiceRow<string>(items, (value, _) => value switch
             {
                 From.LongFinal => "On the final at the long final distance (Simulation), on the glide path.",
@@ -1172,11 +1242,20 @@ namespace ATCRoom.TwrTrainer
             bool transit = typeRow.HasValue && typeRow.Value;
             toRow.IsEnabled = viaRow.IsEnabled = transit;
             circuitRow.IsEnabled = sideRow.IsEnabled = endRow.IsEnabled = !transit;
-            entryRow.IsEnabled = !transit && from is not (From.LongFinal or From.Runway);
+            entryRow.IsEnabled = !transit && from != From.Runway;
             bool circuit = from == From.InCircuit;
-            entryRow.SetEnabled(CircuitEntry.Base, !circuit);
-            entryRow.SetEnabled(CircuitEntry.Final, !circuit);
+            bool longFinal = from == From.LongFinal;
+            // (From the long final: straight on (FINAL) or the circling; the circling only from there.)
+            foreach (CircuitEntry entry in Enum.GetValues<CircuitEntry>())
+            {
+                entryRow.SetEnabled(entry, longFinal ? entry is CircuitEntry.Final or CircuitEntry.Circling
+                    : entry != CircuitEntry.Circling && !(circuit && entry is CircuitEntry.Base or CircuitEntry.Final));
+            }
+            if (longFinal && entryRow.Value is not (CircuitEntry.Final or CircuitEntry.Circling)) entryRow.Show(CircuitEntry.Final);
+            if (!longFinal && entryRow.Value == CircuitEntry.Circling) entryRow.Show(CircuitEntry.Downwind);
             if (circuit && entryRow.Value is CircuitEntry.Base or CircuitEntry.Final) entryRow.Show(CircuitEntry.Downwind);
+            if (longFinal && entryRow.Value == CircuitEntry.Circling) circuitRow.Show(CircuitType.Conventional);
+            if (longFinal && circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
         }
 
         private void AddGate()
@@ -1220,7 +1299,17 @@ namespace ATCRoom.TwrTrainer
             // A value chosen in the buttons under a field.
             if (field.Split('=') is [string name, string value])
             {
-                if (name == "CIRC" && Enum.TryParse(value, out CircuitType circuit)) commands.NextCircuit(callsign, circuit, engine.SideFor(circuit));
+                if (name == "ALT")
+                {
+                    if (value == "AUTO") commands.HeightAuto(callsign);
+                    else if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double feet)) commands.Height(callsign, feet);
+                }
+                else if (name == "SPD")
+                {
+                    if (value == "AUTO") commands.SpeedAuto(callsign);
+                    else if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double knots)) commands.Speed(callsign, knots);
+                }
+                else if (name == "CIRC" && Enum.TryParse(value, out CircuitType circuit)) commands.NextCircuit(callsign, circuit, engine.SideFor(circuit));
                 else if (name == "NEXT" && Enum.TryParse(value, out EndAction end)) commands.SetEnd(callsign, end);
                 else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))
                 {
@@ -1271,6 +1360,25 @@ namespace ATCRoom.TwrTrainer
         {
             AircraftState? a = engine.Get(callsign);
             if (a == null) return;
+            if (field is "ALT" or "SPD")
+            {
+                // (The user, 3 Nov: the wheel on the height ±100 ft, on the speed ±10 kt; ordered when it stops a moment.)
+                if (field == "ALT")
+                {
+                    double from = view.PendingHeightFt ?? (!a.RouteAltitude && a.VerticalMode == VerticalMode.Altitude ? a.TargetAltitudeFt : a.AltitudeFt) - airfield.ElevationFt;
+                    view.PendingHeightFt = Math.Clamp(Math.Round(from / 100) * 100 - step * 100, 100, 15000);
+                }
+                else
+                {
+                    double from = view.PendingSpeedKt ?? (!a.RouteSpeed ? a.TargetSpeedKt : a.SpeedKt);
+                    PerformanceClass? kind = engine.Classes.FirstOrDefault(c => string.Equals(c.Name, a.PerformanceClass, StringComparison.OrdinalIgnoreCase));
+                    view.PendingSpeedKt = Math.Clamp(Math.Round(from / 10) * 10 - step * 10, kind?.MinSpeedKt ?? 0, kind?.MaxSpeedKt ?? 600);
+                }
+                valueCallsign = callsign;
+                valueSince = clock.Elapsed.TotalSeconds;
+                view.InvalidateVisual();
+                return;
+            }
             if (field == "CIRC")
             {
                 CircuitType now = view.PendingCircuit ?? a.NextCircuit ?? a.Circuit ?? CircuitType.Conventional;
@@ -1292,6 +1400,18 @@ namespace ATCRoom.TwrTrainer
                 commands.SetBreak(callsign, TowerCommands.Breaks[((i + step) % TowerCommands.Breaks.Length + TowerCommands.Breaks.Length) % TowerCommands.Breaks.Length].Break);
             }
             ShowSelected();
+        }
+
+        /// <summary>The speeds offered under the label: from the class's minimum to its maximum, about seven round values.</summary>
+        private IReadOnlyList<double> SpeedChoices(AircraftState a)
+        {
+            PerformanceClass? kind = engine.Classes.FirstOrDefault(c => string.Equals(c.Name, a.PerformanceClass, StringComparison.OrdinalIgnoreCase));
+            if (kind == null) return [];
+            double low = Math.Max(10, Math.Ceiling(Math.Max(kind.MinSpeedKt, 10) / 10) * 10);
+            double stepKt = Math.Max(10, Math.Round((kind.MaxSpeedKt - low) / 6 / 10) * 10);
+            List<double> list = [];
+            for (double v = low; v <= kind.MaxSpeedKt + 0.1 && list.Count < 9; v += stepKt) list.Add(v);
+            return list;
         }
 
         private static MenuItem Item(string text, Action action, bool check = false)
@@ -1399,7 +1519,7 @@ namespace ATCRoom.TwrTrainer
                 startSfoButton.IsEnabled = sfo && a.SfoHold;
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS";
-                orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN") || leg == "TRANSIT";
+                orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
                 orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
                 orbitForeverButton.Content = a.OrbitForever ? "CONTINUE" : "ORBIT ∞";
                 orbitForeverButton.ToolTip = Tips[a.OrbitForever ? "CONTINUE" : "ORBIT ∞"];
