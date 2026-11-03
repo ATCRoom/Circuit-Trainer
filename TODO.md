@@ -333,3 +333,18 @@ A simulation environment for training **tower control of traffic in the circuit*
   fixed from the start (over the High Key, on the SFO side) and the aircraft is steered by heading along it, turned
   towards it the more the farther it is (no loops); the SFO starts only on the circle over the High Key. Self-test:
   the hold within 0.2 NM of the circle, the climb never turning back, the final aligned.
+
+## Heights of each circuit and step 4b (the commands on the label) — WRITTEN 3 Nov (the user: "one build with everything")
+
+- **A height for each circuit (the user, 3 Nov: "every circuit its height: a jet the conventional at 2000, a turboprop
+  at 1500; the wide can differ from the conventional"):** the class has `ConventionalHeightFt`, `WideHeightFt`,
+  `CloseHeightFt` (missing: `CircuitHeightFt`); the aerodrome file per class too (`CircuitHeightFt` of the first files:
+  for all of them). Close: also the overhead's downwind after the break and the close pattern after an SFO; the break
+  missing: the close height. An aircraft given another circuit in flight flies it at its height. The panel: seven boxes
+  with their names (Conventional, Wide, Close, Initial, Break, High Key, Low Key).
+- **Step 4b, the commands on the label (mock-up of 1 Nov):** the selected aircraft has a larger label with its fields:
+  CCT (click: the list of the circuits; the side: the aerodrome's for that circuit), L/R (click: the other side, the S),
+  NEXT (the end of the final: click: list, wheel: the next one), BRK (overhead: list with "point on the map", wheel),
+  the buttons BREAK NOW (overhead), HOLD / START (SFO), ORB, G/A. Right click on any aircraft: the menu of all its
+  commands (also helipad and remove). The same commands as the panel (`TowerCommands`). The wheel does not change the
+  circuit (each notch would be an order to fly another circuit).

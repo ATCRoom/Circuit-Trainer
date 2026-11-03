@@ -203,7 +203,7 @@ namespace ATCRoom.Sim
                 PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                     ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
                 PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
-                double height = runwayElevation + kind.CircuitHeightFt;
+                double height = runwayElevation + CircuitHeight(type, kind);
                 double glide = GlideFeetPerNM();
                 (double x, double y, double altitude, double heading, double speed) = start switch
                 {
@@ -307,7 +307,7 @@ namespace ATCRoom.Sim
                 {
                     // On the circuit side: join the downwind ahead (the points still ahead of it).
                     double entry = Math.Clamp(along - 0.4, baseTurn + 0.3, upwind);
-                    List<RoutePoint> route = [Point(entry, width, side, runwayElevation + a.Class.CircuitHeightFt, a.Class.CircuitSpeedKt, "DOWNWIND")];
+                    List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "DOWNWIND")];
                     route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);
                 }
@@ -315,7 +315,7 @@ namespace ATCRoom.Sim
                 {
                     // Elsewhere: a 45° entry from the outside: to a point 1 NM outside the downwind and 1 NM before its start,
                     // then onto the downwind at its start (both turns anticipated): on it parallel, with the runway reciprocal.
-                    double joinHeight = runwayElevation + a.Class.CircuitHeightFt;
+                    double joinHeight = runwayElevation + CircuitHeight(type, a.Class);
                     GiveRoute(a,
                     [
                         Point(upwind + 1, width + 1, side, joinHeight, a.Class.CircuitSpeedKt, "JOIN"),
@@ -350,7 +350,7 @@ namespace ATCRoom.Sim
             circuit.OnFinal = false;
             (double along, _) = RunwayFrame(a.X, a.Y, side);
             double length = Math.Max(runwayLength, 0.3);
-            double height = runwayElevation + a.Class.CircuitHeightFt;
+            double height = runwayElevation + CircuitHeight(circuit.Type, a.Class);
             double speed = a.Class.CircuitSpeedKt;
             switch (target?.Name)
             {
@@ -397,7 +397,7 @@ namespace ATCRoom.Sim
             List<RoutePoint> downwind = Loop(a, UpwindAlong(circuit.Type, a.Class), withUpwind: false).SkipWhile(p => !IsDownwind(p)).ToList();
             return
             [
-                Point(start + 0.5, width, side, runwayElevation + a.Class.CircuitHeightFt, a.Class.CircuitSpeedKt, "JOIN"),
+                Point(start + 0.5, width, side, runwayElevation + CircuitHeight(circuit.Type, a.Class), a.Class.CircuitSpeedKt, "JOIN"),
                 .. downwind.Where(p => p.Name != "DOWNWIND" || AlongOf(p, side) < start - 0.3)
             ];
         }
@@ -920,7 +920,7 @@ namespace ATCRoom.Sim
                 plane.AltitudeFt = runwayElevation + 1;
                 NextCircuit(circuit);
                 double upwind = Math.Max(UpwindAlong(circuit.Type, kind), along + 0.3);
-                double height = runwayElevation + kind.CircuitHeightFt;
+                double height = runwayElevation + CircuitHeight(circuit.Type, kind);
                 if (circuit.End == EndAction.Departure)
                 {
                     circuit.Departed = true;
@@ -953,7 +953,7 @@ namespace ATCRoom.Sim
             NextCircuit(circuit);
             (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double upwind = Math.Max(UpwindAlong(circuit.Type, plane.Class), along + 0.5);
-            RoutePoint up = Point(upwind, 0, circuit.Side, runwayElevation + plane.Class.CircuitHeightFt, plane.Class.CircuitSpeedKt, "UPWIND");
+            RoutePoint up = Point(upwind, 0, circuit.Side, runwayElevation + CircuitHeight(circuit.Type, plane.Class), plane.Class.CircuitSpeedKt, "UPWIND");
             List<RoutePoint> route = circuit.Type switch
             {
                 CircuitType.Overhead => [up, .. ToInitialPoint(plane)],
@@ -982,7 +982,7 @@ namespace ATCRoom.Sim
             PerformanceClass kind = plane.Class;
             CircuitSide side = circuit.Side;
             double width = Width(circuit.Type, kind, side);
-            double height = runwayElevation + kind.CircuitHeightFt;
+            double height = runwayElevation + CircuitHeight(circuit.Type, kind);
             double speed = kind.CircuitSpeedKt;
             double glide = GlideFeetPerNM();
             List<RoutePoint> points = [];
@@ -1018,7 +1018,7 @@ namespace ATCRoom.Sim
             CircuitSide side = plane.Circuit!.Side;
             double length = Math.Max(runwayLength, 0.3);
             double width = Width(CircuitType.Overhead, kind, side);
-            double height = runwayElevation + kind.CircuitHeightFt;
+            double height = runwayElevation + CircuitHeight(CircuitType.Overhead, kind);
             double turn = BaseAlong(CircuitType.Overhead, kind);
             return
             [
@@ -1111,6 +1111,17 @@ namespace ATCRoom.Sim
                 circuit.Type = CircuitType.Close;
             }
         }
+
+        /// <summary>
+        /// The height of the downwind of a circuit (ft above the threshold), of the class (with the aerodrome's heights):
+        /// conventional, wide, close (also the overhead's downwind after the break, and the close pattern after an SFO).
+        /// </summary>
+        private static double CircuitHeight(CircuitType type, PerformanceClass kind) => type switch
+        {
+            CircuitType.Conventional => kind.ConventionalHeightFt,
+            CircuitType.Wide => kind.WideHeightFt,
+            _ => kind.CloseHeightFt
+        };
 
         /// <summary>The circuits of the jet shape (no crosswind, no base: 180° turns): close, overhead, flame out.</summary>
         private static bool IsJetShape(CircuitType type) => type is CircuitType.Close or CircuitType.Overhead or CircuitType.Sfo;

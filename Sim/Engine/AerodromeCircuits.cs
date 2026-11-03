@@ -64,10 +64,18 @@ namespace ATCRoom.Sim
             PerformanceClass copy = kind.Copy();
             ClassCircuit? here = Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), kind.Name, StringComparison.OrdinalIgnoreCase));
             if (here == null) return copy;
-            if (here.CircuitHeightFt is double circuit) copy.CircuitHeightFt = circuit;
+            // One height for all its circuits (the first files), then the height of each circuit.
+            if (here.CircuitHeightFt is double circuit)
+            {
+                copy.CircuitHeightFt = copy.ConventionalHeightFt = copy.WideHeightFt = copy.CloseHeightFt = circuit;
+            }
+            if (here.ConventionalHeightFt is double conventional) copy.ConventionalHeightFt = conventional;
+            if (here.WideHeightFt is double wide) copy.WideHeightFt = wide;
+            if (here.CloseHeightFt is double close) copy.CloseHeightFt = close;
             if (here.InitialHeightFt is double initial) copy.OverheadHeightFt = initial;
-            // The break: given, else the circuit height of this aerodrome (when given), else the class's.
+            // The break: given, else the height of the close pattern of this aerodrome (when given), else the class's.
             if (here.BreakHeightFt is double breakHeight) copy.BreakHeightFt = breakHeight;
+            else if (here.CloseHeightFt is double closeHere) copy.BreakHeightFt = closeHere;
             else if (here.CircuitHeightFt is double circuitHere) copy.BreakHeightFt = circuitHere;
             if (here.HighKeyFt is double highKey) copy.HighKeyFt = highKey;
             if (here.LowKeyFt is double lowKey) copy.LowKeyFt = lowKey;
@@ -152,7 +160,12 @@ namespace ATCRoom.Sim
     public sealed class ClassCircuit
     {
         public string Class { get; set; } = "";
+        /// <summary>One height for all its circuits (the first files; the heights of each circuit below come first).</summary>
         public double? CircuitHeightFt { get; set; }
+        /// <summary>The height of each circuit: conventional, wide, close (also the overhead's downwind after the break).</summary>
+        public double? ConventionalHeightFt { get; set; }
+        public double? WideHeightFt { get; set; }
+        public double? CloseHeightFt { get; set; }
         /// <summary>Overhead pattern: the initial (from the initial point to the break).</summary>
         public double? InitialHeightFt { get; set; }
         /// <summary>Overhead pattern: the height at the break.</summary>

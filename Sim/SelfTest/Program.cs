@@ -1212,6 +1212,36 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("SFO right-hand, touch and go, then the close pattern left-hand (aerodrome sides per circuit), Jet", flown));
     }
 
+    // 19c. A height for each circuit at the aerodrome: Jet conventional 2000 and wide 2500, Turboprop conventional 1500;
+    // a circuit changed in flight (conventional → wide) flies the new height.
+    {
+        AerodromeCircuits heights = AerodromeCircuits.Parse("{ \"Airport\": \"LIXX\", \"Runways\": [ { \"Runway\": \"14\", \"Side\": \"Left\" } ], \"Classes\": [ "
+            + "{ \"Class\": \"Jet\", \"ConventionalHeightFt\": 2000, \"WideHeightFt\": 2500 }, { \"Class\": \"Turboprop\", \"ConventionalHeightFt\": 1500 } ] }");
+        double DownwindHeight(string kind, CircuitType type)
+        {
+            SimEngine sim = NewCircuitEngine();
+            sim.SetAerodrome(heights, "14");
+            string cs = sim.AddInCircuit(CircuitStart.Downwind, type, null, EndAction.FullStop, performanceClass: kind);
+            List<AircraftState> flown = Fly(sim, cs, 60);
+            return flown.Count > 0 ? Height(flown[^1]) : double.NaN;
+        }
+        double jetConventional = DownwindHeight("Jet", CircuitType.Conventional), jetWide = DownwindHeight("Jet", CircuitType.Wide);
+        double turboprop = DownwindHeight("Turboprop", CircuitType.Conventional), jetClose = DownwindHeight("Jet", CircuitType.Close);
+        Check(Near(jetConventional, 2000, 30) && Near(jetWide, 2500, 30) && Near(turboprop, 1500, 30) && Near(jetClose, 1500, 30),
+            "Aerodrome heights of each circuit: Jet conventional 2000, Jet wide 2500, Turboprop conventional 1500, Jet close (not given) 1500",
+            $"{jetConventional:F0} / {jetWide:F0} / {turboprop:F0} / {jetClose:F0} ft");
+
+        SimEngine change = NewCircuitEngine();
+        change.SetAerodrome(heights, "14");
+        string jet = change.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, null, EndAction.FullStop, performanceClass: "Jet");
+        change.RunFor(20);
+        change.SetCircuit(jet, CircuitType.Wide, CircuitSide.Left);
+        List<AircraftState> after = Fly(change, jet, 400);
+        List<AircraftState> wideDownwind = after.Where(st => st.Leg == "DOWNWIND" && st.Circuit == CircuitType.Wide).ToList();
+        Check(wideDownwind.Count > 5 && Near(wideDownwind.Max(Height), 2500, 60),
+            "A circuit changed in flight (conventional → wide): its downwind at the height of the wide (2500)", wideDownwind.Count > 0 ? $"{wideDownwind.Max(Height):F0} ft" : "no wide downwind");
+    }
+
     // 20-22. Simulated flame out: High Key over the runway, 180° to the Low Key, gliding down to the final.
     void Sfo(string kind, CircuitSide side, double highKey, double lowFrom, double lowTo)
     {

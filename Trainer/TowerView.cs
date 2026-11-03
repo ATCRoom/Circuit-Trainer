@@ -38,6 +38,11 @@ namespace ATCRoom.TwrTrainer
         private bool panned;
         private double panX, panY;
         private Action<double, double>? pick;
+        /// <summary>The fields and buttons of the label of the selected aircraft, where they were drawn (screen), and the whole label.</summary>
+        private readonly List<(Rect Area, string Field)> fields = [];
+        private Rect selectedLabel = Rect.Empty;
+        private static readonly Brush FieldBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x60, 0x40, 0x4C, 0x58)));
+        private static readonly Brush LabelBack = Frozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x1C, 0x24)));
 
         public TowerView()
         {
@@ -66,6 +71,12 @@ namespace ATCRoom.TwrTrainer
         /// <summary>What to do first (no map, no runway), in the middle of the view.</summary>
         public string Hint { get; set; } = "";
         public event Action<string?>? SelectionChanged;
+        /// <summary>A field or button of the label of the selected aircraft clicked (callsign, field: CCT, SIDE, NEXT, BRK, BREAKNOW, HOLD, START, ORBIT, GA).</summary>
+        public event Action<string, string>? FieldClicked;
+        /// <summary>The wheel on a field of the label (callsign, field, +1 / −1).</summary>
+        public event Action<string, string, int>? FieldWheel;
+        /// <summary>Right click on an aircraft: its menu of all the commands.</summary>
+        public event Action<string>? MenuAsked;
 
         /// <summary>The map, in the plane of the engine.</summary>
         public void SetMap(MapFile? map, LocalPlane plane)
@@ -278,6 +289,8 @@ namespace ATCRoom.TwrTrainer
 
         private void DrawTraffic(DrawingContext dc, double dip)
         {
+            fields.Clear();
+            selectedLabel = Rect.Empty;
             // The route of the selected aircraft still to fly (its circuit), faint.
             if (Traffic.FirstOrDefault(a => a.Callsign == Selected) is AircraftState chosen && chosen.Route is { } route && chosen.RouteNext >= 0)
             {
@@ -323,6 +336,11 @@ namespace ATCRoom.TwrTrainer
                 dc.DrawLine(pen, at, ToScreen(a.X + vector * Math.Sin(track), a.Y + vector * Math.Cos(track)));
                 string line1 = a.Callsign;
                 string line2 = $"{Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt) / 100)):000} {Math.Round(a.GroundSpeedKt):0}";
+                if (selected)
+                {
+                    DrawSelectedLabel(dc, dip, a, at, line2);
+                    continue;
+                }
                 string line3 = LegText(a);
                 FormattedText text = new($"{line1}\n{line2}\n{line3}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, brush, dip);
                 Point corner = new(at.X + 10, at.Y - text.Height - 4);
@@ -330,6 +348,106 @@ namespace ATCRoom.TwrTrainer
                 dc.DrawText(text, corner);
             }
         }
+
+        /// <summary>
+        /// The label of the selected aircraft, larger, with its commands (step 4b): the fields CCT (the circuit: click = list),
+        /// side (click = the other side), NEXT (the end of the final: click = list, wheel = the next one), BRK (overhead: where
+        /// it breaks: list, wheel), and the buttons BREAK NOW (overhead), HOLD / START (SFO), ORB (orbit), G/A (go around).
+        /// </summary>
+        private void DrawSelectedLabel(DrawingContext dc, double dip, AircraftState a, Point at, string heightSpeed)
+        {
+            fields.Clear();
+            FormattedText Text(string text, Brush brush) => new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 13, brush, dip);
+            string next = a.NextCircuit is CircuitType n ? $"  >{Short(n)}" : "";
+            List<List<(string Field, string Text, bool Button)>> rows =
+            [
+                [("", $"{a.Callsign}  {a.PerformanceClass}", false)],
+                [("", $"{heightSpeed}  {a.Leg}{next}", false)]
+            ];
+            if (a.Circuit is CircuitType type)
+            {
+                rows.Add([("CCT", $"CCT {Short(type)}", false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", $"NEXT {EndShort(a.EndAction)}", false)]);
+                List<(string, string, bool)> buttons = [];
+                if (type == CircuitType.Overhead)
+                {
+                    buttons.Add(("BRK", $"BRK {BreakShort(a.Break)}", false));
+                    buttons.Add(("BREAKNOW", "BREAK NOW", true));
+                }
+                if (type == CircuitType.Sfo) buttons.Add(a.SfoHold ? ("START", "START", true) : ("HOLD", "HOLD", true));
+                buttons.Add(("ORBIT", "ORB", true));
+                buttons.Add(("GA", "G/A", true));
+                rows.Add(buttons);
+            }
+            const double pad = 4, gap = 6, lineGap = 3;
+            double width = 0, height = pad;
+            List<List<(string Field, FormattedText Text, bool Button)>> made = [];
+            foreach (var row in rows)
+            {
+                List<(string, FormattedText, bool)> line = row.Select(r => (r.Field, Text(r.Text, r.Button ? SelectedBrush : r.Field.Length > 0 ? AircraftBrush : SelectedBrush), r.Button)).ToList();
+                made.Add(line);
+                width = Math.Max(width, line.Sum(t => t.Item2.Width + (t.Item1.Length > 0 ? 8 : 0)) + gap * (line.Count - 1));
+                height += line.Max(t => t.Item2.Height) + lineGap;
+            }
+            width += 2 * pad;
+            height += pad - lineGap;
+            Point corner = new(at.X + 14, at.Y - height - 8);
+            selectedLabel = new Rect(corner, new Size(width, height));
+            dc.DrawLine(new Pen(SelectedBrush, 0.8), at, new Point(corner.X, corner.Y + height));
+            dc.DrawRectangle(LabelBack, new Pen(SelectedBrush, 1), selectedLabel);
+            double y = corner.Y + pad;
+            foreach (var line in made)
+            {
+                double x = corner.X + pad;
+                double lineHeight = line.Max(t => t.Text.Height);
+                foreach ((string field, FormattedText text, bool button) in line)
+                {
+                    if (field.Length > 0)
+                    {
+                        // A field or button: a box around it, kept for the clicks.
+                        Rect area = new(x, y - 1, text.Width + 8, lineHeight + 2);
+                        dc.DrawRectangle(button ? FieldBrush : null, new Pen(button ? SelectedBrush : GroundBrush, 0.8), area);
+                        dc.DrawText(text, new Point(x + 4, y));
+                        fields.Add((area, field));
+                        x += area.Width + gap;
+                    }
+                    else
+                    {
+                        dc.DrawText(text, new Point(x, y));
+                        x += text.Width + gap;
+                    }
+                }
+                y += lineHeight + lineGap;
+            }
+        }
+
+        private static string Short(CircuitType type) => type switch
+        {
+            CircuitType.Close => "CLS",
+            CircuitType.Wide => "WIDE",
+            CircuitType.Overhead => "OVH",
+            CircuitType.Sfo => "SFO",
+            _ => "CONV"
+        };
+
+        private static string EndShort(EndAction end) => end switch
+        {
+            EndAction.TouchAndGo => "T/G",
+            EndAction.GoAround => "G/A",
+            EndAction.LowPass => "LOW",
+            EndAction.Departure => "DEP",
+            _ => "FS"
+        };
+
+        private static string BreakShort(BreakPoint where) => where switch
+        {
+            BreakPoint.Beginning => "BEG",
+            BreakPoint.End => "END",
+            BreakPoint.Point => "PNT",
+            BreakPoint.Standby => "STBY",
+            _ => "MID"
+        };
+
+        private string? FieldAt(Point p) => fields.FirstOrDefault(f => f.Area.Contains(p)).Field;
 
         /// <summary>The third line of the label: the leg, the circuit and its side, what it does at the end of the final.</summary>
         public static string LegText(AircraftState a)
@@ -371,6 +489,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The aircraft under a point of the screen (its symbol or its label), or null.</summary>
         private string? AircraftAt(Point p)
         {
+            if (Selected != null && selectedLabel.Contains(p)) return Selected;
             foreach (AircraftState a in Traffic.Reverse())
             {
                 Point at = ToScreen(a.X, a.Y);
@@ -384,6 +503,12 @@ namespace ATCRoom.TwrTrainer
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             Point at = e.GetPosition(this);
+            if (Selected != null && FieldAt(at) is "NEXT" or "BRK" && FieldAt(at) is string field)
+            {
+                FieldWheel?.Invoke(Selected, field, e.Delta < 0 ? 1 : -1);
+                e.Handled = true;
+                return;
+            }
             (double x, double y) = ToPlane(at);
             scale = Math.Clamp(scale * Math.Pow(1.2, e.Delta / 120.0), 2, 20000);
             // The point under the mouse stays under it.
@@ -429,7 +554,22 @@ namespace ATCRoom.TwrTrainer
                 done(x, y);
                 return;
             }
+            if (Selected != null && FieldAt(at) is string clicked)
+            {
+                FieldClicked?.Invoke(Selected, clicked);
+                return;
+            }
             Select(AircraftAt(at));
+        }
+
+        protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+        {
+            if (AircraftAt(e.GetPosition(this)) is string callsign)
+            {
+                Select(callsign);
+                MenuAsked?.Invoke(callsign);
+                e.Handled = true;
+            }
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

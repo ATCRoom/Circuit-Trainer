@@ -47,9 +47,9 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox newRunwayName = new() { Width = 50 };
         private readonly TextBox newRunwayElevation = new() { Width = 60 };
         private readonly ComboBox heightClassBox = new();
-        private readonly TextBox circuitHeight = new() { Width = 55 };
-        private readonly TextBox initialHeight = new() { Width = 55 };
-        private readonly TextBox breakHeight = new() { Width = 55 };
+        /// <summary>The heights of a class at this aerodrome: each circuit, the overhead's initial and break, the SFO's keys.</summary>
+        private readonly TextBox conventionalHeight = new(), wideHeight = new(), closeHeight = new(), initialHeight = new(), breakHeight = new(),
+            highKeyHeight = new(), lowKeyHeight = new();
         private readonly TextBox metarBox = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock windText = new();
         private readonly Button pauseButton = new();
@@ -91,6 +91,9 @@ namespace ATCRoom.TwrTrainer
             Content = root;
 
             view.SelectionChanged += _ => ShowSelected();
+            view.FieldClicked += LabelField;
+            view.FieldWheel += LabelWheel;
+            view.MenuAsked += callsign => OpenMenu(Menu(callsign));
             Loaded += (_, _) => Start();
             Closing += (_, _) => settings.Save();
             PreviewKeyDown += OnKeys;
@@ -164,10 +167,12 @@ namespace ATCRoom.TwrTrainer
             Row("Name / elevation ft", Inline(newRunwayName, newRunwayElevation));
             Buttons(("Place on the map", PlaceRunway), ("Remove runway", RemoveRunway));
 
-            Note("Heights of a class at this aerodrome (ft above the runway; empty: the class's).");
+            Note("Heights of a class at this aerodrome, ft above the runway (empty: the class's). Close: also the overhead's downwind; break empty: the close height.");
             Row("Class", heightClassBox);
             heightClassBox.SelectionChanged += (_, _) => ShowHeights();
-            Row("Circuit / initial / break", Inline(circuitHeight, initialHeight, breakHeight));
+            panel.Children.Add(Labelled(("Conventional", conventionalHeight), ("Wide", wideHeight), ("Close", closeHeight)));
+            panel.Children.Add(Labelled(("Initial (OVH)", initialHeight), ("Break (OVH)", breakHeight)));
+            panel.Children.Add(Labelled(("High Key (SFO)", highKeyHeight), ("Low Key (SFO)", lowKeyHeight)));
             Buttons(("Save heights", SaveHeights));
 
             Row("METAR (wind)", metarBox);
@@ -295,6 +300,26 @@ namespace ATCRoom.TwrTrainer
             Grid.SetColumn(control, 1);
             grid.Children.Add(control);
             (into ?? panel).Children.Add(grid);
+        }
+
+        /// <summary>Boxes side by side, each with its name above it.</summary>
+        private static Grid Labelled(params (string Name, TextBox Box)[] boxes)
+        {
+            Grid grid = new() { Margin = new Thickness(0, 2, 0, 2) };
+            grid.RowDefinitions.Add(new RowDefinition());
+            grid.RowDefinitions.Add(new RowDefinition());
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+                TextBlock name = new() { Text = boxes[i].Name, FontSize = 11, Foreground = DimBrush };
+                Grid.SetColumn(name, i);
+                grid.Children.Add(name);
+                boxes[i].Box.Margin = new Thickness(0, 0, 8, 0);
+                Grid.SetColumn(boxes[i].Box, i);
+                Grid.SetRow(boxes[i].Box, 1);
+                grid.Children.Add(boxes[i].Box);
+            }
+            return grid;
         }
 
         private static StackPanel Inline(params UIElement[] items)
@@ -480,9 +505,14 @@ namespace ATCRoom.TwrTrainer
         {
             ClassCircuit? heights = HeightsOf(heightClassBox.SelectedItem as string);
             static string Text(double? value) => value is double v ? v.ToString("0", CultureInfo.InvariantCulture) : "";
-            circuitHeight.Text = Text(heights?.CircuitHeightFt);
+            // (A file with one height for all the circuits: shown in each of them.)
+            conventionalHeight.Text = Text(heights?.ConventionalHeightFt ?? heights?.CircuitHeightFt);
+            wideHeight.Text = Text(heights?.WideHeightFt ?? heights?.CircuitHeightFt);
+            closeHeight.Text = Text(heights?.CloseHeightFt ?? heights?.CircuitHeightFt);
             initialHeight.Text = Text(heights?.InitialHeightFt);
             breakHeight.Text = Text(heights?.BreakHeightFt);
+            highKeyHeight.Text = Text(heights?.HighKeyFt);
+            lowKeyHeight.Text = Text(heights?.LowKeyFt);
         }
 
         private void SaveHeights()
@@ -494,12 +524,17 @@ namespace ATCRoom.TwrTrainer
                 return text.Length > 0 && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && value > 0 ? value : null;
             }
             ClassCircuit heights = HeightsOf(name) ?? new ClassCircuit { Class = name };
-            heights.CircuitHeightFt = Read(circuitHeight);
+            heights.CircuitHeightFt = null;
+            heights.ConventionalHeightFt = Read(conventionalHeight);
+            heights.WideHeightFt = Read(wideHeight);
+            heights.CloseHeightFt = Read(closeHeight);
             heights.InitialHeightFt = Read(initialHeight);
             heights.BreakHeightFt = Read(breakHeight);
+            heights.HighKeyFt = Read(highKeyHeight);
+            heights.LowKeyFt = Read(lowKeyHeight);
             airfield.Circuits.Classes.RemoveAll(c => string.Equals(c.Class, name, StringComparison.OrdinalIgnoreCase));
-            if (heights.CircuitHeightFt != null || heights.InitialHeightFt != null || heights.BreakHeightFt != null || heights.HighKeyFt != null
-                || heights.LowKeyFt != null || heights.Extra != null) airfield.Circuits.Classes.Add(heights);
+            if (heights.ConventionalHeightFt != null || heights.WideHeightFt != null || heights.CloseHeightFt != null || heights.InitialHeightFt != null
+                || heights.BreakHeightFt != null || heights.HighKeyFt != null || heights.LowKeyFt != null || heights.Extra != null) airfield.Circuits.Classes.Add(heights);
             string? error = airfield.Save();
             engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
             Say(error ?? $"Heights of {name} saved: for the aircraft added from now on.");
@@ -557,6 +592,124 @@ namespace ATCRoom.TwrTrainer
             callsignBox.Text = "";
             view.SetTraffic(engine.Snapshot(), engine.Time);
             view.Select(added);
+        }
+
+        // ----- The commands on the label (step 4b): the same commands as the panel -------------------------------------
+
+        private void LabelField(string callsign, string field)
+        {
+            AircraftState? a = engine.Get(callsign);
+            if (a == null) return;
+            CircuitType type = a.Circuit ?? CircuitType.Conventional;
+            switch (field)
+            {
+                case "CCT":
+                    OpenMenu(CircuitItems(callsign));
+                    break;
+                case "SIDE":
+                    commands.FlyCircuit(callsign, type, a.CircuitSide == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left);
+                    break;
+                case "NEXT":
+                    OpenMenu(EndItems(callsign, a.EndAction));
+                    break;
+                case "BRK":
+                    OpenMenu(BreakItems(callsign, a.Break));
+                    break;
+                case "BREAKNOW":
+                    commands.BreakNow(callsign);
+                    break;
+                case "HOLD":
+                    commands.HoldAtHighKey(callsign, true);
+                    break;
+                case "START":
+                    commands.HoldAtHighKey(callsign, false);
+                    break;
+                case "ORBIT":
+                    commands.Orbit(callsign);
+                    break;
+                case "GA":
+                    commands.GoAround(callsign);
+                    break;
+            }
+            ShowSelected();
+        }
+
+        /// <summary>The wheel on NEXT or BRK: the next (or the previous) value.</summary>
+        private void LabelWheel(string callsign, string field, int step)
+        {
+            AircraftState? a = engine.Get(callsign);
+            if (a == null) return;
+            if (field == "NEXT")
+            {
+                int i = Array.FindIndex(TowerCommands.Ends, e => e.End == a.EndAction);
+                commands.SetEnd(callsign, TowerCommands.Ends[((i + step) % TowerCommands.Ends.Length + TowerCommands.Ends.Length) % TowerCommands.Ends.Length].End);
+            }
+            else if (field == "BRK")
+            {
+                int i = Array.FindIndex(TowerCommands.Breaks, b => b.Break == a.Break);
+                commands.SetBreak(callsign, TowerCommands.Breaks[((i + step) % TowerCommands.Breaks.Length + TowerCommands.Breaks.Length) % TowerCommands.Breaks.Length].Break);
+            }
+            ShowSelected();
+        }
+
+        private static MenuItem Item(string text, Action action, bool check = false)
+        {
+            MenuItem item = new() { Header = text, IsChecked = check };
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        private List<MenuItem> CircuitItems(string callsign)
+        {
+            AircraftState? a = engine.Get(callsign);
+            return TowerCommands.Circuits.Select(c => Item(c.Text, () => { commands.FlyCircuit(callsign, c.Type, engine.SideFor(c.Type)); ShowSelected(); }, a?.Circuit == c.Type)).ToList();
+        }
+
+        private List<MenuItem> EndItems(string callsign, EndAction now) =>
+            TowerCommands.Ends.Select(e => Item(e.Text, () => { commands.SetEnd(callsign, e.End); ShowSelected(); }, e.End == now)).ToList();
+
+        private List<MenuItem> BreakItems(string callsign, BreakPoint now)
+        {
+            List<MenuItem> items = TowerCommands.Breaks.Select(b => Item(b.Text, () => commands.SetBreak(callsign, b.Break), b.Break == now)).ToList();
+            items.Add(Item("Point on the map...", () => view.AskPoint($"{callsign}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(callsign, x, y)), now == BreakPoint.Point));
+            return items;
+        }
+
+        /// <summary>The menu of all the commands of an aircraft (right click on it).</summary>
+        private List<MenuItem> Menu(string callsign)
+        {
+            AircraftState? a = engine.Get(callsign);
+            if (a == null) return [];
+            CircuitType type = a.Circuit ?? CircuitType.Conventional;
+            MenuItem circuit = new() { Header = "Circuit" };
+            foreach (MenuItem item in CircuitItems(callsign)) circuit.Items.Add(item);
+            MenuItem side = new() { Header = "Side" };
+            side.Items.Add(Item("Left", () => commands.FlyCircuit(callsign, type, CircuitSide.Left), a.CircuitSide == CircuitSide.Left));
+            side.Items.Add(Item("Right", () => commands.FlyCircuit(callsign, type, CircuitSide.Right), a.CircuitSide == CircuitSide.Right));
+            MenuItem end = new() { Header = "At the end" };
+            foreach (MenuItem item in EndItems(callsign, a.EndAction)) end.Items.Add(item);
+            List<MenuItem> items = [circuit, side, end];
+            if (type == CircuitType.Overhead)
+            {
+                MenuItem where = new() { Header = "Break" };
+                foreach (MenuItem item in BreakItems(callsign, a.Break)) where.Items.Add(item);
+                items.Add(where);
+                items.Add(Item("BREAK NOW", () => commands.BreakNow(callsign)));
+            }
+            if (type == CircuitType.Sfo) items.Add(a.SfoHold ? Item("Start SFO", () => commands.HoldAtHighKey(callsign, false)) : Item("Hold at High Key", () => commands.HoldAtHighKey(callsign, true)));
+            items.Add(Item("Orbit", () => commands.Orbit(callsign)));
+            items.Add(Item("Go around", () => commands.GoAround(callsign)));
+            items.Add(Item("Helipad on the map...", () => view.AskPoint($"{callsign}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(callsign, x, y))));
+            items.Add(Item("Remove", () => commands.Remove(callsign)));
+            return items;
+        }
+
+        private void OpenMenu(List<MenuItem> items)
+        {
+            if (items.Count == 0) return;
+            ContextMenu menu = new() { PlacementTarget = view, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+            foreach (MenuItem item in items) menu.Items.Add(item);
+            menu.IsOpen = true;
         }
 
         // ----- The selected aircraft -------------------------------------------------------------------------------------

@@ -30,6 +30,13 @@ namespace ATCRoom.Sim
         // ----- The circuit (TWR Trainer). Heights above the threshold; 0 or missing: the value of the class name, see CircuitDefaults.
         /// <summary>Height of the circuit (ft above the threshold).</summary>
         public double CircuitHeightFt { get; set; }
+        /// <summary>
+        /// Height of each circuit (ft above the threshold): conventional, wide, close (also the overhead's downwind); 0 or
+        /// missing: <see cref="CircuitHeightFt"/>.
+        /// </summary>
+        public double ConventionalHeightFt { get; set; }
+        public double WideHeightFt { get; set; }
+        public double CloseHeightFt { get; set; }
         /// <summary>Speed in the circuit (kt), until the final.</summary>
         public double CircuitSpeedKt { get; set; }
         /// <summary>Distance of the downwind from the runway (NM): conventional circuit.</summary>
@@ -83,6 +90,9 @@ namespace ATCRoom.Sim
             MaxBankDegrees = Clamp(MaxBankDegrees, 10, 60, 30);
             (double height, double speed, double downwind, double close, double wide, double bank, double rollOut, double rollOutHeight) = CircuitDefaults(Name, ApproachSpeedKt, MaxBankDegrees);
             CircuitHeightFt = Clamp(CircuitHeightFt, 300, 5000, height);
+            ConventionalHeightFt = Clamp(ConventionalHeightFt, 300, 5000, CircuitHeightFt);
+            WideHeightFt = Clamp(WideHeightFt, 300, 5000, CircuitHeightFt);
+            CloseHeightFt = Clamp(CloseHeightFt, 300, 5000, CircuitHeightFt);
             CircuitSpeedKt = Clamp(CircuitSpeedKt, FinalSpeedKt, MaxSpeedKt, speed);
             DownwindNM = Clamp(DownwindNM, 0.3, 5, downwind);
             CloseDownwindNM = Clamp(CloseDownwindNM, 0.2, 1.5, close);
@@ -94,7 +104,7 @@ namespace ATCRoom.Sim
             OverheadHeightFt = Clamp(OverheadHeightFt, 500, 5000, overheadHeight);
             OverheadSpeedKt = Clamp(OverheadSpeedKt, CircuitSpeedKt, MaxSpeedKt, overheadSpeed);
             BreakBankDegrees = Clamp(BreakBankDegrees, 30, 80, breakBank);
-            BreakHeightFt = Clamp(BreakHeightFt, 300, 5000, CircuitHeightFt);
+            BreakHeightFt = Clamp(BreakHeightFt, 300, 5000, CloseHeightFt);
             (double highKey, double lowKey, double glide) = SfoDefaults(Name, CircuitHeightFt, CircuitSpeedKt);
             HighKeyFt = Clamp(HighKeyFt, 500, 15000, highKey);
             LowKeyFt = Clamp(LowKeyFt, 300, HighKeyFt, Math.Min(lowKey, HighKeyFt));
