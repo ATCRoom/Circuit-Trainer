@@ -371,3 +371,6 @@ A simulation environment for training **tower control of traffic in the circuit*
   it simply flies straight to the IP and turns towards the aerodrome (onto the runway track, the turn anticipated so
   it rolls out on the initial at the IP). Same for the SFO's way back if it is ever used, and a self-test with the
   track drawn (no turn of more than ~180° in all before the initial).
+- **Movable labels (the user, 3 Nov):** each label can be dragged with the mouse (left button on the label, not on
+  its buttons) to where it is wanted around its aircraft; the offset is kept for that aircraft (it follows it), the
+  leader line from the symbol to the label. The selected label too. (A drag on the empty map still moves the map.)
