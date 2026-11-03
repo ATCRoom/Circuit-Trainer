@@ -44,13 +44,13 @@ namespace ATCRoom.TwrTrainer
         ];
 
         /// <summary>A new aircraft in a circuit. <paramref name="side"/> null: the side of the runway in the aerodrome file.</summary>
-        public string? Add(CircuitStart start, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, out string added)
+        public string? Add(CircuitStart start, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, bool hold, out string added)
         {
             added = "";
             if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
             try
             {
-                added = engine.AddInCircuit(start, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass);
+                added = engine.AddInCircuit(start, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, hold: hold);
                 return null;
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
@@ -76,6 +76,9 @@ namespace ATCRoom.TwrTrainer
         public void BreakNow(string callsign) => engine.BreakNow(callsign);
 
         public void Orbit(string callsign) => engine.Orbit(callsign);
+
+        /// <summary>SFO: hold at the High Key (circling over the field) or start it (at the next pass over the High Key).</summary>
+        public void HoldAtHighKey(string callsign, bool hold) => engine.HoldAtHighKey(callsign, hold);
 
         public void GoAround(string callsign) => engine.GoAround(callsign);
 

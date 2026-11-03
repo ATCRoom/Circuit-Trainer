@@ -322,3 +322,10 @@ A simulation environment for training **tower control of traffic in the circuit*
   `SfoSide` (missing: the runway's `Side`). The program: three choices under the runway; a new aircraft with
   "Aerodrome's" gets its circuit's side; for the selected one, another circuit chosen sets the side of that circuit.
   The SFO after a touch and go / go-around flies the close pattern on the jet side.
+- **SFO: to the High Key by a climbing spiral, and hold (the user, 3 Nov):** the SFO ordered in flight, or again after a
+  go-around / touch and go (above 400 ft), goes straight to the High Key: it climbs on a circle over the field (half the
+  width of the close pattern as radius, the turns to the SFO side) whose centre moves to the circle of the High Key (the
+  same circle as the turn to the Low Key); over the High Key, along the runway, at its height, the SFO starts (leg CLIMB).
+  `HoldAtHighKey(callsign, true)`: it circles there at the High Key height until `false` ("Start SFO") (leg HOLD); given
+  before the High Key it goes to the circle at once; a new aircraft at the High Key can start on hold. The wide loop out
+  to the initial point is gone for the SFO.

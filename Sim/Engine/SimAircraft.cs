@@ -111,7 +111,9 @@ namespace ATCRoom.Sim
         // The circuit it will fly after the next go-around or touch and go (the close pattern ordered while in a circuit), and
         // where the overhead pattern breaks.
         CircuitType? NextCircuit = null,
-        BreakPoint Break = BreakPoint.Middle);
+        BreakPoint Break = BreakPoint.Middle,
+        // SFO: on hold at the High Key (until "start SFO").
+        bool SfoHold = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -176,6 +178,7 @@ namespace ATCRoom.Sim
             : Contact == GroundContact.Landed ? "LANDED"
             : Circuit.Departed ? "DEPARTURE"
             : Circuit.Suspended ? "MANUAL"
+            : Circuit.Spiral ? (Circuit.Hold ? "HOLD" : "CLIMB")
             : Circuit.Orbit > 0 ? "ORBIT"
             : Route != null && RouteNext >= 0 && RouteNext < Route.Count ? Route[RouteNext].Name
             : Circuit.OnFinal ? "FINAL" : "";
@@ -186,6 +189,6 @@ namespace ATCRoom.Sim
             Class.Name, GroundSpeedKt, TrackTrue, DriftDegrees, Contact,
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
-            Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle);
+            Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true);
     }
 }

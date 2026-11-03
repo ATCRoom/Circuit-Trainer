@@ -1238,6 +1238,55 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     Sfo("Light", CircuitSide.Left, 2500, 900, 1600);
     Sfo("Turboprop", CircuitSide.Right, 4000, 1500, 2800);
 
+    // 22b. SFO again after a go-around: straight to the High Key, climbing on the circle over the field (no wide loop).
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.GoAround, performanceClass: "Jet");
+        bool ordered = false, around = false;
+        List<AircraftState> flown = [sim.Get(cs)!];
+        flown.AddRange(Fly(sim, cs, 2400, st =>
+        {
+            if (!ordered && st.Leg == "FINAL") { ordered = true; sim.SetCircuit(cs, CircuitType.Sfo, CircuitSide.Left); }
+            if (!around && st.Leg == "GO AROUND") { around = true; sim.SetEndAction(cs, EndAction.FullStop); }
+        }));
+        List<AircraftState> climb = OnLeg(flown, "CLIMB");
+        (double hx, double hy) = Place(0.5, 0, CircuitSide.Left);
+        double far = climb.Count > 0 ? climb.Max(st => Math.Sqrt((st.X - hx) * (st.X - hx) + (st.Y - hy) * (st.Y - hy))) : double.NaN;
+        int second = flown.FindLastIndex(st => st.Leg == "CLIMB");
+        AircraftState? lowKey2 = second < 0 ? null : flown.Skip(second).FirstOrDefault(st => st.Leg == "LOW KEY");
+        Check(around && climb.Count > 10 && far < 2.5 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null && LandedOnRunway(flown),
+            "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft), the SFO, then lands",
+            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key" : "no climb");
+        pictures.Add(("SFO, go-around, SFO again: climbing spiral over the field to the High Key (Jet)", flown));
+    }
+
+    // 22c. Hold at the High Key: three turns there, then "start SFO".
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Right, EndAction.FullStop, performanceClass: "Jet", hold: true);
+        double turned = 0;
+        double? lastHeading = null;
+        bool released = false;
+        List<AircraftState> flown = [sim.Get(cs)!];
+        flown.AddRange(Fly(sim, cs, 1500, st =>
+        {
+            if (st.Leg == "HOLD")
+            {
+                if (lastHeading is double before) turned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - before));
+                lastHeading = st.HeadingTrue;
+                if (!released && turned >= 3 * 360) { released = true; sim.HoldAtHighKey(cs, false); }
+            }
+        }));
+        List<AircraftState> hold = OnLeg(flown, "HOLD");
+        (double hx, double hy) = Place(0.5, 0, CircuitSide.Right);
+        double far = hold.Count > 0 ? hold.Max(st => Math.Sqrt((st.X - hx) * (st.X - hx) + (st.Y - hy) * (st.Y - hy))) : double.NaN;
+        List<AircraftState> late = hold.Skip(hold.Count / 3).ToList();
+        Check(released && late.Count > 10 && late.All(st => Near(Height(st), 7000, 150)) && far < 2.5 && flown.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(flown),
+            "SFO hold at the High Key: circles over the field at 7000 ft, three turns, then start SFO and lands",
+            hold.Count > 0 ? $"turned {turned:F0}°, at most {far:F2} NM from the High Key, heights {late.Min(Height):F0}-{late.Max(Height):F0} ft" : "no hold");
+        pictures.Add(("SFO hold at the High Key, three turns, then start (Jet, right)", flown));
+    }
+
     // 23. Helicopter: the conventional circuit, landing on a pad beside the runway, hovering down.
     {
         SimEngine sim = NewCircuitEngine();
@@ -1279,7 +1328,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         {
             ["INITIAL"] = "#a0a8ff", ["UPWIND"] = "#d0d0d0", ["CROSSWIND"] = "#ffd24a", ["DOWNWIND"] = "#4ab0ff", ["BASE"] = "#c586c0",
             ["FINAL"] = "#7dff9a", ["GO AROUND"] = "#ff5050", ["JOIN"] = "#ffffff", ["ROLL"] = "#ff9f40", ["LANDED"] = "#ff9f40",
-            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5", ["HIGH KEY"] = "#ff8c3a", ["LOW KEY"] = "#ffe08a"
+            ["DEPARTURE"] = "#ff80c0", ["MANUAL"] = "#888888", ["ORBIT"] = "#ff6ad5", ["HIGH KEY"] = "#ff8c3a", ["LOW KEY"] = "#ffe08a", ["CLIMB"] = "#9fe1cb", ["HOLD"] = "#5dcaa5"
         };
         string Colour(string leg) => colours.TryGetValue(leg, out string? found) ? found : "#888888";
         System.Text.StringBuilder html = new();

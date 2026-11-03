@@ -63,6 +63,7 @@ namespace ATCRoom.TwrTrainer
         private readonly ComboBox classBox = new();
         private readonly ComboBox endBox = Combo(TowerCommands.Ends);
         private readonly TextBox callsignBox = new() { Width = 90 };
+        private readonly CheckBox holdBox = new() { Content = "Hold at the High Key (SFO)" };
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly ComboBox selCircuitBox = Combo(TowerCommands.Circuits);
         private readonly ComboBox selSideBox = Combo<CircuitSide>([(CircuitSide.Left, "Left"), (CircuitSide.Right, "Right")]);
@@ -194,6 +195,8 @@ namespace ATCRoom.TwrTrainer
             Row("Class", classBox);
             Row("At the end", endBox);
             Row("Callsign (optional)", callsignBox);
+            holdBox.Foreground = TextBrush;
+            Row("", holdBox);
             startBox.SelectedIndex = circuitBox.SelectedIndex = sideBox.SelectedIndex = endBox.SelectedIndex = 0;
             Note("Overhead starts at the initial point, SFO at the High Key (from elsewhere they fly the close pattern).");
             Buttons(("Add", AddAircraft));
@@ -221,6 +224,9 @@ namespace ATCRoom.TwrTrainer
                 view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y)))),
                 ("BREAK NOW", () => WithSelected(commands.BreakNow)));
             Buttons(selectedPanel, ("Orbit", () => WithSelected(commands.Orbit)), ("Go around", () => WithSelected(commands.GoAround)));
+            Note("SFO: holding over the field at the High Key, or start.", selectedPanel);
+            Buttons(selectedPanel, ("Hold at High Key", () => WithSelected(cs => commands.HoldAtHighKey(cs, true))),
+                ("Start SFO", () => WithSelected(cs => commands.HoldAtHighKey(cs, false))));
             Buttons(selectedPanel, ("Helipad on the map", () => WithSelected(cs =>
                 view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y)))),
                 ("Remove", () => WithSelected(commands.Remove)));
@@ -545,7 +551,7 @@ namespace ATCRoom.TwrTrainer
         private void AddAircraft()
         {
             string? error = commands.Add(TagOf<CircuitStart>(startBox), TagOf<CircuitType>(circuitBox), TagOf<CircuitSide?>(sideBox), TagOf<EndAction>(endBox),
-                classBox.SelectedItem as string, callsignBox.Text, out string added);
+                classBox.SelectedItem as string, callsignBox.Text, holdBox.IsChecked == true, out string added);
             Say(error);
             if (error != null) return;
             callsignBox.Text = "";
