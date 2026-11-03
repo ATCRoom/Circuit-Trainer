@@ -745,10 +745,10 @@ namespace ATCRoom.Sim
                 plane.SelectedVerticalRateFpm = plane.AltitudeFt < highKey ? Math.Max(MinVerticalRate, kind.MaxClimbFpm * 0.8) : Math.Max(MinVerticalRate, Math.Min(1500, kind.MaxDescentFpm));
             }
             if (!plane.SpeedGiven) plane.TargetSpeedKt = Math.Clamp(kind.BestGlideKt, kind.MinSpeedKt, kind.MaxSpeedKt);
-            // Over the High Key, along the runway, at its height: the SFO.
+            // Over the High Key, along the runway (the heading of the runway: the top of the circle), at its height: the SFO.
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             if (!circuit.Hold && apart <= 0.1 && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.2
-                && Math.Abs(along - HighKeyAlong()) < 0.5 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 30)
+                && Math.Abs(along - HighKeyAlong()) < 0.5 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 10)
             {
                 circuit.Spiral = false;
                 GiveRoute(plane, SfoRoute(plane).Skip(1).ToList());
