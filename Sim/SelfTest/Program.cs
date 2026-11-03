@@ -1222,8 +1222,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             SimEngine sim = NewCircuitEngine();
             sim.SetAerodrome(heights, "14");
             string cs = sim.AddInCircuit(CircuitStart.Downwind, type, null, EndAction.FullStop, performanceClass: kind);
-            List<AircraftState> flown = Fly(sim, cs, 60);
-            return flown.Count > 0 ? Height(flown[^1]) : double.NaN;
+            List<AircraftState> downwind = Fly(sim, cs, 20).Where(st => st.Leg == "DOWNWIND").ToList();
+            return downwind.Count > 0 ? downwind.Max(Height) : double.NaN;
         }
         double jetConventional = DownwindHeight("Jet", CircuitType.Conventional), jetWide = DownwindHeight("Jet", CircuitType.Wide);
         double turboprop = DownwindHeight("Turboprop", CircuitType.Conventional), jetClose = DownwindHeight("Jet", CircuitType.Close);
