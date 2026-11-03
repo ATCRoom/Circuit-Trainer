@@ -365,3 +365,9 @@ A simulation environment for training **tower control of traffic in the circuit*
 - **"Extend downwind" button missing** (asked by the user; it was never in the list). **Decided (the user, 3 Nov: A):**
   "Extend downwind": on the downwind it goes on beyond the base turn (straight, at circuit height) until "Turn base"
   (a second button), then it turns to the base / to the final from there. Both on the label and in the panel.
+- **To review absolutely (the user, 3 Nov, picture): the way to the initial point from the wide downwind.** Now it
+  makes two "figures of eight" to reposition (the route: a point 1 NM beyond the IP out on the wide downwind, then a
+  point on the runway track 1 NM before the IP, then the initial: turns of 90° and more between close points). Wanted:
+  it simply flies straight to the IP and turns towards the aerodrome (onto the runway track, the turn anticipated so
+  it rolls out on the initial at the IP). Same for the SFO's way back if it is ever used, and a self-test with the
+  track drawn (no turn of more than ~180° in all before the initial).
