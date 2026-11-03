@@ -136,6 +136,13 @@ namespace ATCRoom.Sim
         /// order (it does not fly the circuit by itself).
         /// </summary>
         public bool Waiting;
+        /// <summary>
+        /// Crossing the zone (the user, 3 Nov): from a gate to another one (over the field or not), at its height, never
+        /// landing; gone at the exit gate (<see cref="TransitDone"/>). Its way: the exit point, its height and speed.
+        /// </summary>
+        public bool Transit;
+        public bool TransitDone;
+        public double TransitX, TransitY, TransitHeight, TransitSpeed;
         /// <summary>A helicopter's landing point (the plane, NM): its final goes there, hovering down to the ground.</summary>
         public bool HasPad;
         public double PadX, PadY;
@@ -297,7 +304,7 @@ namespace ATCRoom.Sim
         public void SetNextCircuit(string callsign, CircuitType type, CircuitSide side) =>
             Instruct(callsign, Kind.Heading, a =>
             {
-                if (a.Circuit is { Suspended: false, Departed: false, Waiting: false } circuit && a.Contact is GroundContact.Airborne or GroundContact.Rolling)
+                if (a.Circuit is { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit && a.Contact is GroundContact.Airborne or GroundContact.Rolling)
                 {
                     if (circuit.Type == type && circuit.Side == side && !circuit.Spiral) circuit.NextType = null;
                     else
@@ -357,7 +364,7 @@ namespace ATCRoom.Sim
         {
             {
                 if (double.IsNaN(glidePathCourse) || a.Contact is GroundContact.Landed or GroundContact.OnGround) return;
-                bool inCircuit = a.Circuit is { Suspended: false, Departed: false, Waiting: false };
+                bool inCircuit = a.Circuit is { Suspended: false, Departed: false, Waiting: false, Transit: false };
                 (double alongNow, double lateralNow) = RunwayFrame(a.X, a.Y, side);
                 bool onFinal = a.Circuit is { OnFinal: true } && Math.Abs(lateralNow) < 0.3 && alongNow < runwayLength;
                 // The same circuit on the other side, in flight: an S over the aerodrome to the new downwind (on the final: a go-around).
@@ -382,6 +389,7 @@ namespace ATCRoom.Sim
                 circuit.Suspended = false;
                 circuit.OnFinal = false;
                 circuit.Waiting = false;
+                circuit.Transit = false;
                 if (type == CircuitType.Sfo)
                 {
                     // Straight to the High Key: climbing on the circle over the field, on hold there (until "start SFO").
@@ -660,6 +668,46 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
+        /// Adds an aircraft crossing the zone: from an entry gate to an exit gate (the plane, NM), over the field or straight,
+        /// at a height above the threshold (null: 500 ft above the highest circuit of its class), never landing: gone at the
+        /// exit gate. It can be given orbits, a heading (then MANUAL) and taken back onto its way (<see cref="ResumeTransit"/>).
+        /// </summary>
+        public string AddTransit(double fromX, double fromY, double toX, double toY, bool overhead, double? heightFt = null, string? callsign = null,
+            string? performanceClass = null, Func<string, bool>? takenElsewhere = null)
+        {
+            lock (sync)
+            {
+                PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
+                    ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
+                PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
+                double highest = new[] { CircuitType.Conventional, CircuitType.Wide, CircuitType.Close }.Max(t => CircuitHeight(t, kind));
+                double height = runwayElevation + (heightFt is double given && double.IsFinite(given) && given > 0 ? Math.Min(given, MaxAltitude) : highest + 500);
+                double speed = kind.ArrivalSpeedKt > 0 ? kind.ArrivalSpeedKt : kind.CircuitSpeedKt;
+                (double mx, double my) = double.IsNaN(glidePathCourse) ? (0.0, 0.0) : FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
+                (double fx, double fy) = overhead ? (mx, my) : (toX, toY);
+                double heading = Normalize(Math.Atan2(fx - fromX, fy - fromY) * 180 / Math.PI);
+                string name = Add(fromX, fromY, height, heading, speed, callsign, kind.Name, takenElsewhere);
+                SimAircraft plane = Find(name)!;
+                plane.Class = kind;
+                plane.Circuit = new CircuitState { Transit = true, TransitX = toX, TransitY = toY, TransitHeight = height, TransitSpeed = speed };
+                List<RoutePoint> route = [];
+                if (overhead) route.Add(new RoutePoint(mx, my, height, speed, "TRANSIT"));
+                route.Add(new RoutePoint(toX, toY, height, speed, "TRANSIT"));
+                GiveRoute(plane, route);
+                return name;
+            }
+        }
+
+        /// <summary>Instruction to an aircraft crossing the zone flown by the instructor: back onto its way, straight to its exit gate.</summary>
+        public void ResumeTransit(string callsign) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is not { Transit: true } circuit || a.Contact != GroundContact.Airborne) return;
+                circuit.Suspended = false;
+                GiveRoute(a, [new RoutePoint(circuit.TransitX, circuit.TransitY, circuit.TransitHeight, circuit.TransitSpeed, "TRANSIT")]);
+            });
+
+        /// <summary>
         /// Instruction (to an aircraft out of the circuits): join this circuit this way (see <see cref="AddAtGate"/>).
         /// </summary>
         public void JoinCircuit(string callsign, CircuitEntry entry, CircuitType type, CircuitSide side) =>
@@ -772,6 +820,13 @@ namespace ATCRoom.Sim
             if (circuit.Spiral && !circuit.Suspended)
             {
                 SpiralStep(plane, circuit);
+                return;
+            }
+            if (circuit.Transit)
+            {
+                // Crossing: its way (orbits above); a heading of the instructor: it waits; at the exit gate: gone.
+                if (!circuit.Suspended && !routeOver && (plane.Route == null || plane.Navigation != NavigationMode.Route)) circuit.Suspended = true;
+                if (!circuit.Suspended && routeOver) circuit.TransitDone = true;
                 return;
             }
             if (circuit.Type == CircuitType.Sfo && !circuit.Suspended && plane.Route != null && plane.RouteNext < plane.Route.Count)

@@ -470,3 +470,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Arrival height (the user, 3 Nov: option 2):** a box "Height ft" in the new aircraft (saved in its flight plan):
   the height above the runway it arrives at, at the gate; empty: 500 ft above its circuit. It climbs or descends to the
   circuit height before reaching the circuit (along the join).
+- **Crossing traffic (the user, 3 Nov: aircraft crossing the zone that do not land):** in New aircraft, Type ARRIVAL /
+  TRANSIT; a crossing goes from the gate From to the gate To, DIRECT or OVERHEAD (over the middle of the runway), at its
+  Height ft (empty: 500 ft above the highest circuit of its class), never landing, gone at once at the exit gate (the
+  user's answer). Orbits (until continue) also for it (the user: yes); a heading: MANUAL; REJOIN: back onto its way.
+  In the flight plans and scenarios too. Leg TRANSIT. A crossing given a circuit (next circuit, rejoin of a circuit)
+  becomes an arrival.

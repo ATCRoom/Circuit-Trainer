@@ -67,6 +67,14 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<CircuitEntry> entryRow = new([(CircuitEntry.Downwind, "DW"), (CircuitEntry.Base, "BASE"), (CircuitEntry.InitialPoint, "IP"),
             (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL")], (_, t) => ChoiceTip("entry " + t));
         private readonly TextBox delayBox = new() { Width = 45, Text = "0" };
+        /// <summary>An arrival or a crossing (to the gate To, straight or over the field).</summary>
+        private readonly ChoiceRow<bool> typeRow = new([(false, "ARRIVAL"), (true, "TRANSIT")], (transit, _) => transit
+            ? "Crossing the zone: from the gate From to the gate To, at its height, not landing; gone at the gate To."
+            : "Arriving: it joins its circuit (Entry) and lands or flies the circuit.");
+        private ChoiceRow<string> toRow = new([]);
+        private readonly StackPanel toHolder = new();
+        private readonly ChoiceRow<bool> viaRow = new([(false, "DIRECT"), (true, "OVERHEAD")], (overhead, _) => overhead
+            ? "Crossing over the field (the middle of the runway), then to the gate To." : "Crossing straight from gate to gate.");
         private readonly TextBox arrivalBox = new() { Width = 55 };
         private readonly TextBox newGateName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
@@ -278,6 +286,12 @@ namespace ATCRoom.TwrTrainer
             current = newContent;
             Note("From an entry gate (it joins its circuit by itself), the long final, the runway (a take-off) or CIRC (already in the circuit, for tests). Then ADD NOW, or TO PLANS for the list below. AD: the aerodrome's side.");
             Row("From", fromHolder, null, 62);
+            Row("Type", typeRow, null, 62);
+            Row("To", toHolder, null, 62);
+            Row("Via", viaRow, null, 62);
+            typeRow.Show(false);
+            viaRow.Show(true);
+            typeRow.Picked += _ => ShowEntries();
             Row("Entry", entryRow, null, 62);
             Row("Circuit", circuitRow, null, 62);
             Row("Side", sideRow, null, 62);
@@ -308,7 +322,7 @@ namespace ATCRoom.TwrTrainer
             endRow.Show(EndAction.TouchAndGo);
             RebuildFrom();
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
-            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate; empty: 500 above its circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, 62);
+            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, 62);
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the plans: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
             current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO PLANS", AddPlan)));
@@ -877,6 +891,9 @@ namespace ATCRoom.TwrTrainer
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
                 End = endRow.Value,
+                Transit = typeRow.HasValue && typeRow.Value,
+                To = toRow.HasValue ? toRow.Value ?? "" : "",
+                Overhead = viaRow.HasValue && viaRow.Value,
                 HeightFt = double.TryParse(arrivalBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && h > 0 ? h : null,
                 DelayMinutes = delay
             };
@@ -902,6 +919,15 @@ namespace ATCRoom.TwrTrainer
             {
                 CircuitType type = plan.Circuit is CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
                 return commands.Add(CircuitStart.Runway, type, plan.Side, plan.End, kind, callsign, false, out added);
+            }
+            if (plan.Transit)
+            {
+                var start = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.From, StringComparison.OrdinalIgnoreCase));
+                var exit = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.To, StringComparison.OrdinalIgnoreCase));
+                if (start.Name == null) return "A crossing starts at a gate: choose it in From.";
+                if (exit.Name == null) return "A crossing ends at a gate: choose it in To.";
+                if (string.Equals(start.Name, exit.Name, StringComparison.OrdinalIgnoreCase)) return "A crossing goes to another gate (To).";
+                return commands.AddTransit(start.X, start.Y, exit.X, exit.Y, plan.Overhead, plan.HeightFt, kind, callsign, out added);
             }
             if (plan.From == From.LongFinal)
             {
@@ -940,6 +966,7 @@ namespace ATCRoom.TwrTrainer
             string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? "FINAL" : p.Entry.ToString().ToUpperInvariant();
             string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
+            if (p.Transit) return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  +{p.DelayMinutes:0.#}'";
             return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
         }
 
@@ -1126,6 +1153,13 @@ namespace ATCRoom.TwrTrainer
             fromRow.Show(was != null && items.Any(i => i.Item1 == was) ? was : items[0].Item1);
             fromHolder.Children.Clear();
             fromHolder.Children.Add(fromRow);
+            // The exit gates of a crossing.
+            string? wasTo = toRow.HasValue ? toRow.Value : null;
+            List<(string, string)> gates = airfield.Gates.Select(g => (g.Name, g.Name)).ToList();
+            toRow = new ChoiceRow<string>(gates, (value, _) => $"Exit gate {value}: the crossing aircraft is gone there.");
+            if (gates.Count > 0) toRow.Show(wasTo != null && gates.Any(g => g.Item1 == wasTo) ? wasTo : gates[^1].Item1);
+            toHolder.Children.Clear();
+            toHolder.Children.Add(gates.Count > 0 ? toRow : new TextBlock { Text = "(no gates: add them in Aerodrome)", Foreground = DimBrush, FontSize = 11 });
             ShowEntries();
             view.Gates = airfield.Gates;
             view.InvalidateVisual();
@@ -1135,7 +1169,10 @@ namespace ATCRoom.TwrTrainer
         private void ShowEntries()
         {
             string from = fromRow.Value ?? "";
-            entryRow.IsEnabled = from is not (From.LongFinal or From.Runway);
+            bool transit = typeRow.HasValue && typeRow.Value;
+            toRow.IsEnabled = viaRow.IsEnabled = transit;
+            circuitRow.IsEnabled = sideRow.IsEnabled = endRow.IsEnabled = !transit;
+            entryRow.IsEnabled = !transit && from is not (From.LongFinal or From.Runway);
             bool circuit = from == From.InCircuit;
             entryRow.SetEnabled(CircuitEntry.Base, !circuit);
             entryRow.SetEnabled(CircuitEntry.Final, !circuit);
@@ -1362,7 +1399,7 @@ namespace ATCRoom.TwrTrainer
                 startSfoButton.IsEnabled = sfo && a.SfoHold;
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS";
-                orbitButton.IsEnabled = inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN";
+                orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN") || leg == "TRANSIT";
                 orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
                 orbitForeverButton.Content = a.OrbitForever ? "CONTINUE" : "ORBIT ∞";
                 orbitForeverButton.ToolTip = Tips[a.OrbitForever ? "CONTINUE" : "ORBIT ∞"];

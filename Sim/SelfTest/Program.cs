@@ -1538,6 +1538,45 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             onDownwind != null ? $"{Height(first):F0} ft at the gate, {Height(onDownwind):F0} ft on the downwind" : "no downwind");
     }
 
+    // 33. Crossing the zone: from a gate over the field to the opposite gate, at its height, never landing, gone there;
+    // orbits until continue on the way, a heading (MANUAL), back onto its way.
+    {
+        (double ax, double ay) = Place(-4, 4.5, CircuitSide.Left);
+        (double bx, double by) = Place(4, -4.5, CircuitSide.Left);
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddTransit(ax, ay, bx, by, overhead: true, heightFt: 2500, performanceClass: "Turboprop");
+        bool orbiting = false, continued = false, vectored = false, resumed = false;
+        double turned = 0;
+        double? before = null;
+        int seconds = 0, vectoredAt = 0;
+        List<AircraftState> flown = Fly(sim, cs, 1200, st =>
+        {
+            seconds++;
+            if (!orbiting && seconds == 20) { orbiting = true; sim.Orbit(cs, forever: true); }
+            if (st.Leg == "ORBITS")
+            {
+                if (before is double h) turned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - h));
+                before = st.HeadingTrue;
+                if (!continued && turned > 400) { continued = true; sim.ContinueAfterOrbit(cs); }
+            }
+            // (Past the field, on the way to the exit gate.)
+            if (continued && !vectored && st.Leg == "TRANSIT" && st.Route != null && st.RouteNext >= st.Route.Count - 1 && st.Route.Count > 1)
+            {
+                vectored = true;
+                vectoredAt = seconds;
+                sim.SetHeading(cs, CircuitCourse);
+            }
+            if (vectored && !resumed && st.Leg == "MANUAL" && seconds > vectoredAt + 30) { resumed = true; sim.ResumeTransit(cs); }
+        });
+        AircraftState last = flown[^1];
+        double overField = flown.Min(st => Math.Sqrt(Math.Pow(Frame(st).Along - CircuitLength / 2, 2) + Math.Pow(Frame(st).Lateral, 2)));
+        Check(flown.All(st => st.Contact == GroundContact.Airborne && st.Transit) && flown.All(st => Near(Height(st), 2500, 80)) && continued && resumed
+            && sim.Get(cs) == null && Math.Sqrt(Math.Pow(last.X - bx, 2) + Math.Pow(last.Y - by, 2)) < 0.3 && overField < 0.5,
+            "Crossing: from a gate over the field to the other gate at 2500 ft, orbits until continue, a heading and back, never lands, gone at the gate",
+            $"over the field within {overField:F2} NM, orbit {turned:F0}°, last {Math.Sqrt(Math.Pow(last.X - bx, 2) + Math.Pow(last.Y - by, 2)):F2} NM from the exit gate");
+        pictures.Add(("Crossing from a gate over the field to the opposite gate, an orbit, a heading, back (Turboprop)", flown));
+    }
+
     // 32. Take-off: only the conventional or the wide after it (a close pattern asked: the conventional).
     {
         SimEngine sim = NewCircuitEngine();

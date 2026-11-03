@@ -729,6 +729,8 @@ namespace ATCRoom.Sim
             }
             // Landed aircraft roll on for a few seconds, then they are gone.
             aircraft.RemoveAll(a => a.Contact == GroundContact.Landed && steps - a.LandedStep >= (long)Math.Round(LandedRemoveAfter / Step));
+            // Crossing aircraft at their exit gate: gone.
+            aircraft.RemoveAll(a => a.Circuit is { TransitDone: true });
         }
 
         /// <summary>The aircraft reached the ground: on the runway it has landed, elsewhere it stops there.</summary>

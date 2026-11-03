@@ -32,6 +32,10 @@ namespace ATCRoom.TwrTrainer
         public EndAction End { get; set; } = EndAction.TouchAndGo;
         /// <summary>From a gate: the height it arrives at (ft above the runway); null: 500 ft above its circuit.</summary>
         public double? HeightFt { get; set; }
+        /// <summary>Crossing the zone (not landing): to the gate <see cref="To"/>, over the field or straight.</summary>
+        public bool Transit { get; set; }
+        public string To { get; set; } = "";
+        public bool Overhead { get; set; }
         /// <summary>Minutes after START ALL.</summary>
         public double DelayMinutes { get; set; }
 
@@ -48,7 +52,7 @@ namespace ATCRoom.TwrTrainer
 
         public TowerPlan Copy() => new()
         {
-            Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt,
+            Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

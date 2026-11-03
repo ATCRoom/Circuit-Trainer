@@ -100,11 +100,28 @@ namespace ATCRoom.TwrTrainer
 
         public void Speed(string callsign, double speedKt) => engine.SetSpeed(callsign, speedKt);
 
-        /// <summary>Back into its circuit (the one it was flying, on its side) from where it is.</summary>
+        /// <summary>Back into its circuit (the one it was flying, on its side) from where it is; a crossing one: back onto its way.</summary>
         public void Rejoin(string callsign)
         {
             AircraftState? a = engine.Get(callsign);
-            if (a != null) engine.SetCircuit(callsign, a.Circuit ?? CircuitType.Conventional, a.CircuitSide);
+            if (a == null) return;
+            if (a.Transit) engine.ResumeTransit(callsign);
+            else engine.SetCircuit(callsign, a.Circuit ?? CircuitType.Conventional, a.CircuitSide);
+        }
+
+        /// <summary>A new aircraft crossing the zone from a gate to another one (the plane, NM).</summary>
+        public string? AddTransit(double fromX, double fromY, double toX, double toY, bool overhead, double? heightFt, string? performanceClass, string? callsign, out string added)
+        {
+            added = "";
+            try
+            {
+                added = engine.AddTransit(fromX, fromY, toX, toY, overhead, heightFt, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass);
+                return null;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                return ex.Message;
+            }
         }
 
         public void SetEnd(string callsign, EndAction end) => engine.SetEndAction(callsign, end);

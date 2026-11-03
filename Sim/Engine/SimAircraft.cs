@@ -118,7 +118,9 @@ namespace ATCRoom.Sim
         CircuitSide NextSide = CircuitSide.Left,
         bool Extended = false,
         // Orbiting until "continue".
-        bool OrbitForever = false);
+        bool OrbitForever = false,
+        // Crossing the zone (from a gate to another one, not landing).
+        bool Transit = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -197,6 +199,6 @@ namespace ATCRoom.Sim
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
-            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true);
+            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true);
     }
 }

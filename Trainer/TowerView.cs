@@ -474,7 +474,12 @@ namespace ATCRoom.TwrTrainer
                 [("", $"{a.Callsign}  {a.PerformanceClass}", false)],
                 [("", $"{heightSpeed}  {a.Leg}{next}", false)]
             ];
-            if (a.Circuit is CircuitType type)
+            if (a.Transit)
+            {
+                // Crossing the zone: only its orbits.
+                rows.Add([a.OrbitForever ? ("CONTINUE", "CONT", true) : ("ORBIT", "ORB", true)]);
+            }
+            else if (a.Circuit is CircuitType type)
             {
                 string circuit = PendingCircuit is CircuitType pending ? $"Ⓒ {Short(pending)}?" : $"Ⓒ {Short(type)}";
                 rows.Add([("CIRC", circuit, false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", $"NEXT {EndShort(a.EndAction)}", false)]);
@@ -595,6 +600,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The third line of the label: the leg, the circuit and its side, what it does at the end of the final.</summary>
         public static string LegText(AircraftState a)
         {
+            if (a.Transit) return a.Leg;
             if (a.Circuit is not CircuitType type) return "";
             string circuit = type switch
             {
