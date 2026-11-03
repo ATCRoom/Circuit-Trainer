@@ -447,3 +447,5 @@ take-off only into the conventional or the wide; SFO on hold at the HK by defaul
 EXTEND DWN and TURN BASE end an orbit; GO AROUND only on the final (level, runway heading, waiting); BREAKUP; group 3
 by the order of the circuit with grey buttons. DEP after a take-off: straight out as before (an exit gate later?).
 - **TESTED OK by the user (3 Nov, 20:24): "tutto ok"** (the build of 3 Nov evening, run 41682399498).
+- **Bug (the user, 3 Nov): the gate row is too wide, REMOVE is hidden** (label column 130 px + box + two buttons in a
+  horizontal row that does not wrap). Fix: the name box on its row, ADD GATE and REMOVE on the row below (a wrap panel).
