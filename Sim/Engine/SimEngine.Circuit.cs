@@ -676,17 +676,14 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// SFO: onto the circle over the field. It starts where the aircraft is (the turn to the side of the SFO) and its
-        /// centre then moves to the circle of the High Key: over the runway, the High Key on it, the half the width of the
-        /// close pattern as radius (the same circle as the turn from the High Key to the Low Key).
+        /// SFO: onto the circle of the High Key, over the field: it passes over the High Key (tangent to the runway track
+        /// there) and lies on the side of the SFO, half the width of the close pattern as radius: the same circle as the
+        /// turn from the High Key to the Low Key. Fixed from the start; the aircraft is steered onto it (see SpiralStep).
         /// </summary>
         private void StartSpiral(SimAircraft plane, CircuitState circuit)
         {
-            double s = circuit.Side == CircuitSide.Right ? 1 : -1;
             double radius = SpiralRadius(plane, circuit);
-            double h = plane.HeadingTrue * Math.PI / 180;
-            circuit.CentreX = plane.X + s * radius * Math.Cos(h);
-            circuit.CentreY = plane.Y - s * radius * Math.Sin(h);
+            (circuit.CentreX, circuit.CentreY) = FromRunway(HighKeyAlong(), radius, circuit.Side);
             circuit.Radius = radius;
             circuit.Spiral = true;
             circuit.Turning = false;
@@ -697,16 +694,18 @@ namespace ATCRoom.Sim
             plane.Navigation = NavigationMode.Manual;
             plane.AltitudeGiven = false;
             plane.SpeedGiven = false;
-            plane.TurnDirection = s > 0 ? TurnDirection.Right : TurnDirection.Left;
-            plane.TargetHeading = Normalize(plane.HeadingTrue + s * 90);
+            plane.TurnDirection = TurnDirection.Shortest;
+            plane.TargetHeading = plane.HeadingTrue;
             circuit.TurnHeading = plane.TargetHeading;
         }
 
         private double SpiralRadius(SimAircraft plane, CircuitState circuit) => Math.Max(0.3, Width(CircuitType.Sfo, plane.Class, circuit.Side) / 2);
 
         /// <summary>
-        /// On the circle of the SFO: climbing (or descending) to the High Key, its centre moving to the High Key's circle;
-        /// over the High Key, at its height and not on hold, the SFO starts (the turn to the Low Key, on the same circle).
+        /// On the circle of the SFO, climbing (or descending) to the High Key: the heading along the circle (the turns to the
+        /// side of the SFO), turned towards it the more the farther the aircraft is from it (from far away nearly straight to
+        /// it, joining it tangent: never a loop). On it, over the High Key along the runway, at its height and not on hold,
+        /// the SFO starts (the turn to the Low Key, on the same circle).
         /// </summary>
         private void SpiralStep(SimAircraft plane, CircuitState circuit)
         {
@@ -722,20 +721,19 @@ namespace ATCRoom.Sim
             PerformanceClass kind = plane.Class;
             double s = circuit.Side == CircuitSide.Right ? 1 : -1;
             double radius = SpiralRadius(plane, circuit);
-            (double tx, double ty) = FromRunway(HighKeyAlong(), radius, circuit.Side);
-            double move = Math.Max(30, plane.GroundSpeedKt) / 3600 * Step * 0.25;
-            double cx = tx - circuit.CentreX, cy = ty - circuit.CentreY, apart = Math.Sqrt(cx * cx + cy * cy);
-            if (apart <= move) (circuit.CentreX, circuit.CentreY) = (tx, ty);
-            else (circuit.CentreX, circuit.CentreY) = (circuit.CentreX + cx / apart * move, circuit.CentreY + cy / apart * move);
+            (circuit.CentreX, circuit.CentreY) = FromRunway(HighKeyAlong(), radius, circuit.Side);
             circuit.Radius = radius;
-            // On the circle (tighter outside, wider inside), the bank of the circuit.
-            plane.CircuitBankDegrees = kind.CircuitBankDegrees;
             double dx = plane.X - circuit.CentreX, dy = plane.Y - circuit.CentreY;
-            double off = (Math.Sqrt(dx * dx + dy * dy) - radius) / radius;
-            double rate = Math.Max(30, plane.GroundSpeedKt) / 3600 / radius * (1 + 1.5 * off) * 180 / Math.PI;
-            plane.SelectedTurnRateDps = Math.Clamp(rate, MinTurnRate, MaxTurnRate);
-            plane.TurnDirection = s > 0 ? TurnDirection.Right : TurnDirection.Left;
-            plane.TargetHeading = Normalize(plane.HeadingTrue + s * 90);
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            // From the centre to the aircraft (degrees true); along the circle: 90° from it (to the side of the turns),
+            // up to 70° more towards the circle (outside it: inwards; inside: outwards).
+            double radial = Math.Atan2(dx, dy) * 180 / Math.PI;
+            double towards = Math.Clamp((distance - radius) / radius * 1.5, -1, 1) * 70;
+            double course = Normalize(radial + s * (90 + towards));
+            plane.CircuitBankDegrees = kind.CircuitBankDegrees;
+            plane.SelectedTurnRateDps = MaxTurnRate;
+            plane.TurnDirection = TurnDirection.Shortest;
+            plane.TargetHeading = HeadingForCourse(course, plane.SpeedKt);
             circuit.TurnHeading = plane.TargetHeading;
             double highKey = runwayElevation + kind.HighKeyFt;
             if (!plane.AltitudeGiven)
@@ -745,10 +743,10 @@ namespace ATCRoom.Sim
                 plane.SelectedVerticalRateFpm = plane.AltitudeFt < highKey ? Math.Max(MinVerticalRate, kind.MaxClimbFpm * 0.8) : Math.Max(MinVerticalRate, Math.Min(1500, kind.MaxDescentFpm));
             }
             if (!plane.SpeedGiven) plane.TargetSpeedKt = Math.Clamp(kind.BestGlideKt, kind.MinSpeedKt, kind.MaxSpeedKt);
-            // Over the High Key, along the runway (the heading of the runway: the top of the circle), at its height: the SFO.
+            // On the circle, over the High Key, along the runway (the top of the circle), at its height: the SFO.
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
-            if (!circuit.Hold && apart <= 0.1 && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.2
-                && Math.Abs(along - HighKeyAlong()) < 0.6 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 15)
+            if (!circuit.Hold && Math.Abs(distance - radius) < 0.15 * radius && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.15
+                && Math.Abs(along - HighKeyAlong()) < 0.3 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 15)
             {
                 circuit.Spiral = false;
                 GiveRoute(plane, SfoRoute(plane).Skip(1).ToList());

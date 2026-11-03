@@ -329,3 +329,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   `HoldAtHighKey(callsign, true)`: it circles there at the High Key height until `false` ("Start SFO") (leg HOLD); given
   before the High Key it goes to the circle at once; a new aircraft at the High Key can start on hold. The wide loop out
   to the initial point is gone for the SFO.
+  Corrected after the user's pictures (3 Nov: loops and figures of eight, the hold up to 2 NM away): the circle is
+  fixed from the start (over the High Key, on the SFO side) and the aircraft is steered by heading along it, turned
+  towards it the more the farther it is (no loops); the SFO starts only on the circle over the High Key. Self-test:
+  the hold within 0.2 NM of the circle, the climb never turning back, the final aligned.

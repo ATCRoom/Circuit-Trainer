@@ -1254,9 +1254,14 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double far = climb.Count > 0 ? climb.Max(st => Math.Sqrt((st.X - hx) * (st.X - hx) + (st.Y - hy) * (st.Y - hy))) : double.NaN;
         int second = flown.FindLastIndex(st => st.Leg == "CLIMB");
         AircraftState? lowKey2 = second < 0 ? null : flown.Skip(second).FirstOrDefault(st => st.Leg == "LOW KEY");
-        Check(around && climb.Count > 10 && far < 2.5 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null && LandedOnRunway(flown),
-            "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft), the SFO, then lands",
-            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key" : "no climb");
+        // Always turning the same way (left: the side of the SFO), never back: a spiral, no loops.
+        double backwards = 0;
+        for (int n = 1; n < climb.Count; n++) backwards = Math.Max(backwards, SimEngine.Wrap(climb[n].HeadingTrue - climb[n - 1].HeadingTrue));
+        List<AircraftState> short2 = second < 0 ? [] : flown.Skip(second).Where(st => st.Leg == "FINAL" && st.Contact == GroundContact.Airborne && Frame(st).Along > -0.15).ToList();
+        Check(around && climb.Count > 10 && far < 1.6 && backwards < 2 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null
+            && short2.All(st => Math.Abs(Frame(st).Lateral) < 0.1) && LandedOnRunway(flown),
+            "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft, always turning left), the SFO, an aligned final, lands",
+            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key, turned back at most {backwards:F1}°/s" : "no climb");
         pictures.Add(("SFO, go-around, SFO again: climbing spiral over the field to the High Key (Jet)", flown));
     }
 
@@ -1281,9 +1286,15 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         (double hx, double hy) = Place(0.5, 0, CircuitSide.Right);
         double far = hold.Count > 0 ? hold.Max(st => Math.Sqrt((st.X - hx) * (st.X - hx) + (st.Y - hy) * (st.Y - hy))) : double.NaN;
         List<AircraftState> late = hold.Skip(hold.Count / 3).ToList();
-        Check(released && late.Count > 10 && late.All(st => Near(Height(st), 7000, 150)) && far < 2.5 && flown.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(flown),
-            "SFO hold at the High Key: circles over the field at 7000 ft, three turns, then start SFO and lands",
-            (hold.Count > 0 ? $"turned {turned:F0}°, at most {far:F2} NM from the High Key, heights {late.Min(Height):F0}-{late.Max(Height):F0} ft" : "no hold")
+        // On the circle of the High Key: over it, on the right side, 0.6 NM radius.
+        (double cx, double cy) = Place(0.5, 0.6, CircuitSide.Right);
+        double offCircle = late.Count > 0 ? late.Max(st => Math.Abs(Math.Sqrt((st.X - cx) * (st.X - cx) + (st.Y - cy) * (st.Y - cy)) - 0.6)) : double.NaN;
+        int started = flown.FindIndex(st => st.Leg == "LOW KEY");
+        List<AircraftState> shortFinal = started < 0 ? [] : flown.Skip(started).Where(st => st.Leg == "FINAL" && st.Contact == GroundContact.Airborne && Frame(st).Along > -0.15).ToList();
+        Check(released && late.Count > 10 && late.All(st => Near(Height(st), 7000, 150)) && offCircle < 0.2 && started > 0
+            && shortFinal.All(st => Math.Abs(Frame(st).Lateral) < 0.1) && LandedOnRunway(flown),
+            "SFO hold at the High Key: on its circle over the field (within 0.2 NM) at 7000 ft, three turns, then start SFO, an aligned final, lands",
+            (hold.Count > 0 ? $"turned {turned:F0}°, at most {offCircle:F2} NM off the circle, heights {late.Min(Height):F0}-{late.Max(Height):F0} ft" : "no hold")
             + "; legs " + string.Join(">", flown.Select(st => st.Leg).Where((leg, i) => i == 0 || leg != flown[i - 1].Leg)) + $"; last {flown[^1].Contact} {Height(flown[^1]):F0} ft"
             + string.Concat(flown.Where((st, i) => i > 0 && st.Leg == "LOW KEY" && (flown[i - 1].Leg != "LOW KEY" || i % 20 == 0)).Take(12)
                 .Select(st => $" [{Frame(st).Along:F2},{Frame(st).Lateral:F2},h{SimEngine.Wrap(st.HeadingTrue - CircuitCourse):F0},r{st.TurnRateDps:F1},{st.Navigation},{st.RouteNext}]")));
