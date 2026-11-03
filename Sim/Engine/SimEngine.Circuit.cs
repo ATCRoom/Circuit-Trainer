@@ -1116,12 +1116,17 @@ namespace ATCRoom.Sim
         /// The height of the downwind of a circuit (ft above the threshold), of the class (with the aerodrome's heights):
         /// conventional, wide, close (also the overhead's downwind after the break, and the close pattern after an SFO).
         /// </summary>
-        private static double CircuitHeight(CircuitType type, PerformanceClass kind) => type switch
+        private static double CircuitHeight(CircuitType type, PerformanceClass kind)
         {
-            CircuitType.Conventional => kind.ConventionalHeightFt,
-            CircuitType.Wide => kind.WideHeightFt,
-            _ => kind.CloseHeightFt
-        };
+            double height = type switch
+            {
+                CircuitType.Conventional => kind.ConventionalHeightFt,
+                CircuitType.Wide => kind.WideHeightFt,
+                _ => kind.CloseHeightFt
+            };
+            // (A class not normalized, the defaults of the engine: the one height of the class.)
+            return height > 0 ? height : kind.CircuitHeightFt;
+        }
 
         /// <summary>The circuits of the jet shape (no crosswind, no base: 180° turns): close, overhead, flame out.</summary>
         private static bool IsJetShape(CircuitType type) => type is CircuitType.Close or CircuitType.Overhead or CircuitType.Sfo;
