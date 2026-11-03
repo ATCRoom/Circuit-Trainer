@@ -420,3 +420,6 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
 - **Immediate orders during an orbit (the user, 3 Nov):** EXTEND DWN and TURN BASE are ignored during an orbit (and
   during the 180° turns of the jet circuits), so they seem to wait for its end. Agreed: TURN BASE ends the orbit and
   turns to the base from there; EXTEND DWN ends the orbit on the downwind heading and goes on extended.
+- **SFO: on hold at the High Key by default (the user, 3 Nov):** every SFO (next circuit, ordered now, a new aircraft
+  to the HK) reaches the High Key and circles there (HOLD) until START SFO; the checkbox "Hold at the High Key" of
+  the new aircraft goes away; HOLD HK stays to stop one already started towards the HK.
