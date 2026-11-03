@@ -717,7 +717,8 @@ namespace ATCRoom.Sim
             double dx = plane.X - cx, dy = plane.Y - cy;
             double distance = Math.Sqrt(dx * dx + dy * dy);
             double radial = Math.Atan2(dx, dy) * 180 / Math.PI;
-            double towards = Math.Clamp((distance - radius) / radius * 1.5, -1, 1) * 70;
+            // (Gently near the circle, so it joins it without cutting inside.)
+            double towards = Math.Clamp(Math.Atan2(distance - radius, 0.6 * radius) * 180 / Math.PI, -70, 70);
             return (Normalize(radial + s * (90 + towards)), distance);
         }
 
