@@ -378,3 +378,13 @@ A simulation environment for training **tower control of traffic in the circuit*
   circuit starts the spiral at once, leaving the circuit. Wanted: it finishes the circuit it is flying, then (after
   the touch and go / go-around / low pass) climbs to the High Key; shown as the next circuit (">SFO" on the label).
   From outside the circuits (arriving, flown by the instructor) at once. (To ask: the overhead the same way?)
+- **Heading by drag and drop on the map (the user, 3 Nov), besides the heading written:** drag from the aircraft's
+  heading line (its tip) or from its symbol: while dragging, a line from the aircraft to the mouse with the heading
+  (and the side of the turn); on release the heading is given (the aircraft leaves its circuit: MANUAL, group 4 "out
+  of the circuit"; REJOIN brings it back). Esc while dragging: nothing given. (A drag elsewhere still moves the map,
+  a drag on a label moves the label.)
+- **Panel in four groups (proposed 3 Nov, mock-up; two questions open: all circuit changes "from the next circuit" in
+  group 2 with the immediate ones only in group 3? the label the same groups or kept compact?):** 1 new aircraft;
+  2 next circuit (circuit, side, break: from the next touch and go / go-around; the end of the final: this one);
+  3 now in the circuit (extend downwind, turn base, orbit, go around, break now, hold / start SFO, side now, wide now);
+  4 out of the circuit (heading, altitude, speed written or dragged; rejoin, depart now, helipad, remove).
