@@ -374,3 +374,7 @@ A simulation environment for training **tower control of traffic in the circuit*
 - **Movable labels (the user, 3 Nov):** each label can be dragged with the mouse (left button on the label, not on
   its buttons) to where it is wanted around its aircraft; the offset is kept for that aircraft (it follows it), the
   leader line from the symbol to the label. The selected label too. (A drag on the empty map still moves the map.)
+- **SFO ordered as the next circuit starts at once (the user, 3 Nov):** now `SetCircuit(Sfo)` to an aircraft in a
+  circuit starts the spiral at once, leaving the circuit. Wanted: it finishes the circuit it is flying, then (after
+  the touch and go / go-around / low pass) climbs to the High Key; shown as the next circuit (">SFO" on the label).
+  From outside the circuits (arriving, flown by the instructor) at once. (To ask: the overhead the same way?)
