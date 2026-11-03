@@ -399,3 +399,14 @@ go-around; outside: joined now), `ExtendDownwind` / `TurnBase` (leg EXT DOWNWIND
 IP ↔ overhead and HK ↔ SFO linked in the new aircraft, heading / height / speed boxes and REJOIN, the heading dragged
 from the aircraft's symbol (Esc cancels), movable labels, the route drawn as it is flown (half circles, the initial to
 the break), EXT DWN and BASE on the label. Headings are true (no magnetic variation yet).
+- **Aerodrome and Simulation sections collapsible (the user, 3 Nov, picture of the panel):** each one closes to its
+  title bar (state remembered between starts), with a one-line summary on the bar when closed (aerodrome: map, runway
+  in use, wind; simulation: running / paused, speed). Set once, then closed: the traffic commands stay in view.
+- **Advanced traffic generation, entry gates (the user, 3 Nov: aircraft must not start on the downwind / IP / HK but
+  at least 5 NM out, entering the ATZ from entry gates; "an advanced generation module as in the PAR trainer").**
+  Proposed: gates in the aerodrome file (a VRP of the map or a clicked point, name, warned when nearer than 5 NM);
+  from the gate (and optional points) the aircraft joins the circuit by itself (45° to the downwind; overhead: to the
+  IP; SFO: spiral to the HK; or straight-in long final); quick generation from a gate; advanced as the PAR trainer
+  (flight plans, duplicate, traffic list with ▶ / start all, scenarios saved per aerodrome). Questions asked (arrival
+  height and speed per gate or per class; points after the gate; delayed starts in scenarios; keep the start already
+  in the circuit for tests).
