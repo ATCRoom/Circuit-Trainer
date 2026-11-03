@@ -428,3 +428,10 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
   the button does nothing (greyed, with a short message). New command **BREAKUP** to leave the circuits from any leg:
   proposed: a turn away from the runway (outwards) to a heading 90° off the leg, at circuit height, then MANUAL (the
   instructor vectors it; REJOIN brings it back). To confirm with the user.
+  **Confirmed by the user (3 Nov, 18:02):** GO AROUND (the button) in the conventional and the wide only on the final
+  (base and downwind: grey); in the overhead, the close pattern and the SFO from the start of the turn to the final on.
+  It stops descending (keeps its altitude), goes on to the threshold along the final, then keeps the runway heading
+  until a new order (it does not rejoin by itself). Only the button: the end action G/A (automatic at 200 ft) stays as
+  it is (it climbs and flies the circuit again). BREAKUP: on the downwind out of the circuit, turning away from the
+  runway (90°), at circuit height, then MANUAL; on the base it goes on turning the same way past the final heading and
+  stops on the heading opposite to the downwind... (runway 36, left circuit: base 090 → 360 → 270), then MANUAL.
