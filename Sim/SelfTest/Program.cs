@@ -1261,7 +1261,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(around && climb.Count > 10 && far < 1.6 && backwards < 45 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null
             && short2.All(st => Math.Abs(Frame(st).Lateral) < 0.1) && LandedOnRunway(flown),
             "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft, turning left, no loops), the SFO, an aligned final, lands",
-            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key, turned right {backwards:F0}° in all" : "no climb")
+            (climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key, turned right {backwards:F0}° in all" : "no climb")
             + string.Concat(climb.Where((st, n) => n > 0 && SimEngine.Wrap(st.HeadingTrue - climb[n - 1].HeadingTrue) > 1).Take(12)
                 .Select(st => $" [{Frame(st).Along:F2},{Frame(st).Lateral:F2},h{SimEngine.Wrap(st.HeadingTrue - CircuitCourse):F0},{Height(st):F0}]")));
         pictures.Add(("SFO, go-around, SFO again: climbing spiral over the field to the High Key (Jet)", flown));
