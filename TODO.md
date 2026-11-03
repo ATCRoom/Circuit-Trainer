@@ -353,3 +353,15 @@ A simulation environment for training **tower control of traffic in the circuit*
   orders at once and can be chained (CLS then R). The label: the circuit field is `Ⓒ` (the user's choice; CCT and the
   turning arrow were not liked); a click on Ⓒ, NEXT or BRK opens a row of buttons under the label; the wheel on Ⓒ
   shows the circuit with "?" and orders it when the wheel stops (1.2 s). The right-click menu is kept.
+
+## From the user's tests of the program (3 Nov afternoon) — NOTED, to do in the next build (the user: "do nothing for now")
+
+- **New aircraft: start IP sets the circuit to overhead by itself** (and HK → SFO), so the buttons do not show a circuit
+  that will not be flown.
+- **The route drawn for the selected aircraft is not what it flies** (it flies correctly): the dashed line joins the
+  raw points of the route: the overhead's INITIAL point far beyond the runway (the break comes before it), the ends of
+  the 180° turns joined straight, the close pattern's upwind point 2 NM out. To draw instead the shape it will fly
+  (the turns as arcs, the break where it will be, only the points that are flown to).
+- **"Extend downwind" button missing** (asked by the user; it was never in the list): to define what it does (on the
+  downwind it goes on beyond the base turn until "turn base" / "base now", or a given distance?), then a button on the
+  label and in the panel.
