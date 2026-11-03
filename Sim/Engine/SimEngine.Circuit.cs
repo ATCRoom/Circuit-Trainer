@@ -519,7 +519,10 @@ namespace ATCRoom.Sim
             {
                 // To the High Key: after a go-around (or a take-off) above 400 ft; on hold before the High Key.
                 string name = plane.Route[plane.RouteNext].Name;
-                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight) || (name == "HIGH KEY" && circuit.Hold))
+                // (From the runway track: once the circle is to the side of the SFO, so the first turn is to that side.)
+                double side = circuit.Side == CircuitSide.Right ? 1 : -1;
+                bool sideward = side * Wrap(SpiralCourse(plane, circuit).Course - plane.HeadingTrue) > -2;
+                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && circuit.Hold))
                 {
                     StartSpiral(plane, circuit);
                     return;
@@ -702,6 +705,23 @@ namespace ATCRoom.Sim
         private double SpiralRadius(SimAircraft plane, CircuitState circuit) => Math.Max(0.3, Width(CircuitType.Sfo, plane.Class, circuit.Side) / 2);
 
         /// <summary>
+        /// The course (degrees true) that brings the aircraft along the circle of the High Key (the turns to the side of the
+        /// SFO): 90° from the line from the centre, up to 70° more towards the circle (outside it: inwards; inside:
+        /// outwards); and the distance from the centre (NM).
+        /// </summary>
+        private (double Course, double Distance) SpiralCourse(SimAircraft plane, CircuitState circuit)
+        {
+            double s = circuit.Side == CircuitSide.Right ? 1 : -1;
+            double radius = SpiralRadius(plane, circuit);
+            (double cx, double cy) = FromRunway(HighKeyAlong(), radius, circuit.Side);
+            double dx = plane.X - cx, dy = plane.Y - cy;
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+            double radial = Math.Atan2(dx, dy) * 180 / Math.PI;
+            double towards = Math.Clamp((distance - radius) / radius * 1.5, -1, 1) * 70;
+            return (Normalize(radial + s * (90 + towards)), distance);
+        }
+
+        /// <summary>
         /// On the circle of the SFO, climbing (or descending) to the High Key: the heading along the circle (the turns to the
         /// side of the SFO), turned towards it the more the farther the aircraft is from it (from far away nearly straight to
         /// it, joining it tangent: never a loop). On it, over the High Key along the runway, at its height and not on hold,
@@ -723,13 +743,7 @@ namespace ATCRoom.Sim
             double radius = SpiralRadius(plane, circuit);
             (circuit.CentreX, circuit.CentreY) = FromRunway(HighKeyAlong(), radius, circuit.Side);
             circuit.Radius = radius;
-            double dx = plane.X - circuit.CentreX, dy = plane.Y - circuit.CentreY;
-            double distance = Math.Sqrt(dx * dx + dy * dy);
-            // From the centre to the aircraft (degrees true); along the circle: 90° from it (to the side of the turns),
-            // up to 70° more towards the circle (outside it: inwards; inside: outwards).
-            double radial = Math.Atan2(dx, dy) * 180 / Math.PI;
-            double towards = Math.Clamp((distance - radius) / radius * 1.5, -1, 1) * 70;
-            double course = Normalize(radial + s * (90 + towards));
+            (double course, double distance) = SpiralCourse(plane, circuit);
             plane.CircuitBankDegrees = kind.CircuitBankDegrees;
             plane.SelectedTurnRateDps = MaxTurnRate;
             plane.TurnDirection = TurnDirection.Shortest;
