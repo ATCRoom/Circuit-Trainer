@@ -629,7 +629,7 @@ namespace ATCRoom.Sim
         /// whatever the entry. Returns its callsign.
         /// </summary>
         public string AddAtGate(double x, double y, CircuitEntry entry, CircuitType type, CircuitSide? sideGiven, EndAction end, string? callsign = null,
-            string? performanceClass = null, Func<string, bool>? takenElsewhere = null)
+            string? performanceClass = null, Func<string, bool>? takenElsewhere = null, double? arrivalHeightFt = null)
         {
             lock (sync)
             {
@@ -646,7 +646,9 @@ namespace ATCRoom.Sim
                 (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, side);
                 double heading = Normalize(Math.Atan2(mx - x, my - y) * 180 / Math.PI);
                 // (A class not normalized, the defaults of the engine: 500 ft above its circuit, its circuit speed.)
-                double arrival = kind.ArrivalHeightFt > 0 ? kind.ArrivalHeightFt : CircuitHeight(CircuitType.Conventional, kind) + 500;
+                // (Given for this aircraft: the height above the threshold it arrives at, the user 3 Nov.)
+                double arrival = arrivalHeightFt is double given && double.IsFinite(given) && given > 0 ? Math.Min(given, MaxAltitude)
+                    : kind.ArrivalHeightFt > 0 ? kind.ArrivalHeightFt : CircuitHeight(CircuitType.Conventional, kind) + 500;
                 double arrivalSpeed = kind.ArrivalSpeedKt > 0 ? kind.ArrivalSpeedKt : kind.CircuitSpeedKt;
                 string name = Add(x, y, runwayElevation + arrival, heading, arrivalSpeed, callsign, kind.Name, takenElsewhere);
                 SimAircraft plane = Find(name)!;

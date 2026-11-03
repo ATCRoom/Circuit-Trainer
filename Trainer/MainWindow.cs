@@ -67,6 +67,7 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<CircuitEntry> entryRow = new([(CircuitEntry.Downwind, "DW"), (CircuitEntry.Base, "BASE"), (CircuitEntry.InitialPoint, "IP"),
             (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL")], (_, t) => ChoiceTip("entry " + t));
         private readonly TextBox delayBox = new() { Width = 45, Text = "0" };
+        private readonly TextBox arrivalBox = new() { Width = 55 };
         private readonly TextBox newGateName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
         private readonly List<TowerPlan> plans = [];
@@ -307,6 +308,8 @@ namespace ATCRoom.TwrTrainer
             endRow.Show(EndAction.TouchAndGo);
             RebuildFrom();
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
+            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate; empty: 500 above its circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, 62);
+            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the plans: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
             current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO PLANS", AddPlan)));
             StackPanel plansGroup = Group("Flight plans", "▶ start now · ⏸ hold / go on · ⧉ duplicate · ✕ remove. START ALL: each after its delay.", current);
@@ -874,6 +877,7 @@ namespace ATCRoom.TwrTrainer
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
                 End = endRow.Value,
+                HeightFt = double.TryParse(arrivalBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && h > 0 ? h : null,
                 DelayMinutes = delay
             };
         }
@@ -917,7 +921,7 @@ namespace ATCRoom.TwrTrainer
             }
             var gate = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.From, StringComparison.OrdinalIgnoreCase));
             if (gate.Name == null) return $"There is no gate {plan.From} at this aerodrome.";
-            return commands.AddAtGate(gate.X, gate.Y, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, out added);
+            return commands.AddAtGate(gate.X, gate.Y, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, plan.HeightFt, out added);
         }
 
         // ----- Flight plans (advanced generation) ----------------------------------------------------------------------
@@ -935,7 +939,8 @@ namespace ATCRoom.TwrTrainer
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
             string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? "FINAL" : p.Entry.ToString().ToUpperInvariant();
-            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
+            string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
+            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
         }
 
         /// <summary>The rows of the plans, built again (after a change).</summary>

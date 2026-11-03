@@ -61,13 +61,13 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>A new aircraft at an entry gate (the plane, NM), joining its circuit by itself.</summary>
-        public string? AddAtGate(double x, double y, CircuitEntry entry, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, out string added)
+        public string? AddAtGate(double x, double y, CircuitEntry entry, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, double? heightFt, out string added)
         {
             added = "";
             if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
             try
             {
-                added = engine.AddAtGate(x, y, entry, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass);
+                added = engine.AddAtGate(x, y, entry, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, arrivalHeightFt: heightFt);
                 return null;
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)

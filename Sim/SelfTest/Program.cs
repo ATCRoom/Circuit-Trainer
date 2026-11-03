@@ -1525,6 +1525,19 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("From a gate: to the High Key, hold, SFO (Jet)", hk));
     }
 
+    // 31b. From a gate at a height given for this aircraft (3000 ft): down to the circuit height before the circuit.
+    {
+        (double gx, double gy) = Place(-4, 4.5, CircuitSide.Left);
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddAtGate(gx, gy, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light", arrivalHeightFt: 3000);
+        AircraftState first = sim.Get(cs)!;
+        List<AircraftState> flown = Fly(sim, cs, 1200);
+        AircraftState? onDownwind = flown.FirstOrDefault(StraightOn);
+        Check(Near(Height(first), 3000, 5) && onDownwind != null && Near(Height(onDownwind), 1000, 60) && LandedOnRunway(flown),
+            "From a gate at 3000 ft (given): at the circuit height (1000) before the downwind, lands",
+            onDownwind != null ? $"{Height(first):F0} ft at the gate, {Height(onDownwind):F0} ft on the downwind" : "no downwind");
+    }
+
     // 32. Take-off: only the conventional or the wide after it (a close pattern asked: the conventional).
     {
         SimEngine sim = NewCircuitEngine();

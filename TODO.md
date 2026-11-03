@@ -467,3 +467,6 @@ closed to its bar, a summary on the bar; place / size / state remembered (`Parts
 the map (the PAR trainer's way; the question "or separate windows" left open: by default over the map). The gate row
 on two rows (REMOVE GATE visible). From: gates, LONG FIN (its own start), RWY, CIRC (was IN CCT; its BASE / FINAL
 grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and box.
+- **Arrival height (the user, 3 Nov: option 2):** a box "Height ft" in the new aircraft (saved in its flight plan):
+  the height above the runway it arrives at, at the gate; empty: 500 ft above its circuit. It climbs or descends to the
+  circuit height before reaching the circuit (along the join).
