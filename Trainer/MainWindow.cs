@@ -61,14 +61,30 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox initialPointBox = new() { Width = 45 };
         private readonly StackPanel layers = new();
         // New aircraft: rows of buttons (the choices kept for the next one).
-        private readonly ChoiceRow<CircuitStart> startRow = new(TowerCommands.Starts.Select(s => (s.Start, s.Short)));
+        /// <summary>Where it starts: an entry gate, the runway, or already in the circuit (tests); rebuilt with the gates.</summary>
+        private ChoiceRow<string> fromRow = new([]);
+        private readonly StackPanel fromHolder = new();
+        private readonly ChoiceRow<CircuitEntry> entryRow = new([(CircuitEntry.Downwind, "DW"), (CircuitEntry.Base, "BASE"), (CircuitEntry.InitialPoint, "IP"),
+            (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL")]);
+        private readonly TextBox delayBox = new() { Width = 45, Text = "0" };
+        private readonly TextBox newGateName = new() { Width = 70 };
+        /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
+        private readonly List<TowerPlan> plans = [];
+        private readonly StackPanel planList = new();
+        private readonly List<(TowerPlan Plan, TextBlock Status, Button Hold)> planRows = [];
+        /// <summary>The panel the helpers add to (a section while it is built).</summary>
+        private Panel current = null!;
+        private readonly TextBlock aerodromeSummary = new() { Foreground = DimBrush, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        private readonly TextBlock simulationSummary = new() { Foreground = DimBrush, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        // The order buttons of the selected aircraft (grey when they do not apply).
+        private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
+            orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)));
         private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")]);
         private ChoiceRow<string> classRow = new([]);
         private readonly StackPanel classHolder = new();
         private readonly ChoiceRow<EndAction> endRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)));
         private readonly TextBox callsignBox = new() { Width = 90 };
-        private readonly CheckBox holdBox = new() { Content = "Hold at the High Key (SFO)" };
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
@@ -154,7 +170,14 @@ namespace ATCRoom.TwrTrainer
                 }
                 pendingCallsign = null;
             }
-            if (++ticks % 10 == 0) ShowSelectedValues();
+            if (++ticks % 10 == 0)
+            {
+                ShowSelectedValues();
+                UpdatePlans();
+                (double f, double sp, double g) = engine.Wind;
+                aerodromeSummary.Text = airfield.Map == null ? "no map" : $"{airfield.Code} · {airfield.Runway?.Runway ?? "no runway"} · " + (sp < 0.5 ? "calm" : $"{f:000}/{sp:0}" + (g > 0 ? $"G{sp + g:0}" : ""));
+                simulationSummary.Text = $"{(engine.Paused ? "paused" : "running")} · x{speed:0}";
+            }
         }
 
         private void OnKeys(object sender, KeyEventArgs e)
@@ -168,8 +191,8 @@ namespace ATCRoom.TwrTrainer
 
         private void BuildPanel()
         {
-            Header("Aerodrome");
-            panel.Children.Add(mapText);
+            current = Section("Aerodrome", aerodromeSummary, settings.AerodromeOpen, open => settings.AerodromeOpen = open);
+            current.Children.Add(mapText);
             Buttons(("Open map...", ChooseMap));
             Row("Runway in use", runwayBox);
             runwayBox.SelectionChanged += (_, _) =>
@@ -188,16 +211,19 @@ namespace ATCRoom.TwrTrainer
             Note("Heights of a class at this aerodrome, ft above the runway (empty: the class's). Close: also the overhead's downwind; break empty: the close height.");
             Row("Class", heightClassBox);
             heightClassBox.SelectionChanged += (_, _) => ShowHeights();
-            panel.Children.Add(Labelled(("Conventional", conventionalHeight), ("Wide", wideHeight), ("Close", closeHeight)));
-            panel.Children.Add(Labelled(("Initial (OVH)", initialHeight), ("Break (OVH)", breakHeight)));
-            panel.Children.Add(Labelled(("High Key (SFO)", highKeyHeight), ("Low Key (SFO)", lowKeyHeight)));
+            current.Children.Add(Labelled(("Conventional", conventionalHeight), ("Wide", wideHeight), ("Close", closeHeight)));
+            current.Children.Add(Labelled(("Initial (OVH)", initialHeight), ("Break (OVH)", breakHeight)));
+            current.Children.Add(Labelled(("High Key (SFO)", highKeyHeight), ("Low Key (SFO)", lowKeyHeight)));
             Buttons(("Save heights", SaveHeights));
 
             Row("METAR (wind)", metarBox);
             Buttons(("Apply METAR", () => ApplyMetar(quiet: false)));
-            panel.Children.Add(windText);
+            current.Children.Add(windText);
 
-            Header("Simulation");
+            Note("Entry gates (where the arriving aircraft start, at least 5 NM out): a name (empty: the VRP clicked), then click it on the map.");
+            Row("Gate name", Inline(newGateName, ActionButton("ADD GATE", AddGate), ActionButton("REMOVE", RemoveGate)));
+
+            current = Section("Simulation", simulationSummary, settings.SimulationOpen, open => settings.SimulationOpen = open);
             pauseButton.Click += (_, _) => TogglePause();
             Row("", pauseButton);
             Row("Speed", speedBox);
@@ -209,36 +235,47 @@ namespace ATCRoom.TwrTrainer
             initialPointBox.LostFocus += (_, _) => ApplyDistances();
             Buttons(("Remove all aircraft", () => { engine.Clear(); view.Select(null); }));
             Expander layersBox = new() { Header = "Map layers", Content = layers, Foreground = TextBrush, Margin = new Thickness(0, 6, 0, 0) };
-            panel.Children.Add(layersBox);
+            current.Children.Add(layersBox);
+            current = panel;
 
             Header("1 · New aircraft");
-            Note("Click along the rows, then ADD (the choices stay for the next one). AD: the aerodrome's side.");
-            Row("Start", startRow, null, 62);
+            Note("From an entry gate (it joins its circuit by itself), the runway (a take-off) or IN CCT (already in the circuit, for tests). Then ADD NOW, or TO PLANS for the list below. AD: the aerodrome's side.");
+            Row("From", fromHolder, null, 62);
+            Row("Entry", entryRow, null, 62);
             Row("Circuit", circuitRow, null, 62);
             Row("Side", sideRow, null, 62);
             Row("Class", classHolder, null, 62);
             Row("At the end", endRow, null, 62);
-            // (The user, 3 Nov: IP sets the overhead, HK the SFO; the overhead starts at IP, the SFO at HK.)
-            startRow.Picked += start =>
+            // (The user, 3 Nov: IP is the overhead's, HK the SFO's; after a take-off only the conventional or the wide.)
+            entryRow.Picked += entry =>
             {
-                if (start == CircuitStart.InitialPoint) circuitRow.Show(CircuitType.Overhead);
-                else if (start == CircuitStart.HighKey) circuitRow.Show(CircuitType.Sfo);
+                if (entry == CircuitEntry.InitialPoint) circuitRow.Show(CircuitType.Overhead);
+                else if (entry == CircuitEntry.HighKey) circuitRow.Show(CircuitType.Sfo);
                 else if (circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
             };
             circuitRow.Picked += type =>
             {
-                if (type == CircuitType.Overhead) startRow.Show(CircuitStart.InitialPoint);
-                else if (type == CircuitType.Sfo) startRow.Show(CircuitStart.HighKey);
-                else if (startRow.Value is CircuitStart.InitialPoint or CircuitStart.HighKey) startRow.Show(CircuitStart.Downwind);
+                if (fromRow.Value == From.Runway && type is not (CircuitType.Conventional or CircuitType.Wide))
+                {
+                    Say("After a take-off: the conventional or the wide circuit (or DEP at the end).");
+                    circuitRow.Show(CircuitType.Conventional);
+                    return;
+                }
+                if (type == CircuitType.Overhead) entryRow.Show(CircuitEntry.InitialPoint);
+                else if (type == CircuitType.Sfo) entryRow.Show(CircuitEntry.HighKey);
+                else if (entryRow.Value is CircuitEntry.InitialPoint or CircuitEntry.HighKey) entryRow.Show(CircuitEntry.Downwind);
             };
-            startRow.Show(CircuitStart.Downwind);
+            entryRow.Show(CircuitEntry.Downwind);
             circuitRow.Show(CircuitType.Conventional);
             sideRow.Show(null);
             endRow.Show(EndAction.TouchAndGo);
+            RebuildFrom();
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
-            holdBox.Foreground = TextBrush;
-            Row("", holdBox, null, 62);
-            Buttons(("ADD", AddAircraft));
+            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the plans: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
+            panel.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO PLANS", AddPlan)));
+            StackPanel plansGroup = Group("Flight plans", "▶ start now · ⏸ hold / go on · ⧉ duplicate · ✕ remove. START ALL: each after its delay.", panel);
+            plansGroup.Children.Add(planList);
+            plansGroup.Children.Add(ActionRow(("START ALL", StartAllPlans), ("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR", ClearPlans)));
 
             Header("Selected aircraft");
             panel.Children.Add(selectedText);
@@ -262,29 +299,43 @@ namespace ATCRoom.TwrTrainer
             Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
                 view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
 
-            StackPanel now = Group("3 · Now, in the circuit", "Standard orders at once: it stays in its circuit.", selectedPanel);
-            now.Children.Add(ActionRow(
-                ("EXTEND DWN", () => WithSelected(commands.ExtendDownwind)),
-                ("TURN BASE", () => WithSelected(commands.TurnBase)),
-                ("ORBIT", () => WithSelected(commands.Orbit)),
-                ("GO AROUND", () => WithSelected(commands.GoAround))));
-            now.Children.Add(ActionRow(
-                ("BREAK NOW", () => WithSelected(commands.BreakNow)),
-                ("HOLD HK", () => WithSelected(cs => commands.HoldAtHighKey(cs, true))),
-                ("START SFO", () => WithSelected(cs => commands.HoldAtHighKey(cs, false)))));
-            now.Children.Add(ActionRow(
-                ("SIDE NOW L", () => WithSelected(cs => SideNow(cs, CircuitSide.Left))),
-                ("SIDE NOW R", () => WithSelected(cs => SideNow(cs, CircuitSide.Right))),
-                ("WIDE NOW", () => WithSelected(cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.Get(cs)?.CircuitSide ?? engine.SideFor(CircuitType.Wide))))));
+            StackPanel now = Group("3 · Now, in the circuit", "Standard orders at once, in the order of the circuit (grey: not where it is now).", selectedPanel);
+            Button Order(string text, Action<string> action) => ActionButton(text, () => WithSelected(action));
+            breakNowButton = Order("BREAK NOW", commands.BreakNow);
+            holdButton = Order("HOLD HK", cs => commands.HoldAtHighKey(cs, true));
+            startSfoButton = Order("START SFO", cs => commands.HoldAtHighKey(cs, false));
+            extendButton = Order("EXTEND DWN", commands.ExtendDownwind);
+            baseButton = Order("TURN BASE", commands.TurnBase);
+            orbitButton = Order("ORBIT", commands.Orbit);
+            // ORBIT ∞: orbits until CONTINUE (the same button while it orbits); Shift + ORBIT too.
+            orbitForeverButton = Order("ORBIT ∞", cs =>
+            {
+                if (engine.Get(cs)?.OrbitForever == true) commands.Continue(cs); else commands.OrbitForever(cs);
+            });
+            orbitButton.PreviewMouseLeftButtonUp += (_, e) =>
+            {
+                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) return;
+                WithSelected(commands.OrbitForever);
+                e.Handled = true;
+            };
+            goAroundButton = Order("GO AROUND", commands.GoAround);
+            sideLeftButton = Order("SIDE NOW L", cs => SideNow(cs, CircuitSide.Left));
+            sideRightButton = Order("SIDE NOW R", cs => SideNow(cs, CircuitSide.Right));
+            wideButton = Order("WIDE NOW", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.Get(cs)?.CircuitSide ?? engine.SideFor(CircuitType.Wide)));
+            Row("Arrival", Inline(breakNowButton, holdButton, startSfoButton), now, 62);
+            Row("Downwind", Wrap(extendButton, baseButton, orbitButton, orbitForeverButton), now, 62);
+            Row("Final", Inline(goAroundButton), now, 62);
+            Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
 
-            StackPanel outside = Group("4 · Out of the circuit", "You fly it (it waits in MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back.", selectedPanel);
+            StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
             Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
             Row("Height ft", Inline(heightBox, ActionButton("GO", () => WithSelected(cs => Number(heightBox, "a height in feet above the runway", v => commands.Height(cs, v))))), outside, 62);
             Row("Speed kt", Inline(speedKtBox, ActionButton("GO", () => WithSelected(cs => Number(speedKtBox, "a speed in knots", v => commands.Speed(cs, v))))), outside, 62);
-            outside.Children.Add(ActionRow(
-                ("REJOIN", () => WithSelected(commands.Rejoin)),
-                ("HELIPAD", () => WithSelected(cs => view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y)))),
-                ("REMOVE", () => WithSelected(commands.Remove))));
+            rejoinButton = Order("REJOIN", commands.Rejoin);
+            breakupButton = Order("BREAKUP", commands.Breakup);
+            outside.Children.Add(Wrap(rejoinButton, breakupButton,
+                Order("HELIPAD", cs => view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y))),
+                Order("REMOVE", commands.Remove)));
             Note("Right click on an aircraft: all its commands. Its label can be dragged.", selectedPanel);
             panel.Children.Add(message);
             Note($"Maps: {Paths.MapsFolderText} (made with ATCRoom Map Creator). Aerodromes and settings: {Paths.FolderText}.");
@@ -323,7 +374,7 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
-        private void Header(string text) => panel.Children.Add(new TextBlock
+        private void Header(string text) => (current ?? panel).Children.Add(new TextBlock
         {
             Text = text,
             FontSize = 15,
@@ -332,7 +383,7 @@ namespace ATCRoom.TwrTrainer
             Foreground = TextBrush
         });
 
-        private void Note(string text, Panel? into = null) => (into ?? panel).Children.Add(new TextBlock
+        private void Note(string text, Panel? into = null) => (into ?? current ?? panel).Children.Add(new TextBlock
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
@@ -356,6 +407,30 @@ namespace ATCRoom.TwrTrainer
                 Padding = new Thickness(8, 6, 8, 6),
                 Margin = new Thickness(0, 6, 0, 2)
             });
+            return inside;
+        }
+
+        private static WrapPanel Wrap(params UIElement[] items)
+        {
+            WrapPanel row = new();
+            foreach (UIElement item in items) row.Children.Add(item);
+            return row;
+        }
+
+        /// <summary>
+        /// A section of the panel that closes to its bar (the user, 3 Nov): its title and a summary on the bar; open or not
+        /// remembered. Its rows go in the panel returned.
+        /// </summary>
+        private Panel Section(string title, TextBlock summary, bool open, Action<bool> remember)
+        {
+            StackPanel inside = new();
+            StackPanel bar = new() { Orientation = Orientation.Horizontal };
+            bar.Children.Add(new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
+            bar.Children.Add(summary);
+            Expander section = new() { Header = bar, Content = inside, IsExpanded = open, Foreground = TextBrush, Margin = new Thickness(0, 10, 0, 2) };
+            section.Expanded += (_, _) => remember(true);
+            section.Collapsed += (_, _) => remember(false);
+            panel.Children.Add(section);
             return inside;
         }
 
@@ -406,7 +481,7 @@ namespace ATCRoom.TwrTrainer
             grid.Children.Add(text);
             Grid.SetColumn(control, 1);
             grid.Children.Add(control);
-            (into ?? panel).Children.Add(grid);
+            (into ?? current ?? panel).Children.Add(grid);
         }
 
         /// <summary>Boxes side by side, each with its name above it.</summary>
@@ -440,7 +515,7 @@ namespace ATCRoom.TwrTrainer
             return row;
         }
 
-        private void Buttons(params (string Text, Action Action)[] buttons) => Buttons(panel, buttons);
+        private void Buttons(params (string Text, Action Action)[] buttons) => Buttons(current ?? panel, buttons);
 
         private static void Buttons(Panel into, params (string Text, Action Action)[] buttons)
         {
@@ -544,6 +619,7 @@ namespace ATCRoom.TwrTrainer
             view.LengthNM = airfield.LengthNM;
             view.ElevationFt = airfield.ElevationFt;
             view.SetMap(airfield.Map, airfield.Plane);
+            RebuildFrom();
             view.ShowLevel(1);
             ShowAerodrome();
         }
@@ -690,15 +766,286 @@ namespace ATCRoom.TwrTrainer
             initialPointBox.Text = engine.InitialPointNM.ToString("0.#", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>The plan made of the rows of group 1 now.</summary>
+        private TowerPlan PlanOfRows()
+        {
+            double delay = double.TryParse(delayBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && d >= 0 ? d : 0;
+            return new TowerPlan
+            {
+                Callsign = callsignBox.Text.Trim().ToUpperInvariant(),
+                Class = classRow.Value ?? "",
+                From = fromRow.Value ?? From.InCircuit,
+                Entry = entryRow.Value,
+                Circuit = circuitRow.Value,
+                Side = sideRow.Value,
+                End = endRow.Value,
+                DelayMinutes = delay
+            };
+        }
+
         private void AddAircraft()
         {
-            string? error = commands.Add(startRow.Value, circuitRow.Value, sideRow.Value, endRow.Value,
-                classRow.Value, callsignBox.Text, holdBox.IsChecked == true, out string added);
+            string? error = Launch(PlanOfRows(), out string added);
             Say(error);
             if (error != null) return;
             callsignBox.Text = "";
             view.SetTraffic(engine.Snapshot(), engine.Time);
             view.Select(added);
+        }
+
+        /// <summary>An aircraft of a plan, now: from its gate, the runway or already in the circuit. Returns an error, or null.</summary>
+        private string? Launch(TowerPlan plan, out string added)
+        {
+            added = "";
+            string? callsign = plan.Callsign.Length > 0 ? plan.Callsign : null;
+            string? kind = plan.Class.Length > 0 ? plan.Class : null;
+            if (plan.From == From.Runway)
+            {
+                CircuitType type = plan.Circuit is CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
+                return commands.Add(CircuitStart.Runway, type, plan.Side, plan.End, kind, callsign, false, out added);
+            }
+            if (plan.From == From.InCircuit)
+            {
+                CircuitStart start = plan.Entry switch
+                {
+                    CircuitEntry.InitialPoint => CircuitStart.InitialPoint,
+                    CircuitEntry.HighKey => CircuitStart.HighKey,
+                    CircuitEntry.Final => CircuitStart.LongFinal,
+                    _ => CircuitStart.Downwind
+                };
+                return commands.Add(start, plan.Circuit, plan.Side, plan.End, kind, callsign, false, out added);
+            }
+            var gate = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.From, StringComparison.OrdinalIgnoreCase));
+            if (gate.Name == null) return $"There is no gate {plan.From} at this aerodrome.";
+            return commands.AddAtGate(gate.X, gate.Y, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, out added);
+        }
+
+        // ----- Flight plans (advanced generation) ----------------------------------------------------------------------
+
+        private void AddPlan()
+        {
+            plans.Add(PlanOfRows());
+            callsignBox.Text = "";
+            ShowPlans();
+        }
+
+        private static string PlanText(TowerPlan p)
+        {
+            string side = p.Side is CircuitSide s ? (s == CircuitSide.Left ? " L" : " R") : "";
+            string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
+            string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
+            string entry = p.From is From.Runway ? "T/O" : p.Entry.ToString().ToUpperInvariant();
+            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
+        }
+
+        /// <summary>The rows of the plans, built again (after a change).</summary>
+        private void ShowPlans()
+        {
+            planList.Children.Clear();
+            planRows.Clear();
+            foreach (TowerPlan plan in plans)
+            {
+                TowerPlan p = plan;
+                Grid row = new() { Margin = new Thickness(0, 1, 0, 1) };
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                StackPanel texts = new();
+                texts.Children.Add(new TextBlock { Text = PlanText(p), Foreground = TextBrush, FontSize = 11, TextWrapping = TextWrapping.Wrap });
+                TextBlock status = new() { Foreground = DimBrush, FontSize = 11 };
+                texts.Children.Add(status);
+                row.Children.Add(texts);
+                Button hold = SmallButton("⏸", () => { p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : p.Now is TowerPlan.State.Flying ? p.Now : TowerPlan.State.Held; UpdatePlans(); });
+                StackPanel buttons = new() { Orientation = Orientation.Horizontal };
+                buttons.Children.Add(SmallButton("▶", () => StartPlan(p)));
+                buttons.Children.Add(hold);
+                buttons.Children.Add(SmallButton("⧉", () => DuplicatePlan(p)));
+                buttons.Children.Add(SmallButton("✕", () => { plans.Remove(p); ShowPlans(); }));
+                Grid.SetColumn(buttons, 1);
+                row.Children.Add(buttons);
+                planList.Children.Add(row);
+                planRows.Add((p, status, hold));
+            }
+            if (plans.Count == 0) planList.Children.Add(new TextBlock { Text = "No plans: choose in the rows above, then TO PLANS.", Foreground = DimBrush, FontSize = 11 });
+            UpdatePlans();
+        }
+
+        private static Button SmallButton(string text, Action action)
+        {
+            Button button = ActionButton(text, action);
+            button.MinWidth = 24;
+            button.Padding = new Thickness(4, 0, 4, 0);
+            button.Margin = new Thickness(2, 0, 0, 0);
+            return button;
+        }
+
+        /// <summary>The state of each plan on its row; starts the plans whose time has come; frees those whose aircraft is gone.</summary>
+        private void UpdatePlans()
+        {
+            double time = engine.Time;
+            foreach (TowerPlan plan in plans)
+            {
+                if (plan.Now == TowerPlan.State.Flying && engine.Get(plan.Flying) == null) { plan.Now = TowerPlan.State.Waiting; plan.Due = 0; }
+                if (plan.Now == TowerPlan.State.Counting && time >= plan.Due) StartPlan(plan);
+            }
+            foreach ((TowerPlan plan, TextBlock status, Button hold) in planRows)
+            {
+                status.Text = plan.Now switch
+                {
+                    TowerPlan.State.Counting => $"starts in {(int)(Math.Max(0, plan.Due - time) / 60)}:{(int)(Math.Max(0, plan.Due - time) % 60):00}",
+                    TowerPlan.State.Held => "held (⏸ again to go on)",
+                    TowerPlan.State.Flying => $"flying: {plan.Flying}",
+                    _ => "waiting"
+                };
+                hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
+            }
+        }
+
+        private void StartPlan(TowerPlan plan)
+        {
+            if (plan.Now == TowerPlan.State.Flying) return;
+            string? error = Launch(plan, out string added);
+            if (error != null)
+            {
+                Say($"{PlanText(plan)}: {error}");
+                plan.Now = TowerPlan.State.Held;
+            }
+            else
+            {
+                plan.Now = TowerPlan.State.Flying;
+                plan.Flying = added;
+            }
+            UpdatePlans();
+        }
+
+        /// <summary>START ALL: every plan waiting starts after its delay (held ones stay held).</summary>
+        private void StartAllPlans()
+        {
+            foreach (TowerPlan plan in plans.Where(p => p.Now == TowerPlan.State.Waiting))
+            {
+                plan.Now = TowerPlan.State.Counting;
+                plan.Due = engine.Time + plan.DelayMinutes * 60;
+            }
+            UpdatePlans();
+        }
+
+        /// <summary>A copy with the next callsign (AZA101 → AZA102), one minute later.</summary>
+        private void DuplicatePlan(TowerPlan plan)
+        {
+            TowerPlan copy = plan.Copy();
+            if (copy.Callsign.Length > 0)
+            {
+                string stem = copy.Callsign.TrimEnd("0123456789".ToCharArray());
+                string digits = copy.Callsign[stem.Length..];
+                copy.Callsign = digits.Length > 0 && int.TryParse(digits, out int n) ? stem + (n + 1).ToString(new string('0', digits.Length)) : copy.Callsign + "2";
+            }
+            copy.DelayMinutes = plan.DelayMinutes + 1;
+            plans.Insert(plans.IndexOf(plan) + 1, copy);
+            ShowPlans();
+        }
+
+        private void ClearPlans()
+        {
+            if (plans.Count > 0 && MessageBox.Show(this, $"Remove the {plans.Count} flight plans (the aircraft flying go on)?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            plans.Clear();
+            ShowPlans();
+        }
+
+        private void SaveScenario()
+        {
+            if (plans.Count == 0) { Say("No flight plans to save."); return; }
+            try { Directory.CreateDirectory(TowerScenario.Folder); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            Microsoft.Win32.SaveFileDialog dialog = new()
+            {
+                Filter = "TWR Trainer scenario (*.json)|*.json",
+                InitialDirectory = TowerScenario.Folder,
+                FileName = (airfield.Code.Length > 0 ? airfield.Code : "scenario") + " scenario.json"
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            try
+            {
+                new TowerScenario { Airport = airfield.Code, Runway = airfield.Runway?.Runway ?? "", Plans = plans.Select(p => p.Copy()).ToList() }.Save(dialog.FileName);
+                Say("Scenario saved.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Say($"The scenario could not be saved: {ex.Message}");
+            }
+        }
+
+        private void LoadScenario()
+        {
+            Microsoft.Win32.OpenFileDialog dialog = new()
+            {
+                Filter = "TWR Trainer scenario (*.json)|*.json",
+                InitialDirectory = Directory.Exists(TowerScenario.Folder) ? TowerScenario.Folder : ""
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            try
+            {
+                TowerScenario scenario = TowerScenario.Load(dialog.FileName);
+                if (plans.Count > 0 && MessageBox.Show(this, "The flight plans of the list are replaced. Go on?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+                plans.Clear();
+                plans.AddRange(scenario.Plans);
+                ShowPlans();
+                Say(scenario.Airport.Length > 0 && !string.Equals(scenario.Airport, airfield.Code, StringComparison.OrdinalIgnoreCase)
+                    ? $"Scenario of {scenario.Airport}, not of {airfield.Code}: its gates may be missing here." : null);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                Say($"The scenario could not be read: {ex.Message}");
+            }
+        }
+
+        // ----- Entry gates -----------------------------------------------------------------------------------------------
+
+        /// <summary>The row "From": the gates of the aerodrome, the runway, in the circuit (the choice kept when it is still there).</summary>
+        private void RebuildFrom()
+        {
+            string? was = fromRow.HasValue ? fromRow.Value : null;
+            List<(string, string)> items = airfield.Gates.Select(g => (g.Name, g.Name)).ToList();
+            items.Add((From.Runway, "RWY"));
+            items.Add((From.InCircuit, "IN CCT"));
+            fromRow = new ChoiceRow<string>(items);
+            fromRow.Picked += from =>
+            {
+                if (from == From.Runway && circuitRow.Value is not (CircuitType.Conventional or CircuitType.Wide)) circuitRow.Show(CircuitType.Conventional);
+            };
+            fromRow.Show(was != null && items.Any(i => i.Item1 == was) ? was : items[0].Item1);
+            fromHolder.Children.Clear();
+            fromHolder.Children.Add(fromRow);
+            view.Gates = airfield.Gates;
+            view.InvalidateVisual();
+        }
+
+        private void AddGate()
+        {
+            if (airfield.Map == null) { Say("Open a map first."); return; }
+            string typed = newGateName.Text.Trim().ToUpperInvariant();
+            view.AskPoint("Entry gate: click it on the map (a VRP gives its name)  -  Esc: cancel", (x, y) =>
+            {
+                string name = typed.Length > 0 ? typed : view.MapPointNear(x, y)?.ToUpperInvariant() ?? $"G{airfield.Circuits.Gates.Count + 1}";
+                airfield.AddGate(name, x, y);
+                string? error = airfield.Save();
+                double from = airfield.FromField(x, y);
+                Say(error ?? (from < 5 ? $"Gate {name} added, but only {from:0.0} NM from the aerodrome (at least 5 NM out)." : $"Gate {name} added ({from:0.0} NM out)."));
+                newGateName.Text = "";
+                RebuildFrom();
+            });
+        }
+
+        private void RemoveGate()
+        {
+            string name = newGateName.Text.Trim().Length > 0 ? newGateName.Text.Trim() : fromRow.Value ?? "";
+            if (!airfield.Circuits.Gates.Any(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                Say("Write the name of the gate to remove (or choose it in From).");
+                return;
+            }
+            if (MessageBox.Show(this, $"Remove the gate {name}?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            airfield.RemoveGate(name);
+            Say(airfield.Save());
+            newGateName.Text = "";
+            RebuildFrom();
         }
 
         // ----- The commands on the label (step 4b): the same commands as the panel -------------------------------------
@@ -743,6 +1090,9 @@ namespace ATCRoom.TwrTrainer
                     break;
                 case "ORBIT":
                     commands.Orbit(callsign);
+                    break;
+                case "CONTINUE":
+                    commands.Continue(callsign);
                     break;
                 case "GA":
                     commands.GoAround(callsign);
@@ -877,6 +1227,25 @@ namespace ATCRoom.TwrTrainer
                 selSideRow.Refresh(a.NextCircuit != null ? a.NextSide : a.CircuitSide);
                 selEndRow.Refresh(a.EndAction);
                 selBreakRow.Refresh(a.Break);
+            }
+            if (a != null)
+            {
+                string leg = a.Leg;
+                bool sfo = a.Circuit == CircuitType.Sfo, inCircuit = a.Circuit != null && a.Contact == GroundContact.Airborne && leg is not ("MANUAL" or "GO AROUND" or "DEPARTURE");
+                breakNowButton.IsEnabled = a.Circuit == CircuitType.Overhead && leg == "INITIAL";
+                holdButton.IsEnabled = sfo && !a.SfoHold && leg is "CLIMB" or "HIGH KEY";
+                startSfoButton.IsEnabled = sfo && a.SfoHold;
+                extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
+                baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS";
+                orbitButton.IsEnabled = inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN";
+                orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
+                orbitForeverButton.Content = a.OrbitForever ? "CONTINUE" : "ORBIT ∞";
+                orbitForeverButton.BorderBrush = a.OrbitForever ? Brushes.Gold : Brushes.Transparent;
+                orbitForeverButton.BorderThickness = new Thickness(a.OrbitForever ? 2 : 1);
+                goAroundButton.IsEnabled = leg == "FINAL";
+                sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
+                rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
+                breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
             }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
                 : $"{a.Callsign}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";

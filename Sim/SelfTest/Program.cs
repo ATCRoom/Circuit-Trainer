@@ -1198,6 +1198,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         SimEngine sfo = NewCircuitEngine();
         sfo.SetAerodrome(sides, "14");
         string cs = sfo.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, null, EndAction.TouchAndGo, performanceClass: "Jet");
+        sfo.HoldAtHighKey(cs, false);
         bool rolled = false;
         List<AircraftState> flown = [sfo.Get(cs)!];
         flown.AddRange(Fly(sfo, cs, 1500, st =>
@@ -1247,6 +1248,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     {
         SimEngine sim = NewCircuitEngine();
         string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Conventional, side, EndAction.FullStop, performanceClass: kind);
+        sim.HoldAtHighKey(cs, false);
         List<AircraftState> flown = [sim.Get(cs)!];
         flown.AddRange(Fly(sim, cs, 1200));
         AircraftState? atHigh = flown.LastOrDefault(st => st.Leg == "HIGH KEY");
@@ -1277,6 +1279,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         flown.AddRange(Fly(sim, cs, 2400, st =>
         {
             if (!sfoOrdered && st.Leg == "FINAL") { sfoOrdered = true; sim.SetCircuit(cs, CircuitType.Sfo, CircuitSide.Left); }
+            // (On hold at the High Key by default: started.)
+            if (st.Leg == "HOLD") sim.HoldAtHighKey(cs, false);
             if (!around && st.Leg == "GO AROUND") { around = true; sim.SetEndAction(cs, EndAction.FullStop); }
         }));
         List<AircraftState> climb = OnLeg(flown, "CLIMB");
@@ -1364,6 +1368,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             if (!nextOrdered && st.Leg == "DOWNWIND") { nextOrdered = true; sim.SetNextCircuit(cs, next, CircuitSide.Left); }
             else if (nextOrdered && shown == null) shown = st;
             if (!rolled && st.Contact == GroundContact.Rolling) { rolled = true; sim.SetEndAction(cs, EndAction.FullStop); }
+            if (st.Leg == "HOLD") sim.HoldAtHighKey(cs, false);
         });
         int roll = flown.FindIndex(st => st.Contact == GroundContact.Rolling);
         Check(shown?.NextCircuit == next && roll > 0 && flown.Take(roll).All(st => st.Circuit == CircuitType.Conventional && st.Leg is not ("CLIMB" or "HOLD"))
@@ -1390,6 +1395,139 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             "From the wide downwind to the initial point: straight to the IP, one turn onto the initial (no loops), then the overhead",
             initial > 0 ? $"turned {turned:F0}° before the initial, on it at {Frame(onInitial ?? flown[initial]).Along:F2} NM, {Frame(onInitial ?? flown[initial]).Lateral:F2} NM off the track" : "never on the initial");
         pictures.Add(("Wide downwind, then the overhead ordered: straight to the IP (Jet)", flown));
+    }
+
+    // 27. SFO on hold at the High Key by default (the user, 3 Nov): it circles there until START SFO.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        List<AircraftState> flown = Fly(sim, cs, 300);
+        Check(flown.Count > 0 && flown[^1].Leg == "HOLD" && flown[^1].SfoHold && flown.All(st => st.Leg != "LOW KEY"),
+            "SFO: on hold at the High Key by default (no Low Key in 5 minutes without START SFO)", flown.Count > 0 ? flown[^1].Leg : "");
+    }
+
+    // 28. Orbits until "continue" (ORBIT ∞), then on along the downwind; an orbit ended by "turn base".
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        bool asked = false, continued = false;
+        double turned = 0;
+        double? last = null;
+        List<AircraftState> flown = Fly(sim, cs, 1500, st =>
+        {
+            if (!asked && StraightOn(st) && Frame(st).Along < 1.0) { asked = true; sim.Orbit(cs, forever: true); }
+            if (st.Leg == "ORBITS")
+            {
+                if (last is double h) turned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - h));
+                last = st.HeadingTrue;
+                if (!continued && turned > 2.5 * 360) { continued = true; sim.ContinueAfterOrbit(cs); }
+            }
+        });
+        int end = flown.FindLastIndex(st => st.Leg == "ORBITS");
+        Check(continued && turned > 900 && end > 0 && flown.Skip(end + 1).Any(StraightOn) && LandedOnRunway(flown),
+            "ORBIT ∞: orbits until CONTINUE (two and a half here), then on along the downwind, lands", $"turned {turned:F0}°");
+        pictures.Add(("Orbits until continue, then on along the downwind (Light)", flown));
+
+        SimEngine sim2 = NewCircuitEngine();
+        string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        bool orbited = false, based = false;
+        double turned2 = 0;
+        double? lastHeading2 = null;
+        List<AircraftState> flown2 = Fly(sim2, cs2, 1200, st =>
+        {
+            if (!orbited && StraightOn(st) && Frame(st).Along < 0.5) { orbited = true; sim2.Orbit(cs2); }
+            if (st.Leg == "ORBIT")
+            {
+                if (lastHeading2 is double h) turned2 += Math.Abs(SimEngine.Wrap(st.HeadingTrue - h));
+                lastHeading2 = st.HeadingTrue;
+                if (!based && turned2 > 120) { based = true; sim2.TurnBase(cs2); }
+            }
+        });
+        Check(based && turned2 < 300 && flown2.Any(st => st.Leg == "BASE") && LandedOnRunway(flown2),
+            "TURN BASE during an orbit: the orbit ends at once, the base from there, lands", $"orbit stopped after {turned2:F0}°");
+    }
+
+    // 29. GO AROUND (the button): only on the final; level, to the threshold, then the runway heading until a new order.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        bool early = false, around = false;
+        string legAfterEarly = "";
+        double heightAtGa = double.NaN;
+        List<AircraftState> flown = Fly(sim, cs, 400, st =>
+        {
+            if (!early && st.Leg == "DOWNWIND") { early = true; sim.GoAround(cs); }
+            else if (early && legAfterEarly.Length == 0) legAfterEarly = st.Leg;
+            if (!around && st.Leg == "FINAL" && Frame(st).Along > -0.8) { around = true; heightAtGa = Height(st); sim.GoAround(cs); }
+        });
+        int gaIndex = flown.FindIndex(st => st.Leg == "GO AROUND");
+        List<AircraftState> after = gaIndex < 0 ? [] : flown.Skip(gaIndex).ToList();
+        AircraftState? lastState = after.LastOrDefault();
+        Check(legAfterEarly == "DOWNWIND" && gaIndex > 0 && after.All(st => st.Contact == GroundContact.Airborne && Height(st) > heightAtGa - 40)
+            && lastState != null && Math.Abs(SimEngine.Wrap(lastState.HeadingTrue - CircuitCourse)) < 5 && Math.Abs(Frame(lastState).Lateral) < 0.2
+            && lastState.Leg is "GO AROUND" or "MANUAL" && after.All(st => st.Leg is not ("UPWIND" or "CROSSWIND" or "DOWNWIND")),
+            "GO AROUND: not on the downwind; on the final it stops descending, passes the threshold and keeps the runway heading (no circuit by itself)",
+            lastState != null ? $"{lastState.Leg}, {Height(lastState):F0} ft (GA at {heightAtGa:F0}), heading {SimEngine.Wrap(lastState.HeadingTrue - CircuitCourse):F0}° off the runway" : "no go-around");
+        pictures.Add(("GO AROUND on the final: level, runway heading until a new order (Light)", flown));
+    }
+
+    // 30. BREAKUP: on the downwind out to 90°, away from the runway; on the base on turning past the final to its reciprocal.
+    {
+        double Breakup(Func<AircraftState, bool> when, out string leg)
+        {
+            SimEngine sim = NewCircuitEngine();
+            string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+            bool given = false;
+            List<AircraftState> flown = Fly(sim, cs, 600, st =>
+            {
+                if (!given && when(st)) { given = true; sim.Breakup(cs); }
+            });
+            leg = flown.Count > 0 ? flown[^1].Leg : "";
+            return flown.Count > 0 ? SimEngine.Wrap(flown[^1].HeadingTrue - CircuitCourse) : double.NaN;
+        }
+        double fromDownwind = Breakup(st => StraightOn(st) && Frame(st).Along < 0.5, out string leg1);
+        double fromBase = Breakup(st => st.Leg == "BASE" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 90)) < 10, out string leg2);
+        // Left-hand circuit, runway 140: downwind 320, away from the runway 050 (-90 from the runway); base 230 (+90) to 050 (-90).
+        Check(Near(Math.Abs(fromDownwind), 90, 5) && leg1 == "MANUAL" && Near(fromBase, -90, 5) && leg2 == "MANUAL",
+            "BREAKUP: out of the circuit, on the downwind to 90° away from the runway, on the base turning on to the reciprocal of the base",
+            $"downwind → {fromDownwind:F0}°, base → {fromBase:F0}° from the runway course");
+    }
+
+    // 31. From an entry gate 6 NM out: into the circuit by each entry, at the arrival height of the class.
+    {
+        (double gx, double gy) = Place(-4, 4.5, CircuitSide.Left);
+        List<AircraftState> FromGate(CircuitEntry entry, CircuitType type, string kind, out SimEngine sim, out string cs)
+        {
+            sim = NewCircuitEngine();
+            cs = sim.AddAtGate(gx, gy, entry, type, CircuitSide.Left, EndAction.FullStop, performanceClass: kind);
+            SimEngine me = sim;
+            string callsign = cs;
+            return Fly(sim, cs, 1800, st => { if (st.Leg == "HOLD") me.HoldAtHighKey(callsign, false); });
+        }
+        List<AircraftState> dw = FromGate(CircuitEntry.Downwind, CircuitType.Conventional, "Light", out _, out _);
+        List<AircraftState> bs = FromGate(CircuitEntry.Base, CircuitType.Conventional, "Light", out _, out _);
+        List<AircraftState> fin = FromGate(CircuitEntry.Final, CircuitType.Conventional, "Turboprop", out _, out _);
+        List<AircraftState> ip = FromGate(CircuitEntry.InitialPoint, CircuitType.Conventional, "Jet", out _, out _);
+        List<AircraftState> hk = FromGate(CircuitEntry.HighKey, CircuitType.Conventional, "Jet", out _, out _);
+        Check(dw.Count > 0 && Near(Height(dw[0]), 1500, 30) && dw.Any(StraightOn) && LandedOnRunway(dw),
+            "From a gate 6 NM out (Light, 1500 ft: 500 above its circuit): 45° onto the downwind, lands", dw.Count > 0 ? $"{Height(dw[0]):F0} ft" : "");
+        Check(bs.Any(st => st.Leg == "BASE") && bs.All(st => st.Leg != "DOWNWIND") && LandedOnRunway(bs), "From a gate: straight to the base, lands");
+        Check(fin.All(st => st.Leg is not ("DOWNWIND" or "BASE")) && LandedOnRunway(fin), "From a gate: straight in to the final, lands");
+        Check(ip.Any(st => st.Leg == "INITIAL") && ip.All(st => st.Circuit is CircuitType.Overhead or CircuitType.Close) && LandedOnRunway(ip),
+            "From a gate to the IP: the overhead, lands");
+        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands");
+        pictures.Add(("From a gate 6 NM out: 45° onto the downwind (Light)", dw));
+        pictures.Add(("From a gate: straight to the base (Light)", bs));
+        pictures.Add(("From a gate: straight in (Turboprop)", fin));
+        pictures.Add(("From a gate: to the IP, overhead (Jet)", ip));
+        pictures.Add(("From a gate: to the High Key, hold, SFO (Jet)", hk));
+    }
+
+    // 32. Take-off: only the conventional or the wide after it (a close pattern asked: the conventional).
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Runway, CircuitType.Close, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        Check(sim.Get(cs)?.Circuit == CircuitType.Conventional, "Take-off: then the conventional (or the wide) circuit only");
     }
 
     // 23. Helicopter: the conventional circuit, landing on a pad beside the runway, hovering down.

@@ -54,6 +54,9 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The map categories turned off (null: the defaults: MVA, CTR, FIX and the others off by default).</summary>
         public List<string>? CategoriesOff { get; set; }
         public double LongFinalNM { get; set; } = 10;
+        /// <summary>The sections of the panel open (they close to their bar).</summary>
+        public bool AerodromeOpen { get; set; } = true;
+        public bool SimulationOpen { get; set; } = true;
         public double InitialPointNM { get; set; } = 3;
 
         [JsonExtensionData]

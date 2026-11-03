@@ -60,6 +60,9 @@ namespace ATCRoom.Sim
         public double HighKeyFt { get; set; }
         public double LowKeyFt { get; set; }
         public double BestGlideKt { get; set; }
+        /// <summary>Arriving from an entry gate: height (ft above the threshold) and speed (kt); 0: 500 ft above the circuit, the circuit speed.</summary>
+        public double ArrivalHeightFt { get; set; }
+        public double ArrivalSpeedKt { get; set; }
         /// <summary>A helicopter: it can hover (minimum speed 0) and hold its place over the ground.</summary>
         public bool CanHover { get; set; }
 
@@ -109,6 +112,8 @@ namespace ATCRoom.Sim
             HighKeyFt = Clamp(HighKeyFt, 500, 15000, highKey);
             LowKeyFt = Clamp(LowKeyFt, 300, HighKeyFt, Math.Min(lowKey, HighKeyFt));
             BestGlideKt = Clamp(BestGlideKt, FinalSpeedKt, MaxSpeedKt, glide);
+            ArrivalHeightFt = Clamp(ArrivalHeightFt, 300, 10000, Math.Max(ConventionalHeightFt, CircuitHeightFt) + 500);
+            ArrivalSpeedKt = Clamp(ArrivalSpeedKt, Math.Max(1, MinSpeedKt), MaxSpeedKt, CircuitSpeedKt);
         }
 
         /// <summary>

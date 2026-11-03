@@ -32,6 +32,8 @@ namespace ATCRoom.Sim
         public List<RunwayCircuit> Runways { get; set; } = [];
         /// <summary>The heights of the classes that fly this aerodrome differently.</summary>
         public List<ClassCircuit> Classes { get; set; } = [];
+        /// <summary>The entry gates (TWR Trainer): where the arriving aircraft start, at least 5 NM out.</summary>
+        public List<EntryGate> Gates { get; set; } = [];
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -99,6 +101,7 @@ namespace ATCRoom.Sim
             file.Airport = (file.Airport ?? "").Trim().ToUpperInvariant();
             file.Runways = (file.Runways ?? []).Where(r => r != null).ToList();
             file.Classes = (file.Classes ?? []).Where(c => c != null).ToList();
+            file.Gates = (file.Gates ?? []).Where(g => g != null).ToList();
             return file;
         }
 
@@ -151,6 +154,17 @@ namespace ATCRoom.Sim
             string otherLetter = letter switch { "L" => "R", "R" => "L", _ => letter };
             return other.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + otherLetter;
         }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    /// <summary>An entry gate of an aerodrome: its name and place (degrees).</summary>
+    public sealed class EntryGate
+    {
+        public string Name { get; set; } = "";
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }

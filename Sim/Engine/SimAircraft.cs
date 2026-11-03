@@ -116,7 +116,9 @@ namespace ATCRoom.Sim
         bool SfoHold = false,
         // The side of the next circuit, and the downwind extended (until "turn base").
         CircuitSide NextSide = CircuitSide.Left,
-        bool Extended = false);
+        bool Extended = false,
+        // Orbiting until "continue".
+        bool OrbitForever = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -183,7 +185,8 @@ namespace ATCRoom.Sim
             : Circuit.Suspended ? "MANUAL"
             : Circuit.Spiral ? (Circuit.Hold ? "HOLD" : "CLIMB")
             : Circuit.Extended ? "EXT DOWNWIND"
-            : Circuit.Orbit > 0 ? "ORBIT"
+            : Circuit.Waiting ? (Navigation == NavigationMode.Route ? "GO AROUND" : "MANUAL")
+            : Circuit.Orbit > 0 ? (Circuit.OrbitForever ? "ORBITS" : "ORBIT")
             : Route != null && RouteNext >= 0 && RouteNext < Route.Count ? Route[RouteNext].Name
             : Circuit.OnFinal ? "FINAL" : "";
 
@@ -194,6 +197,6 @@ namespace ATCRoom.Sim
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
-            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true);
+            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true);
     }
 }

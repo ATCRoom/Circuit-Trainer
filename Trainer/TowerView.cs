@@ -73,6 +73,8 @@ namespace ATCRoom.TwrTrainer
         public double ElevationFt { get; set; }
         /// <summary>Distance of the extended centreline drawn (NM).</summary>
         public double CentrelineNM { get; set; } = 10;
+        /// <summary>The entry gates of the aerodrome (the plane, NM).</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Gates { get; set; } = [];
         /// <summary>The map categories drawn.</summary>
         public HashSet<string> CategoriesOn { get; } = new(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<AircraftState> Traffic { get; private set; } = [];
@@ -231,6 +233,7 @@ namespace ATCRoom.TwrTrainer
             double dip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             DrawMap(dc, dip);
             DrawRunway(dc);
+            DrawGates(dc, dip);
             DrawTraffic(dc, dip);
             if (Hint.Length > 0)
             {
@@ -308,6 +311,41 @@ namespace ATCRoom.TwrTrainer
                 (double bx, double by) = Along(-n, half);
                 dc.DrawLine(tick, ToScreen(ax, ay), ToScreen(bx, by));
             }
+        }
+
+        private static readonly Brush GateBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x5D, 0xCA, 0xA5)));
+
+        /// <summary>The entry gates: a triangle and the name.</summary>
+        private void DrawGates(DrawingContext dc, double dip)
+        {
+            Pen pen = new(GateBrush, 1.4);
+            foreach ((string name, double x, double y) in Gates)
+            {
+                Point at = ToScreen(x, y);
+                StreamGeometry triangle = new();
+                using (StreamGeometryContext c = triangle.Open())
+                {
+                    c.BeginFigure(new Point(at.X, at.Y - 7), false, true);
+                    c.LineTo(new Point(at.X + 6, at.Y + 4), true, false);
+                    c.LineTo(new Point(at.X - 6, at.Y + 4), true, false);
+                }
+                dc.DrawGeometry(null, pen, triangle);
+                dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 12, GateBrush, dip), new Point(at.X + 8, at.Y - 8));
+            }
+        }
+
+        /// <summary>The name of the map point (VRP, FIX...) nearest a place of the plane, within 15 pixels, or null.</summary>
+        public string? MapPointNear(double x, double y)
+        {
+            Point at = ToScreen(x, y);
+            (string Name, double Distance) best = ("", double.MaxValue);
+            foreach ((string category, double px, double py, string name, _) in points)
+            {
+                if (name.Length == 0 || !CategoriesOn.Contains(category)) continue;
+                double d = (ToScreen(px, py) - at).Length;
+                if (d < best.Distance) best = (name, d);
+            }
+            return best.Distance <= 15 ? best.Name : null;
         }
 
         private void DrawTraffic(DrawingContext dc, double dip)
@@ -449,8 +487,9 @@ namespace ATCRoom.TwrTrainer
                 if (type == CircuitType.Sfo) buttons.Add(a.SfoHold ? ("START", "START", true) : ("HOLD", "HOLD", true));
                 if (a.Leg == "DOWNWIND") buttons.Add(("EXTEND", "EXT DWN", true));
                 if (a.Leg is "DOWNWIND" or "EXT DOWNWIND") buttons.Add(("BASE", "BASE", true));
-                buttons.Add(("ORBIT", "ORB", true));
-                buttons.Add(("GA", "G/A", true));
+                if (a.OrbitForever) buttons.Add(("CONTINUE", "CONT", true));
+                else if (a.Leg != "FINAL") buttons.Add(("ORBIT", "ORB", true));
+                if (a.Leg == "FINAL") buttons.Add(("GA", "G/A", true));
                 rows.Add(buttons);
                 // The buttons of the field clicked, under the label: the value now outlined, the others to click.
                 List<(string, string, bool)> choices = strip switch

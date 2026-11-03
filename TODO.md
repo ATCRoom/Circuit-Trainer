@@ -435,3 +435,14 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
   it is (it climbs and flies the circuit again). BREAKUP: on the downwind out of the circuit, turning away from the
   runway (90°), at circuit height, then MANUAL; on the base it goes on turning the same way past the final heading and
   stops on the reciprocal of the base heading (runway 36, left circuit: base 090 → 360 → 270), then MANUAL.
+
+## Build of 3 Nov evening (the user: "let's try it this way") — WRITTEN
+
+Collapsible Aerodrome / Simulation (summary on the bar, state remembered); entry gates in the aerodrome file (ADD GATE
+by a click, a VRP gives its name, warned under 5 NM; drawn as triangles); group 1: From (gates, RWY, IN CCT for
+tests) × Entry (DW, BASE, IP, HK, FINAL) × circuit × side × class × end, ADD NOW / TO PLANS; flight plans (▶, ⏸ hold,
+⧉ duplicate with the next callsign, ✕, START ALL with delays, scenarios saved / loaded in `Scenarios`); arrival height
+and speed per class (`ArrivalHeightFt`, `ArrivalSpeedKt`: default 500 ft above the circuit, the circuit speed); the
+take-off only into the conventional or the wide; SFO on hold at the HK by default; ORBIT ∞ / CONTINUE (Shift+ORBIT),
+EXTEND DWN and TURN BASE end an orbit; GO AROUND only on the final (level, runway heading, waiting); BREAKUP; group 3
+by the order of the circuit with grey buttons. DEP after a take-off: straight out as before (an exit gate later?).
