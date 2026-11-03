@@ -362,6 +362,6 @@ A simulation environment for training **tower control of traffic in the circuit*
   raw points of the route: the overhead's INITIAL point far beyond the runway (the break comes before it), the ends of
   the 180° turns joined straight, the close pattern's upwind point 2 NM out. To draw instead the shape it will fly
   (the turns as arcs, the break where it will be, only the points that are flown to).
-- **"Extend downwind" button missing** (asked by the user; it was never in the list): to define what it does (on the
-  downwind it goes on beyond the base turn until "turn base" / "base now", or a given distance?), then a button on the
-  label and in the panel.
+- **"Extend downwind" button missing** (asked by the user; it was never in the list). **Decided (the user, 3 Nov: A):**
+  "Extend downwind": on the downwind it goes on beyond the base turn (straight, at circuit height) until "Turn base"
+  (a second button), then it turns to the base / to the final from there. Both on the label and in the panel.
