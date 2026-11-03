@@ -423,3 +423,8 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
 - **SFO: on hold at the High Key by default (the user, 3 Nov):** every SFO (next circuit, ordered now, a new aircraft
   to the HK) reaches the High Key and circles there (HOLD) until START SFO; the checkbox "Hold at the High Key" of
   the new aircraft goes away; HOLD HK stays to stop one already started towards the HK.
+- **GO AROUND only on the final (the user, 3 Nov):** today it works on every leg: on the downwind it turns towards the
+  aerodrome to go back to the upwind. It must work only on the final (base included? to confirm); on the other legs
+  the button does nothing (greyed, with a short message). New command **BREAKUP** to leave the circuits from any leg:
+  proposed: a turn away from the runway (outwards) to a heading 90° off the leg, at circuit height, then MANUAL (the
+  instructor vectors it; REJOIN brings it back). To confirm with the user.
