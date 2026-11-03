@@ -455,3 +455,6 @@ by the order of the circuit with grey buttons. DEP after a take-off: straight ou
   (`Trainer/FloatingPanel.cs` of AuroraPAR-v2: ▴/▾ closes it to its bar, double click on the bar puts it back in the
   column; place, size and open/closed remembered). To ask: floating over the map (as the PAR trainer) or separate
   windows (e.g. on a second screen)?
+- **Long final as a start of its own (the user, 3 Nov: not IN CCT + FINAL):** in "From" a button LONG FIN (on the final
+  at the long final distance, on the glide path) beside the gates and RWY; with it (and with RWY) the Entry row is
+  grey (it does not apply). IN CCT stays for the tests (DW, IP, HK); its FINAL goes away.
