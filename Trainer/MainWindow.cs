@@ -34,6 +34,9 @@ namespace ATCRoom.TwrTrainer
         private double lastTick;
         private int ticks;
         private double speed = 1;
+        /// <summary>The circuit chosen with the wheel on the label: for which aircraft, since when (s of the clock).</summary>
+        private string? pendingCallsign;
+        private double pendingSince;
         private bool updating;
 
         // The panel.
@@ -57,17 +60,21 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox longFinalBox = new() { Width = 45 };
         private readonly TextBox initialPointBox = new() { Width = 45 };
         private readonly StackPanel layers = new();
-        private readonly ComboBox startBox = Combo(TowerCommands.Starts);
-        private readonly ComboBox circuitBox = Combo(TowerCommands.Circuits);
-        private readonly ComboBox sideBox = Combo<CircuitSide?>([(null, "Aerodrome's"), (CircuitSide.Left, "Left"), (CircuitSide.Right, "Right")]);
-        private readonly ComboBox classBox = new();
-        private readonly ComboBox endBox = Combo(TowerCommands.Ends);
+        // New aircraft: rows of buttons (the choices kept for the next one).
+        private readonly ChoiceRow<CircuitStart> startRow = new(TowerCommands.Starts.Select(s => (s.Start, s.Short)));
+        private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)));
+        private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")]);
+        private ChoiceRow<string> classRow = new([]);
+        private readonly StackPanel classHolder = new();
+        private readonly ChoiceRow<EndAction> endRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)));
         private readonly TextBox callsignBox = new() { Width = 90 };
         private readonly CheckBox holdBox = new() { Content = "Hold at the High Key (SFO)" };
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
-        private readonly ComboBox selCircuitBox = Combo(TowerCommands.Circuits);
-        private readonly ComboBox selSideBox = Combo<CircuitSide>([(CircuitSide.Left, "Left"), (CircuitSide.Right, "Right")]);
-        private readonly ComboBox selEndBox = Combo(TowerCommands.Ends);
+        // The selected aircraft: each button an order at once.
+        private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)));
+        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")]);
+        private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)));
+        private readonly ChoiceRow<BreakPoint> selBreakRow = new(TowerCommands.Breaks.Select(b => (b.Break, b.Short)));
         private readonly StackPanel selectedPanel = new();
         private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap, Foreground = WarnBrush, Margin = new Thickness(0, 8, 0, 0) };
 
@@ -107,12 +114,10 @@ namespace ATCRoom.TwrTrainer
             Directory.CreateDirectory(Paths.Folder);
             (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
             engine.SetPerformanceClasses(classes);
-            foreach (PerformanceClass kind in engine.Classes)
-            {
-                classBox.Items.Add(kind.Name);
-                heightClassBox.Items.Add(kind.Name);
-            }
-            classBox.SelectedItem = engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : classBox.Items.Count > 0 ? classBox.Items[0] : null;
+            foreach (PerformanceClass kind in engine.Classes) heightClassBox.Items.Add(kind.Name);
+            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())));
+            classRow.Show(engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name);
+            classHolder.Children.Add(classRow);
             heightClassBox.SelectedIndex = heightClassBox.Items.Count > 0 ? 0 : -1;
             if (note != null) Say(note);
             engine.LongFinalNM = settings.LongFinalNM;
@@ -136,6 +141,17 @@ namespace ATCRoom.TwrTrainer
             engine.Advance(wall * speed);
             view.SetTraffic(engine.Snapshot(), engine.Time);
             view.Status = view.Picking ? view.Status : engine.Paused ? "PAUSED" : "";
+            if (view.PendingCircuit is CircuitType chosen && now - pendingSince > 1.2)
+            {
+                // The wheel stopped: the circuit chosen is ordered.
+                view.PendingCircuit = null;
+                if (pendingCallsign != null && pendingCallsign == view.Selected && engine.Get(pendingCallsign)?.Circuit != chosen)
+                {
+                    commands.FlyCircuit(pendingCallsign, chosen, engine.SideFor(chosen));
+                    ShowSelected();
+                }
+                pendingCallsign = null;
+            }
             if (++ticks % 10 == 0) ShowSelectedValues();
         }
 
@@ -194,47 +210,54 @@ namespace ATCRoom.TwrTrainer
             panel.Children.Add(layersBox);
 
             Header("New aircraft");
-            Row("Start", startBox);
-            Row("Circuit", circuitBox);
-            Row("Side", sideBox);
-            Row("Class", classBox);
-            Row("At the end", endBox);
-            Row("Callsign (optional)", callsignBox);
+            Note("Click along the rows, then ADD (the choices stay for the next one). AD: the aerodrome's side. Overhead starts at IP, SFO at HK.");
+            Row("Start", startRow, null, 62);
+            Row("Circuit", circuitRow, null, 62);
+            Row("Side", sideRow, null, 62);
+            Row("Class", classHolder, null, 62);
+            Row("At the end", endRow, null, 62);
+            startRow.Show(CircuitStart.Downwind);
+            circuitRow.Show(CircuitType.Conventional);
+            sideRow.Show(null);
+            endRow.Show(EndAction.TouchAndGo);
+            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
             holdBox.Foreground = TextBrush;
-            Row("", holdBox);
-            startBox.SelectedIndex = circuitBox.SelectedIndex = sideBox.SelectedIndex = endBox.SelectedIndex = 0;
-            Note("Overhead starts at the initial point, SFO at the High Key (from elsewhere they fly the close pattern).");
-            Buttons(("Add", AddAircraft));
+            Row("", holdBox, null, 62);
+            Buttons(("ADD", AddAircraft));
 
             Header("Selected aircraft");
             panel.Children.Add(selectedText);
             panel.Children.Add(selectedPanel);
-            Row("Circuit", selCircuitBox, selectedPanel);
-            // Another circuit chosen: the side of that circuit at this runway (it can still be changed before flying it).
-            selCircuitBox.SelectionChanged += (_, _) =>
+            Note("Each button is an order at once; they can be chained (CLS then R: the close pattern on the right).", selectedPanel);
+            Row("Circuit", selCircuitRow, selectedPanel, 62);
+            // Another circuit: flown at once on the side of that circuit at this runway (then L / R to change it).
+            selCircuitRow.Picked += type => WithSelected(cs =>
             {
-                if (!updating) SelectTag(selSideBox, engine.SideFor(TagOf<CircuitType>(selCircuitBox)));
-            };
-            Row("Side", selSideBox, selectedPanel);
-            Buttons(selectedPanel, ("Fly this circuit", () => WithSelected(cs =>
-                commands.FlyCircuit(cs, TagOf<CircuitType>(selCircuitBox), TagOf<CircuitSide>(selSideBox)))));
-            Row("At the end", selEndBox, selectedPanel);
-            selEndBox.SelectionChanged += (_, _) =>
+                CircuitSide side = engine.SideFor(type);
+                selSideRow.Show(side);
+                commands.FlyCircuit(cs, type, side);
+            });
+            Row("Side", selSideRow, selectedPanel, 62);
+            selSideRow.Picked += side => WithSelected(cs => commands.FlyCircuit(cs, selCircuitRow.HasValue ? selCircuitRow.Value : CircuitType.Conventional, side));
+            Row("At the end", selEndRow, selectedPanel, 62);
+            selEndRow.Picked += end => WithSelected(cs => commands.SetEnd(cs, end));
+            Row("Break", selBreakRow, selectedPanel, 62);
+            selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
+            Row("", Inline(ActionButton("PNT", () => WithSelected(cs =>
+                    view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y)))),
+                ActionButton("BREAK NOW", () => WithSelected(commands.BreakNow))), selectedPanel, 62);
+            WrapPanel actions = new();
+            foreach ((string text, Action action) in new (string, Action)[]
             {
-                if (!updating) WithSelected(cs => commands.SetEnd(cs, TagOf<EndAction>(selEndBox)));
-            };
-            Note("Overhead: where it breaks.", selectedPanel);
-            Buttons(selectedPanel, TowerCommands.Breaks.Select(b => ((string, Action))(b.Text, () => WithSelected(cs => commands.SetBreak(cs, b.Break)))).ToArray());
-            Buttons(selectedPanel, ("Point on the map", () => WithSelected(cs =>
-                view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y)))),
-                ("BREAK NOW", () => WithSelected(commands.BreakNow)));
-            Buttons(selectedPanel, ("Orbit", () => WithSelected(commands.Orbit)), ("Go around", () => WithSelected(commands.GoAround)));
-            Note("SFO: holding over the field at the High Key, or start.", selectedPanel);
-            Buttons(selectedPanel, ("Hold at High Key", () => WithSelected(cs => commands.HoldAtHighKey(cs, true))),
-                ("Start SFO", () => WithSelected(cs => commands.HoldAtHighKey(cs, false))));
-            Buttons(selectedPanel, ("Helipad on the map", () => WithSelected(cs =>
-                view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y)))),
-                ("Remove", () => WithSelected(commands.Remove)));
+                ("ORB", () => WithSelected(commands.Orbit)),
+                ("G/A", () => WithSelected(commands.GoAround)),
+                ("HOLD", () => WithSelected(cs => commands.HoldAtHighKey(cs, true))),
+                ("START", () => WithSelected(cs => commands.HoldAtHighKey(cs, false))),
+                ("PAD", () => WithSelected(cs => view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y)))),
+                ("REMOVE", () => WithSelected(commands.Remove))
+            }) actions.Children.Add(ActionButton(text, action));
+            Row("Do", actions, selectedPanel, 62);
+            Note("ORB orbit, G/A go around, HOLD / START the SFO at the High Key, PAD the helicopter's helipad (click it). Right click on an aircraft: all its commands.", selectedPanel);
             panel.Children.Add(message);
             Note($"Maps: {Paths.MapsFolderText} (made with ATCRoom Map Creator). Aerodromes and settings: {Paths.FolderText}.");
             ShowSelected();
@@ -290,10 +313,26 @@ namespace ATCRoom.TwrTrainer
             Margin = new Thickness(0, 6, 0, 2)
         });
 
-        private void Row(string label, UIElement control, Panel? into = null)
+        private static Button ActionButton(string text, Action action)
+        {
+            Button button = new()
+            {
+                Content = text,
+                Margin = new Thickness(0, 0, 4, 4),
+                Padding = new Thickness(7, 2, 7, 2),
+                MinWidth = 34,
+                Background = new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x86)),
+                Foreground = TextBrush,
+                Focusable = false
+            };
+            button.Click += (_, _) => action();
+            return button;
+        }
+
+        private void Row(string label, UIElement control, Panel? into = null, double labelWidth = 130)
         {
             Grid grid = new() { Margin = new Thickness(0, 2, 0, 2) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelWidth) });
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             TextBlock text = new() { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = TextBrush };
             grid.Children.Add(text);
@@ -585,8 +624,8 @@ namespace ATCRoom.TwrTrainer
 
         private void AddAircraft()
         {
-            string? error = commands.Add(TagOf<CircuitStart>(startBox), TagOf<CircuitType>(circuitBox), TagOf<CircuitSide?>(sideBox), TagOf<EndAction>(endBox),
-                classBox.SelectedItem as string, callsignBox.Text, holdBox.IsChecked == true, out string added);
+            string? error = commands.Add(startRow.Value, circuitRow.Value, sideRow.Value, endRow.Value,
+                classRow.Value, callsignBox.Text, holdBox.IsChecked == true, out string added);
             Say(error);
             if (error != null) return;
             callsignBox.Text = "";
@@ -601,19 +640,23 @@ namespace ATCRoom.TwrTrainer
             AircraftState? a = engine.Get(callsign);
             if (a == null) return;
             CircuitType type = a.Circuit ?? CircuitType.Conventional;
+            // A value chosen in the buttons under a field.
+            if (field.Split('=') is [string name, string value])
+            {
+                if (name == "CIRC" && Enum.TryParse(value, out CircuitType circuit)) commands.FlyCircuit(callsign, circuit, engine.SideFor(circuit));
+                else if (name == "NEXT" && Enum.TryParse(value, out EndAction end)) commands.SetEnd(callsign, end);
+                else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))
+                {
+                    if (where == BreakPoint.Point) view.AskPoint($"{callsign}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(callsign, x, y));
+                    else commands.SetBreak(callsign, where);
+                }
+                ShowSelected();
+                return;
+            }
             switch (field)
             {
-                case "CCT":
-                    OpenMenu(CircuitItems(callsign));
-                    break;
                 case "SIDE":
                     commands.FlyCircuit(callsign, type, a.CircuitSide == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left);
-                    break;
-                case "NEXT":
-                    OpenMenu(EndItems(callsign, a.EndAction));
-                    break;
-                case "BRK":
-                    OpenMenu(BreakItems(callsign, a.Break));
                     break;
                 case "BREAKNOW":
                     commands.BreakNow(callsign);
@@ -634,11 +677,24 @@ namespace ATCRoom.TwrTrainer
             ShowSelected();
         }
 
-        /// <summary>The wheel on NEXT or BRK: the next (or the previous) value.</summary>
+        /// <summary>
+        /// The wheel on NEXT or BRK: the next (or the previous) value. On the circuit: the circuit shown with a "?", ordered
+        /// when the wheel stops for a moment (each notch is not an order).
+        /// </summary>
         private void LabelWheel(string callsign, string field, int step)
         {
             AircraftState? a = engine.Get(callsign);
             if (a == null) return;
+            if (field == "CIRC")
+            {
+                CircuitType now = view.PendingCircuit ?? a.Circuit ?? CircuitType.Conventional;
+                int i = Array.FindIndex(TowerCommands.Circuits, c => c.Type == now);
+                view.PendingCircuit = TowerCommands.Circuits[((i + step) % TowerCommands.Circuits.Length + TowerCommands.Circuits.Length) % TowerCommands.Circuits.Length].Type;
+                pendingCallsign = callsign;
+                pendingSince = clock.Elapsed.TotalSeconds;
+                view.InvalidateVisual();
+                return;
+            }
             if (field == "NEXT")
             {
                 int i = Array.FindIndex(TowerCommands.Ends, e => e.End == a.EndAction);
@@ -724,20 +780,27 @@ namespace ATCRoom.TwrTrainer
         {
             selectedPanel.IsEnabled = view.Selected != null;
             AircraftState? a = view.Selected is string cs ? engine.Get(cs) : null;
-            updating = true;
             if (a != null)
             {
-                SelectTag(selCircuitBox, a.Circuit ?? CircuitType.Conventional);
-                SelectTag(selSideBox, a.CircuitSide);
-                SelectTag(selEndBox, a.EndAction);
+                selCircuitRow.Show(a.Circuit ?? CircuitType.Conventional);
+                selSideRow.Show(a.CircuitSide);
+                selEndRow.Show(a.EndAction);
+                selBreakRow.Show(a.Break);
             }
-            updating = false;
             ShowSelectedValues();
         }
 
         private void ShowSelectedValues()
         {
             AircraftState? a = view.Selected is string cs ? engine.Get(cs) : null;
+            if (a != null)
+            {
+                // The state of the aircraft (not right after a click: the order may not be carried out yet).
+                selCircuitRow.Refresh(a.Circuit ?? CircuitType.Conventional);
+                selSideRow.Refresh(a.CircuitSide);
+                selEndRow.Refresh(a.EndAction);
+                selBreakRow.Refresh(a.Break);
+            }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
                 : $"{a.Callsign}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
         }

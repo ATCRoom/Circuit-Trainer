@@ -348,3 +348,8 @@ A simulation environment for training **tower control of traffic in the circuit*
   the buttons BREAK NOW (overhead), HOLD / START (SFO), ORB, G/A. Right click on any aircraft: the menu of all its
   commands (also helipad and remove). The same commands as the panel (`TowerCommands`). The wheel does not change the
   circuit (each notch would be an order to fly another circuit).
+- **Buttons instead of drop-down lists (the user, 3 Nov: "too many drop-down menus, better buttons, also chained"):**
+  the panel's new aircraft and selected aircraft are rows of buttons (the value now in yellow); the selected one's are
+  orders at once and can be chained (CLS then R). The label: the circuit field is `Ⓒ` (the user's choice; CCT and the
+  turning arrow were not liked); a click on Ⓒ, NEXT or BRK opens a row of buttons under the label; the wheel on Ⓒ
+  shows the circuit with "?" and orders it when the wheel stops (1.2 s). The right-click menu is kept.

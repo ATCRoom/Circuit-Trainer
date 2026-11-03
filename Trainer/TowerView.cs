@@ -41,6 +41,8 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The fields and buttons of the label of the selected aircraft, where they were drawn (screen), and the whole label.</summary>
         private readonly List<(Rect Area, string Field)> fields = [];
         private Rect selectedLabel = Rect.Empty;
+        /// <summary>The field of the label whose buttons are open under it (CIRC, NEXT, BRK), or null.</summary>
+        private string? strip;
         private static readonly Brush FieldBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x60, 0x40, 0x4C, 0x58)));
         private static readonly Brush LabelBack = Frozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x1C, 0x24)));
 
@@ -71,7 +73,15 @@ namespace ATCRoom.TwrTrainer
         /// <summary>What to do first (no map, no runway), in the middle of the view.</summary>
         public string Hint { get; set; } = "";
         public event Action<string?>? SelectionChanged;
-        /// <summary>A field or button of the label of the selected aircraft clicked (callsign, field: CCT, SIDE, NEXT, BRK, BREAKNOW, HOLD, START, ORBIT, GA).</summary>
+        /// <summary>
+        /// The circuit chosen with the wheel on the label and not yet ordered (shown with a "?"), or null.
+        /// </summary>
+        public CircuitType? PendingCircuit { get; set; }
+
+        /// <summary>
+        /// A button of the label of the selected aircraft clicked (callsign, what: SIDE, BREAKNOW, HOLD, START, ORBIT, GA, or a
+        /// value chosen in the buttons opened under a field: CIRC=Close, NEXT=TouchAndGo, BRK=Standby, BRK=Point).
+        /// </summary>
         public event Action<string, string>? FieldClicked;
         /// <summary>The wheel on a field of the label (callsign, field, +1 / −1).</summary>
         public event Action<string, string, int>? FieldWheel;
@@ -156,6 +166,8 @@ namespace ATCRoom.TwrTrainer
         {
             if (string.Equals(Selected, callsign, StringComparison.OrdinalIgnoreCase)) return;
             Selected = callsign;
+            strip = null;
+            PendingCircuit = null;
             SelectionChanged?.Invoke(callsign);
             InvalidateVisual();
         }
@@ -367,7 +379,8 @@ namespace ATCRoom.TwrTrainer
             ];
             if (a.Circuit is CircuitType type)
             {
-                rows.Add([("CCT", $"CCT {Short(type)}", false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", $"NEXT {EndShort(a.EndAction)}", false)]);
+                string circuit = PendingCircuit is CircuitType pending ? $"Ⓒ {Short(pending)}?" : $"Ⓒ {Short(type)}";
+                rows.Add([("CIRC", circuit, false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", $"NEXT {EndShort(a.EndAction)}", false)]);
                 List<(string, string, bool)> buttons = [];
                 if (type == CircuitType.Overhead)
                 {
@@ -378,6 +391,15 @@ namespace ATCRoom.TwrTrainer
                 buttons.Add(("ORBIT", "ORB", true));
                 buttons.Add(("GA", "G/A", true));
                 rows.Add(buttons);
+                // The buttons of the field clicked, under the label: the value now outlined, the others to click.
+                List<(string, string, bool)> choices = strip switch
+                {
+                    "CIRC" => Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c), c != type)).ToList(),
+                    "NEXT" => Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e != a.EndAction)).ToList(),
+                    "BRK" when type == CircuitType.Overhead => Enum.GetValues<BreakPoint>().Select(b => ($"BRK={b}", BreakShort(b), b != a.Break)).ToList(),
+                    _ => []
+                };
+                if (choices.Count > 0) rows.Add(choices);
             }
             const double pad = 4, gap = 6, lineGap = 3;
             double width = 0, height = pad;
@@ -504,7 +526,7 @@ namespace ATCRoom.TwrTrainer
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             Point at = e.GetPosition(this);
-            if (Selected != null && FieldAt(at) is "NEXT" or "BRK" && FieldAt(at) is string field)
+            if (Selected != null && FieldAt(at) is ("NEXT" or "BRK" or "CIRC") and string field)
             {
                 FieldWheel?.Invoke(Selected, field, e.Delta < 0 ? 1 : -1);
                 e.Handled = true;
@@ -557,7 +579,16 @@ namespace ATCRoom.TwrTrainer
             }
             if (Selected != null && FieldAt(at) is string clicked)
             {
+                if (clicked is "CIRC" or "NEXT" or "BRK")
+                {
+                    // Its buttons open under the label (closed by a second click).
+                    strip = strip == clicked ? null : clicked;
+                    InvalidateVisual();
+                    return;
+                }
+                if (clicked.Contains('=')) strip = null;
                 FieldClicked?.Invoke(Selected, clicked);
+                InvalidateVisual();
                 return;
             }
             Select(AircraftAt(at));

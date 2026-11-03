@@ -8,39 +8,40 @@ namespace ATCRoom.TwrTrainer
     /// </summary>
     internal sealed class TowerCommands(SimEngine engine, Airfield airfield)
     {
-        public static readonly (CircuitStart Start, string Text)[] Starts =
+        // Each value with its name (menus) and its short name (buttons, label).
+        public static readonly (CircuitStart Start, string Text, string Short)[] Starts =
         [
-            (CircuitStart.Downwind, "Downwind"),
-            (CircuitStart.LongFinal, "Long final"),
-            (CircuitStart.InitialPoint, "Initial point"),
-            (CircuitStart.Runway, "Runway (take-off)"),
-            (CircuitStart.HighKey, "High Key (SFO)")
+            (CircuitStart.Downwind, "Downwind", "DWN"),
+            (CircuitStart.LongFinal, "Long final", "LONG FIN"),
+            (CircuitStart.InitialPoint, "Initial point", "IP"),
+            (CircuitStart.Runway, "Runway (take-off)", "RWY"),
+            (CircuitStart.HighKey, "High Key (SFO)", "HK")
         ];
 
-        public static readonly (CircuitType Type, string Text)[] Circuits =
+        public static readonly (CircuitType Type, string Text, string Short)[] Circuits =
         [
-            (CircuitType.Conventional, "Conventional"),
-            (CircuitType.Close, "Close"),
-            (CircuitType.Wide, "Wide"),
-            (CircuitType.Overhead, "Overhead (run and break)"),
-            (CircuitType.Sfo, "SFO")
+            (CircuitType.Conventional, "Conventional", "CONV"),
+            (CircuitType.Close, "Close", "CLS"),
+            (CircuitType.Wide, "Wide", "WIDE"),
+            (CircuitType.Overhead, "Overhead (run and break)", "OVH"),
+            (CircuitType.Sfo, "SFO", "SFO")
         ];
 
-        public static readonly (EndAction End, string Text)[] Ends =
+        public static readonly (EndAction End, string Text, string Short)[] Ends =
         [
-            (EndAction.TouchAndGo, "Touch and go"),
-            (EndAction.FullStop, "Full stop"),
-            (EndAction.GoAround, "Go-around"),
-            (EndAction.LowPass, "Low pass"),
-            (EndAction.Departure, "Departure")
+            (EndAction.TouchAndGo, "Touch and go", "T/G"),
+            (EndAction.FullStop, "Full stop", "FS"),
+            (EndAction.GoAround, "Go-around", "G/A"),
+            (EndAction.LowPass, "Low pass", "LOW"),
+            (EndAction.Departure, "Departure", "DEP")
         ];
 
-        public static readonly (BreakPoint Break, string Text)[] Breaks =
+        public static readonly (BreakPoint Break, string Text, string Short)[] Breaks =
         [
-            (BreakPoint.Middle, "Middle"),
-            (BreakPoint.Beginning, "Beginning"),
-            (BreakPoint.End, "End"),
-            (BreakPoint.Standby, "Standby")
+            (BreakPoint.Middle, "Middle", "MID"),
+            (BreakPoint.Beginning, "Beginning", "BEG"),
+            (BreakPoint.End, "End", "END"),
+            (BreakPoint.Standby, "Standby", "STBY")
         ];
 
         /// <summary>A new aircraft in a circuit. <paramref name="side"/> null: the side of the runway in the aerodrome file.</summary>
