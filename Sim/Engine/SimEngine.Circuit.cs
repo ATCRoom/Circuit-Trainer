@@ -1164,9 +1164,11 @@ namespace ATCRoom.Sim
             }
             // The corner on the runway track beyond the IP by what the turn onto the initial needs, so it rolls out at the IP.
             double turn = Math.Abs(Math.Atan2(-fromLateral, -initialPoint - fromAlong) * 180 / Math.PI);
-            double speedNow = Math.Max(Math.Max(30, plane.GroundSpeedKt), kind.CircuitSpeedKt);
-            double radius = speedNow / 3600 / (Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, speedNow)) * Math.PI / 180);
-            double lead = Math.Min(3, radius * Math.Tan(Math.Min(turn, 170) / 2 * Math.PI / 180));
+            // (At the speed of the initial, which it flies on the way there; the roll-in on top.)
+            double speedNow = Math.Max(Math.Max(30, plane.GroundSpeedKt), speed);
+            double rate = Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, speedNow));
+            double radius = speedNow / 3600 / (rate * Math.PI / 180);
+            double lead = Math.Min(4, radius * Math.Tan(Math.Min(turn, 170) / 2 * Math.PI / 180) + speedNow / 3600 * (rate / TurnRateChange) / 2);
             route.Add(Point(-initialPoint - lead, 0, side, height, speed, "JOIN"));
             route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
             return route;
