@@ -747,8 +747,8 @@ namespace ATCRoom.Sim
             if (!plane.SpeedGiven) plane.TargetSpeedKt = Math.Clamp(kind.BestGlideKt, kind.MinSpeedKt, kind.MaxSpeedKt);
             // Over the High Key, along the runway (the heading of the runway: the top of the circle), at its height: the SFO.
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
-            if (!circuit.Hold && apart <= 0.1 && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.2
-                && Math.Abs(along - HighKeyAlong()) < 0.5 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 10)
+            if (!circuit.Hold && apart <= 0.1 && Math.Abs(off) < 0.15 && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.15
+                && Math.Abs(along - HighKeyAlong()) < 0.3 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 10)
             {
                 circuit.Spiral = false;
                 GiveRoute(plane, SfoRoute(plane).Skip(1).ToList());
@@ -845,6 +845,14 @@ namespace ATCRoom.Sim
             }
             if (plane.Route == null) return;
             plane.RouteNext = Math.Min(plane.RouteNext + 1, plane.Route.Count);
+            // A point of a straight leg the turn has already reached (a turn that ended late): the next one.
+            while (plane.RouteNext + 1 < plane.Route.Count && !plane.Route[plane.RouteNext].Turn180)
+            {
+                RoutePoint point = plane.Route[plane.RouteNext];
+                double h = plane.HeadingTrue * Math.PI / 180;
+                if ((point.X - plane.X) * Math.Sin(h) + (point.Y - plane.Y) * Math.Cos(h) > 0.15) break;
+                plane.RouteNext++;
+            }
             plane.LegStartX = plane.X;
             plane.LegStartY = plane.Y;
             plane.RouteApproached = false;
