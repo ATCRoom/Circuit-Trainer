@@ -43,6 +43,15 @@ namespace ATCRoom.TwrTrainer
         private Rect selectedLabel = Rect.Empty;
         /// <summary>The field of the label whose buttons are open under it (CIRC, NEXT, BRK), or null.</summary>
         private string? strip;
+        /// <summary>Where each label is, from its aircraft (screen, its top left corner), when the user moved it; and where each was drawn.</summary>
+        private readonly Dictionary<string, Vector> labelOffsets = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Rect> labelRects = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>What the left button is dragging: the map, a label, the heading of an aircraft (and which one).</summary>
+        private enum Drag { None, Map, Label, Heading }
+        private Drag drag;
+        private string? dragCallsign;
+        private Vector grab;
+        private Point dragNow;
         private static readonly Brush FieldBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x60, 0x40, 0x4C, 0x58)));
         private static readonly Brush LabelBack = Frozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x14, 0x1C, 0x24)));
 
@@ -87,6 +96,8 @@ namespace ATCRoom.TwrTrainer
         public event Action<string, string, int>? FieldWheel;
         /// <summary>Right click on an aircraft: its menu of all the commands.</summary>
         public event Action<string>? MenuAsked;
+        /// <summary>A heading given by dragging from the aircraft on the map (callsign, heading true).</summary>
+        public event Action<string, double>? HeadingDragged;
 
         /// <summary>The map, in the plane of the engine.</summary>
         public void SetMap(MapFile? map, LocalPlane plane)
@@ -303,17 +314,55 @@ namespace ATCRoom.TwrTrainer
         {
             fields.Clear();
             selectedLabel = Rect.Empty;
-            // The route of the selected aircraft still to fly (its circuit), faint.
-            if (Traffic.FirstOrDefault(a => a.Callsign == Selected) is AircraftState chosen && chosen.Route is { } route && chosen.RouteNext >= 0)
+            labelRects.Clear();
+            // The route of the selected aircraft still to fly (its circuit), faint, as it will fly it: the 180° turns as
+            // half circles, the overhead's initial to the break, the close pattern's climb to the end of the runway.
+            if (Traffic.FirstOrDefault(a => a.Callsign == Selected) is AircraftState chosen && chosen.Route is { } route && chosen.RouteNext >= 0 && route.Count > 0)
             {
                 Pen pen = new(RouteBrush, 1) { DashStyle = new DashStyle([3, 4], 0) };
-                Point from = ToScreen(chosen.X, chosen.Y);
-                for (int i = chosen.RouteNext; i < route.Count; i++)
+                StreamGeometry path = new();
+                using (StreamGeometryContext c = path.Open())
                 {
-                    Point to = ToScreen(route[i].X, route[i].Y);
-                    dc.DrawLine(pen, from, to);
-                    from = to;
+                    c.BeginFigure(ToScreen(chosen.X, chosen.Y), false, false);
+                    Point from = ToScreen(chosen.X, chosen.Y);
+                    for (int i = chosen.RouteNext; i < route.Count; i++)
+                    {
+                        RoutePoint point = route[i];
+                        (double x, double y) = (point.X, point.Y);
+                        if (!double.IsNaN(Course) && chosen.Circuit is CircuitType type)
+                        {
+                            if (point.Name == "INITIAL" && type == CircuitType.Overhead)
+                            {
+                                double length = Math.Max(LengthNM, 0.3);
+                                double breakAt = chosen.Break switch
+                                {
+                                    BreakPoint.Beginning => 0.05,
+                                    BreakPoint.End => length,
+                                    BreakPoint.Standby => length + 1,
+                                    _ => length / 2
+                                };
+                                (x, y) = Along(breakAt, 0);
+                            }
+                            else if (point.Name is "UPWIND" or "GO AROUND" && type is CircuitType.Close or CircuitType.Overhead or CircuitType.Sfo)
+                            {
+                                (x, y) = Along(Math.Max(LengthNM, 0.3), 0);
+                            }
+                        }
+                        Point to = ToScreen(x, y);
+                        double half = (to - from).Length / 2;
+                        if (point.Turn180 && half > 1)
+                        {
+                            c.ArcTo(to, new Size(half, half), 0, false,
+                                chosen.CircuitSide == CircuitSide.Left ? SweepDirection.Counterclockwise : SweepDirection.Clockwise, true, false);
+                        }
+                        else
+                        {
+                            c.LineTo(to, true, false);
+                        }
+                        from = to;
+                    }
                 }
+                dc.DrawGeometry(null, pen, path);
             }
             // (The selected one last: its label on top.)
             foreach (AircraftState a in Traffic.OrderBy(t => t.Callsign == Selected))
@@ -356,9 +405,19 @@ namespace ATCRoom.TwrTrainer
                 }
                 string line3 = LegText(a);
                 FormattedText text = new($"{line1}\n{line2}\n{line3}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, brush, dip);
-                Point corner = new(at.X + 10, at.Y - text.Height - 4);
-                dc.DrawLine(new Pen(brush, 0.6), at, new Point(corner.X, corner.Y + text.Height));
+                Point corner = at + (labelOffsets.TryGetValue(a.Callsign, out Vector moved) ? moved : new Vector(10, -text.Height - 4));
+                Rect area = new(corner, new Size(text.Width, text.Height));
+                labelRects[a.Callsign] = area;
+                dc.DrawLine(new Pen(brush, 0.6), at, Nearest(area, at));
                 dc.DrawText(text, corner);
+            }
+            // A heading being dragged: the line from the aircraft to the mouse, with the heading.
+            if (drag == Drag.Heading && panned && dragCallsign != null && Traffic.FirstOrDefault(t => t.Callsign == dragCallsign) is AircraftState dragged)
+            {
+                Point from = ToScreen(dragged.X, dragged.Y);
+                dc.DrawLine(new Pen(PromptBrush, 1.5), from, dragNow);
+                FormattedText heading = new($"{DraggedHeading(from, dragNow):000}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 14, PromptBrush, dip);
+                dc.DrawText(heading, new Point(dragNow.X + 10, dragNow.Y - 18));
             }
         }
 
@@ -388,13 +447,15 @@ namespace ATCRoom.TwrTrainer
                     buttons.Add(("BREAKNOW", "BREAK NOW", true));
                 }
                 if (type == CircuitType.Sfo) buttons.Add(a.SfoHold ? ("START", "START", true) : ("HOLD", "HOLD", true));
+                if (a.Leg == "DOWNWIND") buttons.Add(("EXTEND", "EXT DWN", true));
+                if (a.Leg is "DOWNWIND" or "EXT DOWNWIND") buttons.Add(("BASE", "BASE", true));
                 buttons.Add(("ORBIT", "ORB", true));
                 buttons.Add(("GA", "G/A", true));
                 rows.Add(buttons);
                 // The buttons of the field clicked, under the label: the value now outlined, the others to click.
                 List<(string, string, bool)> choices = strip switch
                 {
-                    "CIRC" => Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c), c != type)).ToList(),
+                    "CIRC" => Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c), c != (a.NextCircuit ?? type))).ToList(),
                     "NEXT" => Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e != a.EndAction)).ToList(),
                     "BRK" when type == CircuitType.Overhead => Enum.GetValues<BreakPoint>().Select(b => ($"BRK={b}", BreakShort(b), b != a.Break)).ToList(),
                     _ => []
@@ -413,9 +474,10 @@ namespace ATCRoom.TwrTrainer
             }
             width += 2 * pad;
             height += pad - lineGap;
-            Point corner = new(at.X + 14, at.Y - height - 8);
+            Point corner = at + (labelOffsets.TryGetValue(a.Callsign, out Vector moved) ? moved : new Vector(14, -height - 8));
             selectedLabel = new Rect(corner, new Size(width, height));
-            dc.DrawLine(new Pen(SelectedBrush, 0.8), at, new Point(corner.X, corner.Y + height));
+            labelRects[a.Callsign] = selectedLabel;
+            dc.DrawLine(new Pen(SelectedBrush, 0.8), at, Nearest(selectedLabel, at));
             dc.DrawRectangle(LabelBack, new Pen(SelectedBrush, 1), selectedLabel);
             double y = corner.Y + pad;
             foreach (var line in made)
@@ -472,6 +534,25 @@ namespace ATCRoom.TwrTrainer
 
         private string? FieldAt(Point p) => fields.FirstOrDefault(f => f.Area.Contains(p)).Field;
 
+        /// <summary>The point of a label nearest to its aircraft (where the leader line ends).</summary>
+        private static Point Nearest(Rect area, Point at) => new(Math.Clamp(at.X, area.Left, area.Right), Math.Clamp(at.Y, area.Top, area.Bottom));
+
+        /// <summary>The heading (degrees true) from the aircraft to the mouse on the screen (north up).</summary>
+        private static double DraggedHeading(Point from, Point to) => SimEngine.Normalize(Math.Round(Math.Atan2(to.X - from.X, from.Y - to.Y) * 180 / Math.PI));
+
+        /// <summary>The aircraft whose symbol is under a point of the screen, or null.</summary>
+        private string? SymbolAt(Point p)
+        {
+            foreach (AircraftState a in Traffic.Reverse())
+            {
+                if ((p - ToScreen(a.X, a.Y)).Length <= 9) return a.Callsign;
+            }
+            return null;
+        }
+
+        /// <summary>The aircraft whose label is under a point of the screen, or null.</summary>
+        private string? LabelAt(Point p) => labelRects.Where(r => r.Value.Contains(p)).Select(r => r.Key).LastOrDefault();
+
         /// <summary>The third line of the label: the leg, the circuit and its side, what it does at the end of the final.</summary>
         public static string LegText(AircraftState a)
         {
@@ -513,14 +594,7 @@ namespace ATCRoom.TwrTrainer
         private string? AircraftAt(Point p)
         {
             if (Selected != null && selectedLabel.Contains(p)) return Selected;
-            foreach (AircraftState a in Traffic.Reverse())
-            {
-                Point at = ToScreen(a.X, a.Y);
-                if ((p - at).Length <= 9) return a.Callsign;
-                Rect label = new(at.X + 8, at.Y - 52, 90, 50);
-                if (label.Contains(p)) return a.Callsign;
-            }
-            return null;
+            return SymbolAt(p) ?? LabelAt(p);
         }
 
         protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -548,6 +622,23 @@ namespace ATCRoom.TwrTrainer
             panStart = at;
             panned = false;
             (panX, panY) = (centreX, centreY);
+            // What a drag would move: the heading (from the symbol), the label (not on its buttons), else the map.
+            dragCallsign = null;
+            drag = Drag.Map;
+            if (pick == null && (Selected == null || FieldAt(at) == null))
+            {
+                if (SymbolAt(at) is string symbol)
+                {
+                    drag = Drag.Heading;
+                    dragCallsign = symbol;
+                }
+                else if (LabelAt(at) is string label)
+                {
+                    drag = Drag.Label;
+                    dragCallsign = label;
+                    grab = at - labelRects[label].TopLeft;
+                }
+            }
             CaptureMouse();
         }
 
@@ -555,10 +646,19 @@ namespace ATCRoom.TwrTrainer
         {
             if (panStart is not Point start || e.LeftButton != MouseButtonState.Pressed) return;
             Point at = e.GetPosition(this);
-            if (!panned && (at - start).Length < 4) return;
+            if (!panned && (at - start).Length < 5) return;
             panned = true;
-            centreX = panX - (at.X - start.X) / scale;
-            centreY = panY + (at.Y - start.Y) / scale;
+            dragNow = at;
+            if (drag == Drag.Label && dragCallsign != null && Traffic.FirstOrDefault(t => t.Callsign == dragCallsign) is AircraftState owner)
+            {
+                // The label where the mouse takes it, kept from its aircraft.
+                labelOffsets[owner.Callsign] = (at - grab) - ToScreen(owner.X, owner.Y);
+            }
+            else if (drag == Drag.Map)
+            {
+                centreX = panX - (at.X - start.X) / scale;
+                centreY = panY + (at.Y - start.Y) / scale;
+            }
             InvalidateVisual();
         }
 
@@ -568,7 +668,18 @@ namespace ATCRoom.TwrTrainer
             bool click = panStart != null && !panned;
             panStart = null;
             ReleaseMouseCapture();
-            if (!click) return;
+            Drag was = drag;
+            drag = Drag.None;
+            if (!click)
+            {
+                // A heading dragged from an aircraft: given on release.
+                if (was == Drag.Heading && dragCallsign != null && Traffic.FirstOrDefault(t => t.Callsign == dragCallsign) is AircraftState dragged)
+                {
+                    HeadingDragged?.Invoke(dragged.Callsign, DraggedHeading(ToScreen(dragged.X, dragged.Y), at));
+                }
+                InvalidateVisual();
+                return;
+            }
             // A click (not a drag): the point asked, else the aircraft under it.
             if (pick is Action<double, double> done)
             {
@@ -609,6 +720,15 @@ namespace ATCRoom.TwrTrainer
             if (e.Key == Key.Escape && Picking)
             {
                 CancelPick();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape && drag == Drag.Heading)
+            {
+                // The heading being dragged: not given.
+                drag = Drag.None;
+                panStart = null;
+                ReleaseMouseCapture();
+                InvalidateVisual();
                 e.Handled = true;
             }
         }

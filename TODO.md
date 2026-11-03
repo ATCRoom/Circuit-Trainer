@@ -388,3 +388,14 @@ A simulation environment for training **tower control of traffic in the circuit*
   2 next circuit (circuit, side, break: from the next touch and go / go-around; the end of the final: this one);
   3 now in the circuit (extend downwind, turn base, orbit, go around, break now, hold / start SFO, side now, wide now);
   4 out of the circuit (heading, altitude, speed written or dragged; rejoin, depart now, helipad, remove).
+
+## Build of 3 Nov afternoon (the user: "I prefer to test with a different UI: make a build") — WRITTEN
+
+All the notes above in one build. The two open questions decided by default (to confirm by the user): all circuit
+changes of group 2 are "from the next circuit" (the immediate ones, side now and wide now, are in group 3); the label
+stays compact (Ⓒ now sets the next circuit). Engine: `SetNextCircuit` (in a circuit: after the next touch and go /
+go-around; outside: joined now), `ExtendDownwind` / `TurnBase` (leg EXT DOWNWIND), the way to the IP straight to it
+(out to the wide downwind first only from the runway track ahead of the IP). Program: the panel in four framed groups,
+IP ↔ overhead and HK ↔ SFO linked in the new aircraft, heading / height / speed boxes and REJOIN, the heading dragged
+from the aircraft's symbol (Esc cancels), movable labels, the route drawn as it is flown (half circles, the initial to
+the break), EXT DWN and BASE on the label. Headings are true (no magnetic variation yet).

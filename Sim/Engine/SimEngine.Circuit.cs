@@ -112,6 +112,8 @@ namespace ATCRoom.Sim
         /// </summary>
         public bool Spiral;
         public bool Hold;
+        /// <summary>The downwind extended (until "turn base").</summary>
+        public bool Extended;
         /// <summary>A helicopter's landing point (the plane, NM): its final goes there, hovering down to the ground.</summary>
         public bool HasPad;
         public double PadX, PadY;
@@ -260,7 +262,72 @@ namespace ATCRoom.Sim
         /// Also takes back an aircraft the instructor was flying.
         /// </summary>
         public void SetCircuit(string callsign, CircuitType type, CircuitSide side) =>
+            Instruct(callsign, Kind.Heading, a => FlyCircuitNow(a, type, side));
+
+        /// <summary>
+        /// Instruction: the next circuit (the user, 3 Nov: the plan of the aircraft): an aircraft flying a circuit finishes it
+        /// and flies this one after its next touch and go, go-around or low pass (shown as the next circuit); the same
+        /// circuit and side it flies: nothing changes. Not in a circuit (arriving, flown by the instructor): it joins it now.
+        /// </summary>
+        public void SetNextCircuit(string callsign, CircuitType type, CircuitSide side) =>
             Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is { Suspended: false, Departed: false } circuit && a.Contact is GroundContact.Airborne or GroundContact.Rolling)
+                {
+                    if (circuit.Type == type && circuit.Side == side && !circuit.Spiral) circuit.NextType = null;
+                    else
+                    {
+                        circuit.NextType = type;
+                        circuit.NextSide = side;
+                    }
+                    return;
+                }
+                FlyCircuitNow(a, type, side);
+            });
+
+        /// <summary>
+        /// Instruction (on the downwind): extend the downwind: straight on along it, at circuit height, beyond the turn to the
+        /// base, until <see cref="TurnBase"/>.
+        /// </summary>
+        public void ExtendDownwind(string callsign) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is not { Suspended: false, Departed: false, Turning: false, Spiral: false } circuit || a.Contact != GroundContact.Airborne
+                    || a.Route == null || a.RouteNext >= a.Route.Count || !IsDownwind(a.Route[a.RouteNext]) || double.IsNaN(glidePathCourse)) return;
+                (double along, _) = RunwayFrame(a.X, a.Y, circuit.Side);
+                GiveRoute(a, [Point(along - 15, Width(circuit.Type, a.Class, circuit.Side), circuit.Side, runwayElevation + CircuitHeight(circuit.Type, a.Class),
+                    a.Class.CircuitSpeedKt, "DOWNWIND")]);
+                circuit.Extended = true;
+            });
+
+        /// <summary>
+        /// Instruction (on the downwind, extended or not): turn base now: the base from here (the jet circuits: the 180° turn to
+        /// the final from here), then the final.
+        /// </summary>
+        public void TurnBase(string callsign) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is not { Suspended: false, Departed: false, Turning: false, Spiral: false } circuit || a.Contact != GroundContact.Airborne
+                    || a.Route == null || a.RouteNext >= a.Route.Count || !IsDownwind(a.Route[a.RouteNext]) || double.IsNaN(glidePathCourse)) return;
+                (double along, _) = RunwayFrame(a.X, a.Y, circuit.Side);
+                circuit.Extended = false;
+                PerformanceClass kind = a.Class;
+                RoutePoint final = Point(0, 0, circuit.Side, double.NaN, kind.FinalSpeedKt, "FINAL");
+                if (IsJetShape(circuit.Type))
+                {
+                    GiveRoute(a, [Point(along, 0, circuit.Side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true), final]);
+                }
+                else
+                {
+                    double baseAlong = Math.Min(along, -0.3);
+                    double height = Math.Min(runwayElevation + CircuitHeight(circuit.Type, kind), runwayElevation + -baseAlong * GlideFeetPerNM());
+                    GiveRoute(a, [Point(baseAlong, 0, circuit.Side, height, kind.FinalSpeedKt, "BASE"), final]);
+                }
+            });
+
+        /// <summary>The circuit from where the aircraft is (see <see cref="SetCircuit"/>).</summary>
+        private void FlyCircuitNow(SimAircraft a, CircuitType type, CircuitSide side)
+        {
             {
                 if (double.IsNaN(glidePathCourse) || a.Contact is GroundContact.Landed or GroundContact.OnGround) return;
                 bool inCircuit = a.Circuit is { Suspended: false, Departed: false };
@@ -323,7 +390,8 @@ namespace ATCRoom.Sim
                         .. downwind
                     ]);
                 }
-            });
+            }
+        }
 
         /// <summary>
         /// The side of the circuit changed in flight (the user, 2 Nov, with a drawing): it does not leave the circuit. From
@@ -1080,16 +1148,18 @@ namespace ATCRoom.Sim
             PerformanceClass kind = plane.Class;
             CircuitSide side = plane.Circuit!.Side;
             bool sfo = plane.Circuit.Type == CircuitType.Sfo;
-            double before = initialPoint + 1;
             double wide = Width(CircuitType.Wide, kind, side);
             double height = runwayElevation + (sfo ? kind.HighKeyFt : kind.OverheadHeightFt);
             double speed = sfo ? kind.BestGlideKt : kind.OverheadSpeedKt;
-            return
-            [
-                Point(-before, wide, side, height, kind.CircuitSpeedKt, "JOIN"),
-                Point(-before, 0, side, height, speed, "JOIN"),
-                .. (sfo ? SfoRoute(plane) : OverheadRoute(plane))
-            ];
+            (double along, double lateral) = RunwayFrame(plane.X, plane.Y, side);
+            List<RoutePoint> route = [];
+            // (The user, 3 Nov: straight to the IP, then the turn towards the aerodrome, anticipated so it rolls out on the
+            // initial at the IP. Only from the runway track ahead of the IP (a go-around, a take-off) it first goes out to
+            // the wide downwind abeam where it is, not back along the runway.)
+            if (Math.Abs(lateral) < wide / 2 && along > -initialPoint) route.Add(Point(Math.Max(along, 0), wide, side, height, kind.CircuitSpeedKt, "JOIN"));
+            route.Add(Point(-initialPoint, 0, side, height, speed, "JOIN"));
+            route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
+            return route;
         }
 
         /// <summary>
@@ -1240,6 +1310,7 @@ namespace ATCRoom.Sim
                 plane.Circuit.Turning = false;
                 plane.Circuit.Orbit = 0;
                 plane.Circuit.Spiral = false;
+                plane.Circuit.Extended = false;
             }
             ApplyPad(plane);
             StartLeg(plane);

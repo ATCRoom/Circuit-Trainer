@@ -63,6 +63,28 @@ namespace ATCRoom.TwrTrainer
         /// <summary>Fly this circuit on this side from where it is (the side changed: an S over the aerodrome).</summary>
         public void FlyCircuit(string callsign, CircuitType type, CircuitSide side) => engine.SetCircuit(callsign, type, side);
 
+        /// <summary>The next circuit (the plan): flown after the next touch and go / go-around; not in a circuit: joined now.</summary>
+        public void NextCircuit(string callsign, CircuitType type, CircuitSide side) => engine.SetNextCircuit(callsign, type, side);
+
+        public void ExtendDownwind(string callsign) => engine.ExtendDownwind(callsign);
+
+        public void TurnBase(string callsign) => engine.TurnBase(callsign);
+
+        /// <summary>Out of the circuit: a heading (degrees true), the circuit waits (REJOIN brings it back).</summary>
+        public void Heading(string callsign, double headingTrue) => engine.SetHeading(callsign, headingTrue);
+
+        /// <summary>An altitude given as a height above the runway (ft), and a speed (kt).</summary>
+        public void Height(string callsign, double heightFt) => engine.SetAltitude(callsign, airfield.ElevationFt + heightFt);
+
+        public void Speed(string callsign, double speedKt) => engine.SetSpeed(callsign, speedKt);
+
+        /// <summary>Back into its circuit (the one it was flying, on its side) from where it is.</summary>
+        public void Rejoin(string callsign)
+        {
+            AircraftState? a = engine.Get(callsign);
+            if (a != null) engine.SetCircuit(callsign, a.Circuit ?? CircuitType.Conventional, a.CircuitSide);
+        }
+
         public void SetEnd(string callsign, EndAction end) => engine.SetEndAction(callsign, end);
 
         public void SetBreak(string callsign, BreakPoint where) => engine.SetBreak(callsign, where);

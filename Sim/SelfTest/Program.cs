@@ -1333,6 +1333,65 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("SFO hold at the High Key, three turns, then start (Jet, right)", flown));
     }
 
+    // 24. Extend downwind, then turn base (the user, 3 Nov: A): straight on beyond the base turn, then the base from there.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        bool extended = false, based = false;
+        List<AircraftState> flown = Fly(sim, cs, 1200, st =>
+        {
+            if (!extended && st.Leg == "DOWNWIND" && Frame(st).Along < 0.5) { extended = true; sim.ExtendDownwind(cs); }
+            if (extended && !based && st.Leg == "EXT DOWNWIND" && Frame(st).Along < -3) { based = true; sim.TurnBase(cs); }
+        });
+        List<AircraftState> ext = OnLeg(flown, "EXT DOWNWIND");
+        List<AircraftState> baseLeg = OnLeg(flown, "BASE");
+        Check(based && ext.Count > 10 && ext.All(st => Near(Height(st), 1000, 60) && Near(Frame(st).Lateral, 1.0, 0.25)) && baseLeg.Count > 0
+            && baseLeg.All(st => Frame(st).Along < -2.7) && LandedOnRunway(flown),
+            "Extend downwind: straight on at circuit height beyond the base turn (to 3 NM), turn base there, then lands",
+            baseLeg.Count > 0 ? $"base at {baseLeg.Average(st => Frame(st).Along):F2} NM" : "no base");
+        pictures.Add(("Extend downwind to 3 NM, then turn base (Light)", flown));
+    }
+
+    // 25. The next circuit (the plan): ordered on the downwind, flown after the touch and go; the SFO too (not at once).
+    void NextCircuitTest(CircuitType next, string title)
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Jet");
+        bool nextOrdered = false, rolled = false;
+        AircraftState? shown = null;
+        List<AircraftState> flown = Fly(sim, cs, 2400, st =>
+        {
+            if (!nextOrdered && st.Leg == "DOWNWIND") { nextOrdered = true; sim.SetNextCircuit(cs, next, CircuitSide.Left); }
+            else if (nextOrdered && shown == null) shown = st;
+            if (!rolled && st.Contact == GroundContact.Rolling) { rolled = true; sim.SetEndAction(cs, EndAction.FullStop); }
+        });
+        int roll = flown.FindIndex(st => st.Contact == GroundContact.Rolling);
+        Check(shown?.NextCircuit == next && roll > 0 && flown.Take(roll).All(st => st.Circuit == CircuitType.Conventional && st.Leg is not ("CLIMB" or "HOLD"))
+            && flown.Skip(roll + 30).Any(st => st.Circuit == next) && LandedOnRunway(flown),
+            $"Next circuit {title}: the conventional finished first (touch and go), then the {title}, then lands",
+            $"next shown {shown?.NextCircuit}, touch and go at {roll} s");
+        pictures.Add(($"Next circuit {title} ordered on the downwind: flown after the touch and go (Jet)", flown));
+    }
+    NextCircuitTest(CircuitType.Close, "close pattern");
+    NextCircuitTest(CircuitType.Sfo, "SFO");
+
+    // 26. To the initial point from the wide downwind: straight to the IP, the turn onto the initial (no loops).
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sim.RunFor(20);
+        sim.SetCircuit(cs, CircuitType.Overhead, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 1500);
+        int initial = flown.FindIndex(st => st.Leg == "INITIAL");
+        double turned = 0;
+        for (int n = 1; n <= initial && n < flown.Count; n++) turned += Math.Abs(SimEngine.Wrap(flown[n].HeadingTrue - flown[n - 1].HeadingTrue));
+        AircraftState? onInitial = initial < 0 ? null : flown.Skip(initial).FirstOrDefault(st => Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) < 10);
+        Check(initial > 0 && turned < 240 && onInitial != null && Math.Abs(Frame(onInitial).Lateral) < 0.3 && Frame(onInitial).Along < -1.5 && LandedOnRunway(flown),
+            "From the wide downwind to the initial point: straight to the IP, one turn onto the initial (no loops), then the overhead",
+            initial > 0 ? $"turned {turned:F0}° before the initial, on it at {Frame(onInitial ?? flown[initial]).Along:F2} NM, {Frame(onInitial ?? flown[initial]).Lateral:F2} NM off the track" : "never on the initial");
+        pictures.Add(("Wide downwind, then the overhead ordered: straight to the IP (Jet)", flown));
+    }
+
     // 23. Helicopter: the conventional circuit, landing on a pad beside the runway, hovering down.
     {
         SimEngine sim = NewCircuitEngine();

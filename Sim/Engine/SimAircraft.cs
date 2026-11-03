@@ -113,7 +113,10 @@ namespace ATCRoom.Sim
         CircuitType? NextCircuit = null,
         BreakPoint Break = BreakPoint.Middle,
         // SFO: on hold at the High Key (until "start SFO").
-        bool SfoHold = false);
+        bool SfoHold = false,
+        // The side of the next circuit, and the downwind extended (until "turn base").
+        CircuitSide NextSide = CircuitSide.Left,
+        bool Extended = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -179,6 +182,7 @@ namespace ATCRoom.Sim
             : Circuit.Departed ? "DEPARTURE"
             : Circuit.Suspended ? "MANUAL"
             : Circuit.Spiral ? (Circuit.Hold ? "HOLD" : "CLIMB")
+            : Circuit.Extended ? "EXT DOWNWIND"
             : Circuit.Orbit > 0 ? "ORBIT"
             : Route != null && RouteNext >= 0 && RouteNext < Route.Count ? Route[RouteNext].Name
             : Circuit.OnFinal ? "FINAL" : "";
@@ -189,6 +193,7 @@ namespace ATCRoom.Sim
             Class.Name, GroundSpeedKt, TrackTrue, DriftDegrees, Contact,
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
-            Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true);
+            Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
+            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true);
     }
 }
