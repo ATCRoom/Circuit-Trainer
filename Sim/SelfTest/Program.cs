@@ -1386,7 +1386,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double turned = 0;
         for (int n = 1; n <= initial && n < flown.Count; n++) turned += Math.Abs(SimEngine.Wrap(flown[n].HeadingTrue - flown[n - 1].HeadingTrue));
         AircraftState? onInitial = initial < 0 ? null : flown.Skip(initial).FirstOrDefault(st => Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) < 10);
-        Check(initial > 0 && turned < 240 && onInitial != null && Math.Abs(Frame(onInitial).Lateral) < 0.3 && Frame(onInitial).Along < -1.5 && LandedOnRunway(flown),
+        Check(initial > 0 && turned < 240 && onInitial != null && Math.Abs(Frame(onInitial).Lateral) < 0.3 && Frame(onInitial).Along < -2.2 && LandedOnRunway(flown),
             "From the wide downwind to the initial point: straight to the IP, one turn onto the initial (no loops), then the overhead",
             initial > 0 ? $"turned {turned:F0}° before the initial, on it at {Frame(onInitial ?? flown[initial]).Along:F2} NM, {Frame(onInitial ?? flown[initial]).Lateral:F2} NM off the track" : "never on the initial");
         pictures.Add(("Wide downwind, then the overhead ordered: straight to the IP (Jet)", flown));

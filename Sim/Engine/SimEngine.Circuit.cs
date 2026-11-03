@@ -1156,8 +1156,18 @@ namespace ATCRoom.Sim
             // (The user, 3 Nov: straight to the IP, then the turn towards the aerodrome, anticipated so it rolls out on the
             // initial at the IP. Only from the runway track ahead of the IP (a go-around, a take-off) it first goes out to
             // the wide downwind abeam where it is, not back along the runway.)
-            if (Math.Abs(lateral) < wide / 2 && along > -initialPoint) route.Add(Point(Math.Max(along, 0), wide, side, height, kind.CircuitSpeedKt, "JOIN"));
-            route.Add(Point(-initialPoint, 0, side, height, speed, "JOIN"));
+            (double fromAlong, double fromLateral) = (along, lateral);
+            if (Math.Abs(lateral) < wide / 2 && along > -initialPoint)
+            {
+                route.Add(Point(Math.Max(along, 0), wide, side, height, kind.CircuitSpeedKt, "JOIN"));
+                (fromAlong, fromLateral) = (Math.Max(along, 0), wide);
+            }
+            // The corner on the runway track beyond the IP by what the turn onto the initial needs, so it rolls out at the IP.
+            double turn = Math.Abs(Math.Atan2(-fromLateral, -initialPoint - fromAlong) * 180 / Math.PI);
+            double speedNow = Math.Max(Math.Max(30, plane.GroundSpeedKt), kind.CircuitSpeedKt);
+            double radius = speedNow / 3600 / (Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, speedNow)) * Math.PI / 180);
+            double lead = Math.Min(3, radius * Math.Tan(Math.Min(turn, 170) / 2 * Math.PI / 180));
+            route.Add(Point(-initialPoint - lead, 0, side, height, speed, "JOIN"));
             route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
             return route;
         }
