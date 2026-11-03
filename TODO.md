@@ -449,3 +449,9 @@ by the order of the circuit with grey buttons. DEP after a take-off: straight ou
 - **TESTED OK by the user (3 Nov, 20:24): "tutto ok"** (the build of 3 Nov evening, run 41682399498).
 - **Bug (the user, 3 Nov): the gate row is too wide, REMOVE is hidden** (label column 130 px + box + two buttons in a
   horizontal row that does not wrap). Fix: the name box on its row, ADD GATE and REMOVE on the row below (a wrap panel).
+- **Detachable, resizable panels (the user, 3 Nov, for the next build):** the panel split into its parts (Aerodrome,
+  Simulation, New aircraft with the flight plans, Selected aircraft): each one can be taken out of the column and
+  float over the map, dragged by its bar and resized from its edges, as the floating panels of the PAR trainer
+  (`Trainer/FloatingPanel.cs` of AuroraPAR-v2: ▴/▾ closes it to its bar, double click on the bar puts it back in the
+  column; place, size and open/closed remembered). To ask: floating over the map (as the PAR trainer) or separate
+  windows (e.g. on a second screen)?
