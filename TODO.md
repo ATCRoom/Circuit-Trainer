@@ -492,3 +492,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   opposite runway, down to the conventional circuit height (the same heights of each class), aside by 45° onto the
   conventional downwind of the runway in use, then the conventional circuit. New aircraft: Entry CIRCLING, only with
   From LONG FIN (the circuit CONV). Leg CIRCLING until the downwind. Also in the Traffic List and scenarios.
+- **Traffic List commands (the user, 3 Nov; to do):** ADD NOW also puts the aircraft in the Traffic List (a row
+  flying; back to waiting when it is gone). Each row: ▶ start; ⏸ hold before the start / freeze the aircraft flying
+  (again: on); ⧉ duplicate; ✕ the row and its aircraft (no confirmation). At the bottom: RUN / PAUSE (the whole
+  simulation, also kept in Simulation), START ALL, REMOVE ALL (only the aircraft: the rows back to waiting; also kept in
+  Simulation), SAVE..., LOAD..., CLEAR ALL (only the rows). A row restarted: an automatic callsign gets a new free one,
+  a callsign written is used again.
+- **Messages in their panels (the user, 3 Nov; to do):** one message line per part instead of the one at the bottom of
+  the column: commands to the aircraft (label, heading drag, buttons) in Selected aircraft; ADD NOW / TO LIST errors in
+  New aircraft; starts, errors, scenarios in Traffic List; map, runway, gates, heights, METAR in Aerodrome. A part
+  closed to its bar: the message for a few seconds in its bar. The note "Maps: %AppData%..." at the bottom of Aerodrome.
