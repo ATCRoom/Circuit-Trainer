@@ -434,4 +434,4 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
   until a new order (it does not rejoin by itself). Only the button: the end action G/A (automatic at 200 ft) stays as
   it is (it climbs and flies the circuit again). BREAKUP: on the downwind out of the circuit, turning away from the
   runway (90°), at circuit height, then MANUAL; on the base it goes on turning the same way past the final heading and
-  stops on the heading opposite to the downwind... (runway 36, left circuit: base 090 → 360 → 270), then MANUAL.
+  stops on the reciprocal of the base heading (runway 36, left circuit: base 090 → 360 → 270), then MANUAL.
