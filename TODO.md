@@ -410,3 +410,10 @@ the break), EXT DWN and BASE on the label. Headings are true (no magnetic variat
   (flight plans, duplicate, traffic list with ▶ / start all, scenarios saved per aerodrome). Questions asked (arrival
   height and speed per gate or per class; points after the gate; delayed starts in scenarios; keep the start already
   in the circuit for tests).
+  **Answers of the user (3 Nov, 17:05):** (1) arrival height and speed **per class** (the gate gives only the place);
+  (2) after the gate it goes to the circuit planned: **IP, downwind, HK, and also a direct entry to the base** (and
+  straight-in to the final, as the long final today); (3) **delayed starts yes**, and the instructor can still pause /
+  hold them; (4) the **take-off** too says what it does after: **DEP** (it leaves) or it joins the circuits, **only the
+  conventional or the wide** (no IP or HK after a take-off); (5) **continuous orbits** until cleared to go on:
+  proposed: a button ORBIT ∞ (and Shift+ORBIT) that turns into CONTINUE (yellow, outlined) while it orbits; the label
+  shows ORBITS and a CONT button.
