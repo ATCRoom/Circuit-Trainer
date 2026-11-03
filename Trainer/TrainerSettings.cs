@@ -57,6 +57,8 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The sections of the panel open (they close to their bar).</summary>
         public bool AerodromeOpen { get; set; } = true;
         public bool SimulationOpen { get; set; } = true;
+        /// <summary>The parts of the panel: in the column or floating over the map, their place and size.</summary>
+        public Dictionary<string, PartPlacement>? Parts { get; set; }
         public double InitialPointNM { get; set; } = 3;
 
         [JsonExtensionData]

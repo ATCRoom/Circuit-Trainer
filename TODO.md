@@ -458,3 +458,12 @@ by the order of the circuit with grey buttons. DEP after a take-off: straight ou
 - **Long final as a start of its own (the user, 3 Nov: not IN CCT + FINAL):** in "From" a button LONG FIN (on the final
   at the long final distance, on the glide path) beside the gates and RWY; with it (and with RWY) the Entry row is
   grey (it does not apply). IN CCT stays for the tests (DW, IP, HK); its FINAL goes away.
+
+## Build of 3 Nov night (the user: "procedi con la build") — WRITTEN
+
+The panel in four parts (Aerodrome, Simulation, New aircraft, Selected aircraft), each one in the column or taken
+out (⇱) to float over the map: moved by its bar, resized by its corner, ⇲ or a double click back into the column, ▴/▾
+closed to its bar, a summary on the bar; place / size / state remembered (`Parts` in the settings). Floating over
+the map (the PAR trainer's way; the question "or separate windows" left open: by default over the map). The gate row
+on two rows (REMOVE GATE visible). From: gates, LONG FIN (its own start), RWY, CIRC (was IN CCT; its BASE / FINAL
+grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and box.

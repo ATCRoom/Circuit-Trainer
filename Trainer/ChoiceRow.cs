@@ -24,7 +24,7 @@ namespace ATCRoom.TwrTrainer
         public bool HasValue { get; private set; }
         public event Action<T>? Picked;
 
-        public ChoiceRow(IEnumerable<(T Value, string Text)> items)
+        public ChoiceRow(IEnumerable<(T Value, string Text)> items, Func<T, string, string?>? tip = null)
         {
             Margin = new Thickness(0, 1, 0, 1);
             foreach ((T value, string text) in items)
@@ -38,8 +38,10 @@ namespace ATCRoom.TwrTrainer
                     Background = OffBack,
                     Foreground = OffText,
                     BorderBrush = Edge,
-                    Focusable = false
+                    Focusable = false,
+                    ToolTip = tip?.Invoke(value, text)
                 };
+                ToolTipService.SetShowOnDisabled(button, true);
                 button.Click += (_, _) =>
                 {
                     clicked = DateTime.UtcNow;
@@ -49,6 +51,12 @@ namespace ATCRoom.TwrTrainer
                 buttons.Add((value, button));
                 Children.Add(button);
             }
+        }
+
+        /// <summary>One button usable or grey (it does not apply now).</summary>
+        public void SetEnabled(T value, bool enabled)
+        {
+            foreach ((T v, Button b) in buttons) if (EqualityComparer<T>.Default.Equals(v, value)) b.IsEnabled = enabled;
         }
 
         /// <summary>Shows this value as chosen.</summary>

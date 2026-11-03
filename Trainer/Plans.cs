@@ -9,7 +9,9 @@ namespace ATCRoom.TwrTrainer
     internal static class From
     {
         public const string Runway = "RWY";
-        public const string InCircuit = "IN CCT";
+        public const string LongFinal = "LONG FIN";
+        /// <summary>(Scenarios of 3 Nov: "IN CCT".)</summary>
+        public const string InCircuit = "CIRC";
     }
 
     /// <summary>
