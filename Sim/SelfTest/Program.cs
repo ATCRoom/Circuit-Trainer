@@ -1254,14 +1254,14 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double far = climb.Count > 0 ? climb.Max(st => Math.Sqrt((st.X - hx) * (st.X - hx) + (st.Y - hy) * (st.Y - hy))) : double.NaN;
         int second = flown.FindLastIndex(st => st.Leg == "CLIMB");
         AircraftState? lowKey2 = second < 0 ? null : flown.Skip(second).FirstOrDefault(st => st.Leg == "LOW KEY");
-        // Always turning the same way (left: the side of the SFO), never back: a spiral, no loops.
+        // Turning to the side of the SFO (left), a little the other way at most while it joins the circle: no loops.
         double backwards = 0;
-        for (int n = 1; n < climb.Count; n++) backwards = Math.Max(backwards, SimEngine.Wrap(climb[n].HeadingTrue - climb[n - 1].HeadingTrue));
+        for (int n = 1; n < climb.Count; n++) backwards += Math.Max(0, SimEngine.Wrap(climb[n].HeadingTrue - climb[n - 1].HeadingTrue));
         List<AircraftState> short2 = second < 0 ? [] : flown.Skip(second).Where(st => st.Leg == "FINAL" && st.Contact == GroundContact.Airborne && Frame(st).Along > -0.15).ToList();
-        Check(around && climb.Count > 10 && far < 1.6 && backwards < 2 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null
+        Check(around && climb.Count > 10 && far < 1.6 && backwards < 45 && climb.Max(Height) > 6800 && flown.All(st => st.Leg != "JOIN") && lowKey2 != null
             && short2.All(st => Math.Abs(Frame(st).Lateral) < 0.1) && LandedOnRunway(flown),
-            "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft, always turning left), the SFO, an aligned final, lands",
-            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key, turned back at most {backwards:F1}°/s" : "no climb");
+            "SFO again after the go-around: a climbing spiral over the field to the High Key (7000 ft, turning left, no loops), the SFO, an aligned final, lands",
+            climb.Count > 0 ? $"climbed to {climb.Max(Height):F0} ft, at most {far:F2} NM from the High Key, turned right {backwards:F0}° in all" : "no climb");
         pictures.Add(("SFO, go-around, SFO again: climbing spiral over the field to the High Key (Jet)", flown));
     }
 
