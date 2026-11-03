@@ -446,3 +446,4 @@ and speed per class (`ArrivalHeightFt`, `ArrivalSpeedKt`: default 500 ft above t
 take-off only into the conventional or the wide; SFO on hold at the HK by default; ORBIT ∞ / CONTINUE (Shift+ORBIT),
 EXTEND DWN and TURN BASE end an orbit; GO AROUND only on the final (level, runway heading, waiting); BREAKUP; group 3
 by the order of the circuit with grey buttons. DEP after a take-off: straight out as before (an exit gate later?).
+- **TESTED OK by the user (3 Nov, 20:24): "tutto ok"** (the build of 3 Nov evening, run 41682399498).
