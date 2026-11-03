@@ -776,9 +776,10 @@ namespace ATCRoom.Sim
             {
                 // To the High Key: after a go-around (or a take-off) above 400 ft; on hold before the High Key.
                 string name = plane.Route[plane.RouteNext].Name;
-                // (From the runway track: once the circle is to the side of the SFO, so the first turn is to that side.)
-                double side = circuit.Side == CircuitSide.Right ? 1 : -1;
-                bool sideward = side * Wrap(SpiralCourse(plane, circuit).Course - plane.HeadingTrue) > -2;
+                // (On the runway track: straight on to the High Key, where the track is tangent to its circle, and onto it there;
+                // off the track: at once.)
+                (double alongHere, double lateralHere) = RunwayFrame(plane.X, plane.Y, circuit.Side);
+                bool sideward = Math.Abs(lateralHere) > 0.3 || alongHere >= HighKeyAlong() - 0.1;
                 if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && circuit.Hold && sideward))
                 {
                     StartSpiral(plane, circuit);
