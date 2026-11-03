@@ -1242,11 +1242,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     {
         SimEngine sim = NewCircuitEngine();
         string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.GoAround, performanceClass: "Jet");
-        bool ordered = false, around = false;
+        bool sfoOrdered = false, around = false;
         List<AircraftState> flown = [sim.Get(cs)!];
         flown.AddRange(Fly(sim, cs, 2400, st =>
         {
-            if (!ordered && st.Leg == "FINAL") { ordered = true; sim.SetCircuit(cs, CircuitType.Sfo, CircuitSide.Left); }
+            if (!sfoOrdered && st.Leg == "FINAL") { sfoOrdered = true; sim.SetCircuit(cs, CircuitType.Sfo, CircuitSide.Left); }
             if (!around && st.Leg == "GO AROUND") { around = true; sim.SetEndAction(cs, EndAction.FullStop); }
         }));
         List<AircraftState> climb = OnLeg(flown, "CLIMB");
