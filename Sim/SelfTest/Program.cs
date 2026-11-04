@@ -1626,10 +1626,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         bool goneAround = two.Any(st => st.Leg == "GO AROUND") && four.Any(st => st.Leg == "GO AROUND")
             && two.Any(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND") && four.Any(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND");
         bool landed = LandedOnRunway(TrackOf(all, "VIPER01")) && TrackOf(all, "VIPER03").Count == 0;
-        // The two going around not on top of each other: apart on their downwind.
-        List<double> apart = all.Where(n => n.Any(st => st.Callsign == "VIPER02" && st.Leg == "DOWNWIND") && n.Any(st => st.Callsign == "VIPER04" && st.Leg == "DOWNWIND"))
+        // The two going around not on top of each other: apart on the straight part of their downwind.
+        bool Straight(AircraftState st) => st.Leg == "DOWNWIND" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse - 180)) < 10;
+        List<double> apart = all.Where(n => n.Any(st => st.Callsign == "VIPER02" && Straight(st)) && n.Any(st => st.Callsign == "VIPER04" && Straight(st)))
             .Select(n => { AircraftState a2 = n.First(st => st.Callsign == "VIPER02"), a4 = n.First(st => st.Callsign == "VIPER04"); return Math.Sqrt(Math.Pow(a2.X - a4.X, 2) + Math.Pow(a2.Y - a4.Y, 2)); }).ToList();
-        Check(landersTogether && landed && goneAround && apart.Count > 5 && apart.Min() > 0.05,
+        Check(landersTogether && landed && goneAround && apart.Count > 5 && apart.Min() > 0.08,
             "Formation (long final, 4): two chosen land together, the other two go around alone into the close pattern, apart",
             $"apart on the downwind {(apart.Count > 0 ? apart.Min() : double.NaN):F2} NM at least");
         pictures.Add(("Formation from the long final: VIPER02 going around", two));

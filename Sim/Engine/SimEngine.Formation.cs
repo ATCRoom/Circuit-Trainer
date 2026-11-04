@@ -186,7 +186,8 @@ namespace ATCRoom.Sim
             List<int> going = Enumerable.Range(0, members.Count).Where(i => !landing.Contains(i)).ToList();
             if (going.Count == 0) return false;
             List<SimAircraft> made = members.Select((name, i) => i == 0 ? plane : Member(plane, name)).ToList();
-            double interval = Math.Max(plane.SplitSeconds, 3);
+            // (Going around one after the other: at least 5 s apart, room on the downwind.)
+            double interval = Math.Max(plane.SplitSeconds, 5);
             // The landing ones: a formation led by the first of them.
             if (landing.Count > 0)
             {
