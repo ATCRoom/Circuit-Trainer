@@ -532,3 +532,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   reality each one lengthens its downwind to be at least a third of the runway after the one before": each member
   after the split (and each one going around from a formation) moves the end of its downwind and its turn to the base /
   final further out, by what the interval does not give (a third of the runway at the final speed), plus a margin.
+- **NEXT during a plan (the user, 4 Nov; open, "per ora non toccare niente"):** now a NEXT changed by the instructor
+  (e.g. T/G → LOW) ends the plan: LOW on and on, no final FS. Proposed: A) only the circuit going on, then the plan
+  again (T/G..., Last at the end; recommended), or B) every remaining middle circuit, the last one as Last. To decide.
+- **Simulation speed with buttons (the user, 4 Nov; to do):** x1 / x2 / x4 as a row of buttons (ChoiceRow) instead of
+  the drop-down list.
+- **REMOVE and the Traffic List (the user, 4 Nov; to do):** REMOVE (Selected aircraft, the right-click menu) removes the
+  aircraft but its row stays in the Traffic List. With the two lists of the PAR trainer (FLYING / WAITING): the aircraft
+  out of FLYING; its plan back to WAITING (a plan of TO LIST) or gone (an aircraft of ADD NOW).
