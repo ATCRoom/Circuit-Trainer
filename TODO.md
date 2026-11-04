@@ -598,3 +598,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **GROUP lights up (the user, 4 Nov; to do):** with two or more rows ticked (☑, not flying) the GROUP button lights
   up (the yellow border of a choice, or yellow), with a message in the Traffic List "GROUP: 2 ticked → PONY01 F2";
   greyed when fewer than two are ticked. The formation takes the plan of the first row ticked (said in the message).
+- **UNGROUP (the user, 4 Nov; to do):** one row ticked that is a formation (not flying): the GROUP button becomes
+  UNGROUP and lights up the same way. It splits the formation into single rows in the same place of the list: a
+  formation made with GROUP gives back the rows it was made of, each with its own plan (the formation keeps them, also
+  in the saved scenario: a list of the plans grouped, read back by older versions as an unknown field kept); one made
+  as a formation in New aircraft gives single rows with the callsigns in sequence (PONY01, PONY02...), each with the
+  formation's plan.
