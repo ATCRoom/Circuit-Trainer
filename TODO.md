@@ -610,3 +610,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the window: as tall as fits, then it scrolls. The grip in the corner stays free in both directions (the user: "libero"):
   a height set by hand holds (auto height off for that part, remembered) until a double click on the grip, or docking
   it again, gives the automatic height back.
+- **Settings and the map bar (the user, 4 Nov; to do):** Aerodrome and Simulation become one part, Settings, with
+  collapsible sections: Map (open map, runway in use, new runway), Circuits (sides, heights per class, long final and
+  IP — now per aerodrome, in its file; none: 10 and 3 NM —, Formation FS), Gates and exits, Weather (METAR), Map layers.
+  The controls of the lesson (Run / Pause, speed x1 x2 x4, Level 1 / Level 2) in a small bar at the top of the map,
+  always visible; Remove all aircraft only in the Traffic List (REMOVE ALL). Parts: Settings, New aircraft, Traffic
+  List, Selected aircraft (their places of the old two parts: Settings takes Aerodrome's).
