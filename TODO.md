@@ -560,4 +560,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   its class). The exit chosen: the first one it reaches at 30 kt. Self-test: Light still at B, Jet at C, 30 kt on the way
   and 15 kt at the exit.
 - **EXP TAXI (the user, 4 Nov; to do):** a button (label of a landed aircraft, Selected aircraft) "expedite taxi": it
-  keeps at least 45 kt along the runway, then slows down near its exit to 15 kt to turn off.
+  keeps at least 45 kt along the runway, then slows down near its exit to 15 kt to turn off. Its exit stays the
+  nearest one ahead (the user: "deve prendere l'uscita più vicina comunque"): the speed adapted so as not to pass it
+  (braking started in time with its class's braking; too close for 45 kt: less than 45, still the same exit).
