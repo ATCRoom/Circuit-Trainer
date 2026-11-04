@@ -75,6 +75,8 @@ namespace ATCRoom.TwrTrainer
         public double CentrelineNM { get; set; } = 10;
         /// <summary>The entry gates of the aerodrome (the plane, NM).</summary>
         public IReadOnlyList<(string Name, double X, double Y)> Gates { get; set; } = [];
+        /// <summary>The runway exits (the plane, NM).</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Exits { get; set; } = [];
         /// <summary>The map categories drawn.</summary>
         public HashSet<string> CategoriesOn { get; } = new(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<AircraftState> Traffic { get; private set; } = [];
@@ -245,6 +247,7 @@ namespace ATCRoom.TwrTrainer
             DrawMap(dc, dip);
             DrawRunway(dc);
             DrawGates(dc, dip);
+            DrawExits(dc, dip);
             DrawTraffic(dc, dip);
             if (Hint.Length > 0)
             {
@@ -353,6 +356,20 @@ namespace ATCRoom.TwrTrainer
                 }
                 dc.DrawGeometry(null, pen, triangle);
                 dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 12, GateBrush, dip), new Point(at.X + 8, at.Y - 8));
+            }
+        }
+
+        /// <summary>The runway exits: a short bar across the runway edge and the name.</summary>
+        private void DrawExits(DrawingContext dc, double dip)
+        {
+            Pen pen = new(PromptBrush, 2);
+            double c = double.IsNaN(Course) ? 0 : Course * Math.PI / 180;
+            Vector across = new(Math.Cos(c) * 5, Math.Sin(c) * 5);
+            foreach ((string name, double x, double y) in Exits)
+            {
+                Point at = ToScreen(x, y);
+                dc.DrawLine(pen, at - across, at + across);
+                dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, PromptBrush, dip), new Point(at.X + 6, at.Y + 2));
             }
         }
 
@@ -675,6 +692,7 @@ namespace ATCRoom.TwrTrainer
         public static string LegText(AircraftState a)
         {
             if (a.Transit) return a.Leg;
+            if (a.Leg == "LANDED" && a.Exit.Length > 0) return $"LANDED EXIT {a.Exit}";
             if (a.Circuit is not CircuitType type) return "";
             string circuit = type switch
             {

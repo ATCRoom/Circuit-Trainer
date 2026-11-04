@@ -511,7 +511,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   most 2), the others go around alone into the close pattern (CLS by default), one interval apart. New aircraft:
   Formation 1-4, Land, Split s; Traffic List: GROUP the rows ticked (before the flight). Later idea: rendezvous (joining
   aircraft already flying into a formation).
-- **The empty column (the user, 4 Nov; to do):** all the parts floating: the column on the right hidden, the map on the
+- **The empty column (the user, 4 Nov; done):** all the parts floating: the column on the right hidden, the map on the
   whole width of the window; a part docked again (⇲, double click on its bar): the column back.
 - **Split s renamed (the user, 4 Nov; done 4 Nov, values 3, 4, 5, 10: "with 3 seconds they are already close", no 2):** the row "Split s" of New aircraft becomes "Interval s" (the seconds
   between one aircraft and the next when the formation splits), with the values 2, 3, 4, 5, 10 (no 0: they would turn
@@ -519,7 +519,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Split aircraft in the Traffic List (the user, 4 Nov; done):** a formation's plan shows each of its aircraft once
   split, in a row of its own under it (⏸ freeze, ✕ remove that one); the plan's ✕ removes all of them; it waits again
   only when all of them are gone.
-- **Traffic List as in the PAR trainer (proposed 4 Nov; next step, after the test of the split rows):** two lists,
+- **Traffic List as in the PAR trainer (4 Nov; done):** two lists,
   FLYING (a row per aircraft: callsign, height, speed, leg; II/▶, ↺ its plan again, ✕) and WAITING (the plans not
   started: ☐ ▶ ⏸ ⧉ ✕); thin one-line rows (11 pt, monospace), each list up to about 8 rows then it scrolls; ADD NOW only
   in FLYING (a plan only with TO LIST).
@@ -532,15 +532,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   reality each one lengthens its downwind to be at least a third of the runway after the one before": each member
   after the split (and each one going around from a formation) moves the end of its downwind and its turn to the base /
   final further out, by what the interval does not give (a third of the runway at the final speed), plus a margin.
-- **NEXT during a plan (the user, 4 Nov; open, "per ora non toccare niente"):** now a NEXT changed by the instructor
+- **NEXT during a plan (the user, 4 Nov; done 4 Nov as A, the user not having chosen):** now a NEXT changed by the instructor
   (e.g. T/G → LOW) ends the plan: LOW on and on, no final FS. Proposed: A) only the circuit going on, then the plan
   again (T/G..., Last at the end; recommended), or B) every remaining middle circuit, the last one as Last. To decide.
-- **Simulation speed with buttons (the user, 4 Nov; to do):** x1 / x2 / x4 as a row of buttons (ChoiceRow) instead of
+- **Simulation speed with buttons (the user, 4 Nov; done):** x1 / x2 / x4 as a row of buttons (ChoiceRow) instead of
   the drop-down list.
-- **REMOVE and the Traffic List (the user, 4 Nov; to do):** REMOVE (Selected aircraft, the right-click menu) removes the
+- **REMOVE and the Traffic List (the user, 4 Nov; done with the two lists):** REMOVE (Selected aircraft, the right-click menu) removes the
   aircraft but its row stays in the Traffic List. With the two lists of the PAR trainer (FLYING / WAITING): the aircraft
   out of FLYING; its plan back to WAITING (a plan of TO LIST) or gone (an aircraft of ADD NOW).
-- **Landing roll and runway exits (the user, 4 Nov; to do):** a landed aircraft is not gone at once: it stays on the
+- **Landing roll and runway exits (the user, 4 Nov; done; braking: a class value BrakingKtPerSecond, Light 3, Turboprop 3.5, Jet 4, Helicopter 3 kt/s):** a landed aircraft is not gone at once: it stays on the
   runway slowing down with its class's deceleration (performance.json) to an exit speed (about 15 kt) — no fixed 2/3
   of the runway ("a Light does not need all that runway"). No taxiways in the simulation, so: runway exits clicked once
   per aerodrome in Aerodrome (ADD EXIT, a name A, B, C..., on the runway edge; saved in the aerodrome file like the

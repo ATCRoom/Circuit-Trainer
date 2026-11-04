@@ -34,6 +34,8 @@ namespace ATCRoom.Sim
         public List<ClassCircuit> Classes { get; set; } = [];
         /// <summary>The entry gates (TWR Trainer): where the arriving aircraft start, at least 5 NM out.</summary>
         public List<EntryGate> Gates { get; set; } = [];
+        /// <summary>The runway exits (the user, 4 Nov: no taxiways, so where it leaves the runway after landing): a name and a point on the runway edge.</summary>
+        public List<EntryGate> Exits { get; set; } = [];
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -102,6 +104,7 @@ namespace ATCRoom.Sim
             file.Runways = (file.Runways ?? []).Where(r => r != null).ToList();
             file.Classes = (file.Classes ?? []).Where(c => c != null).ToList();
             file.Gates = (file.Gates ?? []).Where(g => g != null).ToList();
+            file.Exits = (file.Exits ?? []).Where(g => g != null).ToList();
             return file;
         }
 

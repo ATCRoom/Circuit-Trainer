@@ -22,6 +22,8 @@ namespace ATCRoom.Sim
         public double MaxDescentFpm { get; set; }
         public double AccelerationKtPerSecond { get; set; }
         public double DecelerationKtPerSecond { get; set; }
+        /// <summary>Braking on the runway after the touchdown (kt per second; the user, 4 Nov: each class its landing roll); 0: of its name.</summary>
+        public double BrakingKtPerSecond { get; set; }
         /// <summary>How fast the vertical speed changes (ft/min per second): a change from −700 to −1000 takes about a second at 300.</summary>
         public double VerticalAccelerationFpmPerSecond { get; set; }
         /// <summary>Bank angle limit for the turns (degrees): the turn rate is lower at high speed.</summary>
@@ -89,6 +91,14 @@ namespace ATCRoom.Sim
             MaxDescentFpm = Clamp(MaxDescentFpm, 200, 8000, 3000);
             AccelerationKtPerSecond = Clamp(AccelerationKtPerSecond, 0.2, 10, 1.5);
             DecelerationKtPerSecond = Clamp(DecelerationKtPerSecond, 0.2, 10, 1);
+            BrakingKtPerSecond = Clamp(BrakingKtPerSecond, 0.5, 15, (Name ?? "").Trim().ToUpperInvariant() switch
+            {
+                "LIGHT" => 3,
+                "TURBOPROP" => 3.5,
+                "JET" => 4,
+                "HELICOPTER" => 3,
+                _ => 3.5
+            });
             VerticalAccelerationFpmPerSecond = Clamp(VerticalAccelerationFpmPerSecond, 50, 2000, 300);
             MaxBankDegrees = Clamp(MaxBankDegrees, 10, 60, 30);
             (double height, double speed, double downwind, double close, double wide, double bank, double rollOut, double rollOutHeight) = CircuitDefaults(Name, ApproachSpeedKt, MaxBankDegrees);
@@ -166,22 +176,22 @@ namespace ATCRoom.Sim
         public static List<PerformanceClass> Defaults() =>
         [
             new() { Name = "Light", MinSpeedKt = 60, MaxSpeedKt = 160, ApproachSpeedKt = 90, FinalSpeedKt = 70, MaxClimbFpm = 800, MaxDescentFpm = 1500,
-                AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 1.5, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
+                AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 1.5, BrakingKtPerSecond = 3, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1000, CircuitSpeedKt = 90, DownwindNM = 1.0, CloseDownwindNM = 0.6, WideDownwindNM = 2.5, CircuitBankDegrees = 30,
                 RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 110, BreakBankDegrees = 45,
                 BreakHeightFt = 1000, HighKeyFt = 2500, LowKeyFt = 1200, BestGlideKt = 70 },
             new() { Name = "Turboprop", MinSpeedKt = 90, MaxSpeedKt = 280, ApproachSpeedKt = 140, FinalSpeedKt = 110, MaxClimbFpm = 2000, MaxDescentFpm = 3000,
-                AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
+                AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, BrakingKtPerSecond = 3.5, VerticalAccelerationFpmPerSecond = 400, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 150, DownwindNM = 1.2, CloseDownwindNM = 0.8, WideDownwindNM = 3.0, CircuitBankDegrees = 45,
                 RollOutNM = 0.75, RollOutHeightFt = 350, OverheadHeightFt = 1500, OverheadSpeedKt = 220, BreakBankDegrees = 60,
                 BreakHeightFt = 1500, HighKeyFt = 4000, LowKeyFt = 2000, BestGlideKt = 125 },
             new() { Name = "Jet", MinSpeedKt = 120, MaxSpeedKt = 350, ApproachSpeedKt = 180, FinalSpeedKt = 140, MaxClimbFpm = 3000, MaxDescentFpm = 4000,
-                AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
+                AccelerationKtPerSecond = 1.5, DecelerationKtPerSecond = 1, BrakingKtPerSecond = 4, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
                 CircuitHeightFt = 1500, CircuitSpeedKt = 200, DownwindNM = 1.5, CloseDownwindNM = 1.2, WideDownwindNM = 3.5, CircuitBankDegrees = 60,
                 RollOutNM = 1.0, RollOutHeightFt = 450, OverheadHeightFt = 1500, OverheadSpeedKt = 300, BreakBankDegrees = 75,
                 BreakHeightFt = 1500, HighKeyFt = 7000, LowKeyFt = 3500, BestGlideKt = 180 },
             new() { Name = "Helicopter", CanHover = true, MinSpeedKt = 0, MaxSpeedKt = 140, ApproachSpeedKt = 80, FinalSpeedKt = 40, MaxClimbFpm = 1000, MaxDescentFpm = 1000,
-                AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 2, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
+                AccelerationKtPerSecond = 2, DecelerationKtPerSecond = 2, BrakingKtPerSecond = 3, VerticalAccelerationFpmPerSecond = 300, MaxBankDegrees = 30,
                 CircuitHeightFt = 700, CircuitSpeedKt = 70, DownwindNM = 0.8, CloseDownwindNM = 0.5, WideDownwindNM = 1.5, CircuitBankDegrees = 30,
                 RollOutNM = 0.5, RollOutHeightFt = 250, OverheadHeightFt = 1500, OverheadSpeedKt = 100, BreakBankDegrees = 45,
                 BreakHeightFt = 700, HighKeyFt = 1750, LowKeyFt = 840, BestGlideKt = 70 }

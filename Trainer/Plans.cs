@@ -61,6 +61,8 @@ namespace ATCRoom.TwrTrainer
         [JsonIgnore] public List<string> Members { get; set; } = [];
         /// <summary>Ticked in the list (for GROUP).</summary>
         [JsonIgnore] public bool Picked { get; set; }
+        /// <summary>An aircraft of ADD NOW (not a plan of TO LIST): gone from the list with its aircraft, not saved.</summary>
+        [JsonIgnore] public bool Quick { get; set; }
 
         public TowerPlan Copy() => new()
         {

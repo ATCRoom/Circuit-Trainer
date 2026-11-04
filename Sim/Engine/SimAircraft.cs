@@ -126,7 +126,9 @@ namespace ATCRoom.Sim
         IReadOnlyList<bool>? Lands = null,
         bool SplitAllowed = false,
         // The circuits of its plan still to fly, this one included (0: on and on).
-        int LapsLeft = 0);
+        int LapsLeft = 0,
+        // Rolling out after the landing: the runway exit it goes to (empty: none).
+        string Exit = "");
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -185,6 +187,16 @@ namespace ATCRoom.Sim
         public CircuitState? Circuit;
         public double CircuitBankDegrees;
         /// <summary>
+        /// The landing roll (the user, 4 Nov): braking along the runway to the exit chosen at the touchdown (its name, along
+        /// the runway, to the right +1 / left −1; none: where it reaches the exit speed), then turning off; done: gone.
+        /// </summary>
+        public bool RollActive;
+        public bool RollOver;
+        public string ExitName = "";
+        public double ExitAlong;
+        public int ExitSide = 1;
+        public long ExitTurnStep;
+        /// <summary>
         /// A formation (the user, 4 Nov): the callsigns of its wingmen (empty: alone), which members land together on the
         /// short final (index 0 this one, the leader) and the seconds between them when it splits.
         /// </summary>
@@ -230,6 +242,6 @@ namespace ATCRoom.Sim
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
             Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
             Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
-            Circuit?.LapsLeft ?? 0);
+            Circuit?.LapsLeft ?? 0, ExitName);
     }
 }

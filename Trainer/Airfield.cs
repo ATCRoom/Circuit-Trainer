@@ -127,6 +127,24 @@ namespace ATCRoom.TwrTrainer
 
         public void RemoveGate(string name) => Circuits.Gates.RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>The runway exits in the plane (the user, 4 Nov: where the landing aircraft leave the runway).</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Exits => (Circuits.Exits ?? []).Select(g =>
+        {
+            (double x, double y) = Plane.FromGeo(g.Latitude, g.Longitude);
+            return (g.Name, x, y);
+        }).ToList();
+
+        /// <summary>A new runway exit at a point of the plane (another one with that name: moved there). Not saved yet.</summary>
+        public void AddExit(string name, double x, double y)
+        {
+            (double lat, double lon) = Plane.ToGeo(x, y);
+            Circuits.Exits ??= [];
+            Circuits.Exits.RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
+            Circuits.Exits.Add(new EntryGate { Name = name, Latitude = lat, Longitude = lon });
+        }
+
+        public void RemoveExit(string name) => (Circuits.Exits ?? []).RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
+
         /// <summary>Distance (NM) of a point of the plane from the middle of the runway in use (else from the origin).</summary>
         public double FromField(double x, double y)
         {

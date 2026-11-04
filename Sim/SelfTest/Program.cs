@@ -199,7 +199,7 @@ const double RunwayHeading = 325.80;
     string a = engine.Add(0, -3, onPath, 0, 140);
     engine.SetGlidePathRate(a);
     bool landed = false;
-    for (int i = 0; i < 1200 && engine.Get(a) is AircraftState state; i++)
+    for (int i = 0; i < 2400 && engine.Get(a) is AircraftState state; i++)
     {
         if (state.Contact == GroundContact.Landed) landed = true;
         engine.RunFor(0.1);
@@ -1677,6 +1677,45 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         for (int i = 1; i < flown.Count; i++) if (flown[i].Contact == GroundContact.Rolling && flown[i - 1].Contact == GroundContact.Airborne) touches++;
         Check(touches == 2 && LandedOnRunway(flown) && sim.Get(cs) == null && flown[0].LapsLeft == 3,
             "Circuits of the plan: 3 circuits, two touch and go, then a full stop", $"{touches} touch and go");
+    }
+
+    // 40. The landing roll (the user, 4 Nov): braking with its class to the first runway exit it reaches slow, turning off
+    // there, then gone; a Light takes an earlier exit than a Jet; no exits: gone where it is slow.
+    {
+        (double ax, double ay) = Place(0.3, 0.03, CircuitSide.Right);
+        (double bx, double by) = Place(0.45, 0.03, CircuitSide.Left);
+        (double cx, double cy) = Place(0.9, 0.03, CircuitSide.Right);
+        string Exit(string kind, bool withExits, out double lastAlong, out double slowest)
+        {
+            SimEngine sim = NewCircuitEngine();
+            if (withExits) sim.SetRunwayExits([("A", ax, ay), ("B", bx, by), ("C", cx, cy)]);
+            string cs = sim.AddInCircuit(CircuitStart.LongFinal, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: kind);
+            List<AircraftState> flown = Fly(sim, cs, 900);
+            List<AircraftState> rolling = flown.Where(st => st.Contact == GroundContact.Landed).ToList();
+            lastAlong = rolling.Count > 0 ? Frame(rolling[^1]).Along : double.NaN;
+            slowest = rolling.Count > 0 ? rolling.Min(st => st.SpeedKt) : double.NaN;
+            return sim.Get(cs) == null && rolling.Count > 0 ? rolling[^1].Exit : "(not gone)";
+        }
+        string light = Exit("Light", true, out double lightAlong, out double lightSlow);
+        string jet = Exit("Jet", true, out double jetAlong, out double jetSlow);
+        string noExit = Exit("Light", false, out double bareAlong, out _);
+        Check(light == "B" && jet == "C" && Near(lightAlong, 0.45, 0.05) && Near(jetAlong, 0.9, 0.05) && Near(lightSlow, 15, 1) && noExit == "" && bareAlong > 0.2 && bareAlong < 0.6,
+            "Landing roll: a Light leaves the runway at B, a Jet at C (the first exit each reaches slow); without exits gone where slow",
+            $"Light {light} at {lightAlong:F2} NM, Jet {jet} at {jetAlong:F2} NM, no exits gone at {bareAlong:F2} NM");
+    }
+
+    // 41. The instructor's end of the final in a plan of circuits (the user, 4 Nov): for that circuit only, then the plan.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        sim.SetLaps(cs, 3, EndAction.FullStop);
+        sim.SetEndAction(cs, EndAction.LowPass);
+        List<AircraftState> flown = Fly(sim, cs, 2400);
+        int touchAndGo = 0;
+        for (int i = 1; i < flown.Count; i++) if (flown[i].Contact == GroundContact.Rolling && flown[i - 1].Contact == GroundContact.Airborne) touchAndGo++;
+        bool lowPass = flown.Any(st => st.EndAction == EndAction.LowPass) && flown.Any(st => st.EndAction == EndAction.TouchAndGo && st.LapsLeft == 2);
+        Check(lowPass && touchAndGo == 1 && LandedOnRunway(flown) && sim.Get(cs) == null,
+            "Plan of circuits: a low pass given for one circuit, then the plan again (one touch and go, then the full stop)", $"{touchAndGo} touch and go");
     }
 
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside

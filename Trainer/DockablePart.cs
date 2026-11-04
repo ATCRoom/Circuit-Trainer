@@ -146,6 +146,9 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>Floating over the map (not in the column).</summary>
+        public bool IsFloating => place.Floating;
+
         /// <summary>Open (not closed to its bar).</summary>
         public bool IsOpen => place.Open;
 

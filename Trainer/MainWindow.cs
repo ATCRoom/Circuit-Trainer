@@ -65,7 +65,8 @@ namespace ATCRoom.TwrTrainer
         private readonly Button pauseButton = new();
         /// <summary>The same RUN / PAUSE in the Traffic List.</summary>
         private readonly Button trafficPauseButton = new() { Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 4, 0, 0) };
-        private readonly ComboBox speedBox = Combo<double>([(1.0, "x1"), (2.0, "x2"), (4.0, "x4")]);
+        /// <summary>The speed of the simulation (the user, 4 Nov: buttons, not a drop-down list).</summary>
+        private readonly ChoiceRow<double> speedRow = new([(1.0, "x1"), (2.0, "x2"), (4.0, "x4")], (v, _) => v == 1 ? "Real time." : $"The time runs {v:0} times faster.");
         private readonly TextBox longFinalBox = new() { Width = 45 };
         private readonly TextBox initialPointBox = new() { Width = 45 };
         private readonly StackPanel layers = new();
@@ -96,9 +97,14 @@ namespace ATCRoom.TwrTrainer
         private Grid toLine = null!, viaLine = null!, intervalLine = null!;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
+        private readonly TextBox newExitName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
         private readonly List<TowerPlan> plans = [];
         private readonly StackPanel planList = new();
+        private readonly StackPanel flyingList = new();
+        private readonly List<(string Callsign, TextBlock Text, Button Freeze)> flyingRows = [];
+        private string flyingKey = "";
+        private static readonly FontFamily RowFont = new("Consolas");
         private readonly List<(TowerPlan Plan, TextBlock Status, Button Hold)> planRows = [];
         /// <summary>The panel the helpers add to (a section while it is built).</summary>
         private Panel current = null!;
@@ -121,6 +127,8 @@ namespace ATCRoom.TwrTrainer
         private readonly StackPanel selectedPanel = new();
         /// <summary>The layer over the map where the parts taken out of the column float (empty: clicks go to the map).</summary>
         private readonly Canvas layer = new();
+        /// <summary>The column of the parts on the right: hidden when they all float (the user, 4 Nov).</summary>
+        private ScrollViewer column = null!;
         /// <summary>The four parts of the panel (in the column or floating).</summary>
         private DockablePart aerodromePart = null!, simulationPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!;
         private readonly StackPanel aerodromeContent = new(), simulationContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
@@ -143,7 +151,8 @@ namespace ATCRoom.TwrTrainer
 
             BuildPanel();
             DockPanel root = new();
-            ScrollViewer scroll = new() { Content = panel, Width = 340, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = PanelBrush };
+            column = new() { Content = panel, Width = 340, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = PanelBrush };
+            ScrollViewer scroll = column;
             DockPanel.SetDock(scroll, Dock.Right);
             root.Children.Add(scroll);
             Grid map = new();
@@ -230,7 +239,10 @@ namespace ATCRoom.TwrTrainer
                 (double f, double sp, double g) = engine.Wind;
                 aerodromePart.SummaryText = airfield.Map == null ? "no map" : $"{airfield.Code} · {airfield.Runway?.Runway ?? "no runway"} · " + (sp < 0.5 ? "calm" : $"{f:000}/{sp:0}" + (g > 0 ? $"G{sp + g:0}" : ""));
                 simulationPart.SummaryText = $"{(engine.Paused ? "paused" : "running")} · x{speed:0}";
-                trafficPart.SummaryText = plans.Count > 0 ? $"{plans.Count} aircraft" : "";
+                int waitingCount = plans.Count(p => p.Now != TowerPlan.State.Flying && !p.Quick);
+                trafficPart.SummaryText = $"{engine.Count} flying" + (waitingCount > 0 ? $" · {waitingCount} waiting" : "");
+                bool allFloating = new[] { aerodromePart, simulationPart, newPart, trafficPart, selectedPart }.All(part => part.IsFloating);
+                column.Visibility = allFloating ? Visibility.Collapsed : Visibility.Visible;
                 selectedPart.SummaryText = view.Selected ?? "";
             }
         }
@@ -269,7 +281,6 @@ namespace ATCRoom.TwrTrainer
             heightClassBox.ToolTip = "The class whose heights at this aerodrome are below.";
             metarBox.ToolTip = "A METAR line (or Get METAR): its wind is used and it is shown on the map (for example LIPI 031250Z 06012KT CAVOK 15/08 Q1018).";
             newGateName.ToolTip = "The name of the new gate (empty: the name of the VRP clicked).";
-            speedBox.ToolTip = "Speed of the simulation (x2, x4: the time runs faster).";
             longFinalBox.ToolTip = "Distance of the long final (NM): where LONG FIN starts.";
             initialPointBox.ToolTip = "Distance of the initial point before the threshold (NM).";
             callsignBox.ToolTip = "Empty: the next free callsign.";
@@ -314,13 +325,16 @@ namespace ATCRoom.TwrTrainer
             Note("Entry gates (where the arriving aircraft start, at least 5 NM out): a name (empty: the VRP clicked), then click it on the map.");
             Row("Gate name", newGateName);
             current.Children.Add(ActionRow(("ADD GATE", AddGate), ("REMOVE GATE", RemoveGate)));
+            Note("Runway exits (where the landing aircraft leave the runway: each one the first it reaches slow enough): a name, then click on the runway edge.");
+            Row("Exit name", newExitName);
+            current.Children.Add(ActionRow(("ADD EXIT", AddExit), ("REMOVE EXIT", RemoveExit)));
 
             current = simulationContent;
             pauseButton.Click += (_, _) => TogglePause();
             Row("", pauseButton);
-            Row("Speed", speedBox);
-            speedBox.SelectedIndex = 0;
-            speedBox.SelectionChanged += (_, _) => speed = speedBox.SelectedItem is ComboBoxItem { Tag: double s } ? s : 1;
+            Row("Speed", speedRow);
+            speedRow.Show(1.0);
+            speedRow.Picked += v => speed = v;
             Buttons(("Level 1 (F1)", () => view.ShowLevel(1)), ("Level 2 (F2)", () => view.ShowLevel(2)));
             Row("Long final / IP NM", Inline(longFinalBox, initialPointBox));
             longFinalBox.LostFocus += (_, _) => ApplyDistances();
@@ -395,8 +409,11 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO LIST", AddPlan)));
 
             current = trafficContent;
-            Note("☐ tick (GROUP) · ▶ start now · ⏸ hold, or freeze it flying · ⧉ duplicate · ✕ remove (and its aircraft). START ALL: each after its delay.");
-            current.Children.Add(planList);
+            // (As in the PAR trainer, the user 4 Nov: the aircraft flying, one thin row each, and the plans waiting.)
+            current.Children.Add(Caption("FLYING  (click: select · II freeze · ↺ its plan again · ✕ remove)"));
+            current.Children.Add(new ScrollViewer { Content = flyingList, MaxHeight = 170, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+            current.Children.Add(Caption("WAITING  (☐ GROUP · ▶ start · ⏸ hold · ⧉ duplicate · ✕ remove)"));
+            current.Children.Add(new ScrollViewer { Content = planList, MaxHeight = 170, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             trafficPauseButton.Click += (_, _) => TogglePause();
             current.Children.Add(Wrap(trafficPauseButton));
             current.Children.Add(ActionRow(("START ALL", StartAllPlans), ("REMOVE ALL", RemoveAllAircraft), ("GROUP", GroupPlans)));
@@ -611,6 +628,8 @@ namespace ATCRoom.TwrTrainer
             ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
             ["REMOVE ALL"] = "Every aircraft out of the simulation (the rows stay, back to waiting).",
+            ["ADD EXIT"] = "A runway exit: its name (empty: the next letter), then click on the runway edge where it leaves.",
+            ["REMOVE EXIT"] = "Remove the exit whose name is written.",
             ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
             ["Get METAR"] = "The newest METAR of this aerodrome from the internet (aviationweather.gov, by its ICAO code): into the box, its wind applied.",
             ["Level 1 (F1)"] = "The aerodrome and its circuits (about 7 NM).",
@@ -1039,6 +1058,8 @@ namespace ATCRoom.TwrTrainer
             if (error != null) return;
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
             Started(plan, added);
+            // (In FLYING only, gone with it: not a plan of the list, as ADD NOW in the PAR trainer.)
+            plan.Quick = true;
             plans.Add(plan);
             ShowPlans();
             callsignBox.Text = "";
@@ -1132,101 +1153,117 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The aircraft of each plan shown (the list built again when they change: a formation split, one removed).</summary>
         private string plansKey = "";
 
-        private string PlansKey() => string.Join(";", plans.Select(p => string.Join(",", MembersFlying(p))));
+        /// <summary>The plans waiting (not flying; those of ADD NOW are only in FLYING).</summary>
+        private List<TowerPlan> Waiting() => plans.Where(p => p.Now != TowerPlan.State.Flying && !p.Quick).ToList();
 
+        private string PlansKey() => string.Join(";", Waiting().Select(p => $"{p.GetHashCode()}{(p.Picked ? "+" : "")}"));
+
+        private static TextBlock Caption(string text) => new() { Text = text, FontSize = 10, Foreground = DimBrush, Margin = new Thickness(0, 6, 0, 1), TextTrimming = TextTrimming.CharacterEllipsis };
+
+        private static TextBlock RowText(string text) => new()
+        {
+            Text = text, FontFamily = RowFont, FontSize = 11, Foreground = TextBrush, VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = text
+        };
+
+        /// <summary>A thin row: its text, its buttons on the right.</summary>
+        private static Grid ThinRow(UIElement text, params Button[] buttons)
+        {
+            Grid row = new() { Margin = new Thickness(0, 0, 0, 1) };
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Children.Add(text);
+            StackPanel right = new() { Orientation = Orientation.Horizontal };
+            foreach (Button button in buttons) right.Children.Add(button);
+            Grid.SetColumn(right, 1);
+            row.Children.Add(right);
+            return row;
+        }
+
+        /// <summary>The list of the plans waiting, built again.</summary>
         private void ShowPlans()
         {
             planList.Children.Clear();
             planRows.Clear();
             plansKey = PlansKey();
-            foreach (TowerPlan plan in plans)
+            foreach (TowerPlan plan in Waiting())
             {
                 TowerPlan p = plan;
-                Grid row = new() { Margin = new Thickness(0, 1, 0, 1) };
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                StackPanel texts = new();
-                texts.Children.Add(new TextBlock { Text = PlanText(p), Foreground = TextBrush, FontSize = 11, TextWrapping = TextWrapping.Wrap });
-                TextBlock status = new() { Foreground = DimBrush, FontSize = 11 };
-                texts.Children.Add(status);
-                row.Children.Add(texts);
-                // ⏸: before the start it holds the row; flying, it freezes the aircraft (again: on).
                 Button hold = SmallButton("⏸", () =>
                 {
-                    if (p.Now == TowerPlan.State.Flying)
-                    {
-                        // All its aircraft: frozen if one of them is not, else on.
-                        List<string> flying = MembersFlying(p);
-                        bool freeze = flying.Any(m => engine.Get(m)?.Frozen != true);
-                        foreach (string m in flying) engine.SetFrozen(m, freeze);
-                    }
-                    else p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : TowerPlan.State.Held;
+                    p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : TowerPlan.State.Held;
                     UpdatePlans();
                 });
                 Button tick = SmallButton(p.Picked ? "☑" : "☐", () => { p.Picked = !p.Picked; ShowPlans(); });
                 tick.ToolTip = "Tick the rows to GROUP into a formation.";
-                StackPanel buttons = new() { Orientation = Orientation.Horizontal };
-                buttons.Children.Add(tick);
-                buttons.Children.Add(SmallButton("▶", () => StartPlan(p)));
-                buttons.Children.Add(hold);
-                buttons.Children.Add(SmallButton("⧉", () => DuplicatePlan(p)));
-                // ✕: the row, and its aircraft if it flies (the user, 3 Nov).
-                buttons.Children.Add(SmallButton("✕", () =>
-                {
-                    foreach (string m in MembersFlying(p)) commands.Remove(m);
-                    plans.Remove(p);
-                    ShowPlans();
-                }));
-                Grid.SetColumn(buttons, 1);
-                row.Children.Add(buttons);
-                planList.Children.Add(row);
-                planRows.Add((p, status, hold));
-                // A formation split (the user, 4 Nov): each of its aircraft in a row of its own, to freeze or remove it.
-                List<string> members = MembersFlying(p);
-                bool together = members.Count == 1 && engine.Get(members[0])?.Formation is { Count: > 1 };
-                if (p.Formation > 1 && !together)
-                {
-                    foreach (string member in members)
-                    {
-                        string m = member;
-                        Grid sub = new() { Margin = new Thickness(12, 0, 0, 1) };
-                        sub.ColumnDefinitions.Add(new ColumnDefinition());
-                        sub.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                        AircraftState? state = engine.Get(m);
-                        sub.Children.Add(new TextBlock
-                        {
-                            Text = $"↳ {m}{(state?.Formation is { Count: > 1 } f ? $" F{f.Count}" : "")}{(state?.Frozen == true ? "  frozen" : "")}",
-                            Foreground = TextBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center
-                        });
-                        StackPanel subButtons = new() { Orientation = Orientation.Horizontal };
-                        subButtons.Children.Add(SmallButton(state?.Frozen == true ? "⏵" : "⏸", () => { engine.SetFrozen(m, engine.Get(m)?.Frozen != true); ShowPlans(); }));
-                        subButtons.Children.Add(SmallButton("✕", () => { commands.Remove(m); ShowPlans(); }));
-                        Grid.SetColumn(subButtons, 1);
-                        sub.Children.Add(subButtons);
-                        planList.Children.Add(sub);
-                    }
-                }
+                TextBlock text = RowText(PlanText(p));
+                planList.Children.Add(ThinRow(text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
+                    SmallButton("✕", () => { plans.Remove(p); ShowPlans(); })));
+                planRows.Add((p, text, hold));
             }
-            if (plans.Count == 0) planList.Children.Add(new TextBlock { Text = "Empty: choose in New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
+            if (planList.Children.Count == 0) planList.Children.Add(new TextBlock { Text = "None: New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
             UpdatePlans();
+        }
+
+        /// <summary>The list of the aircraft flying (every one in the simulation), built again when they change.</summary>
+        private void ShowFlying(IReadOnlyList<AircraftState> traffic)
+        {
+            flyingList.Children.Clear();
+            flyingRows.Clear();
+            flyingKey = string.Join(",", traffic.Select(t => t.Callsign));
+            foreach (AircraftState aircraft in traffic)
+            {
+                string cs = aircraft.Callsign;
+                Button freeze = SmallButton("II", () => engine.SetFrozen(cs, engine.Get(cs)?.Frozen != true));
+                freeze.ToolTip = "Freeze it where it is / let it go on.";
+                Button again = SmallButton("↺", () => RestartPlanOf(cs));
+                again.ToolTip = "Its plan again from the start (an aircraft of the Traffic List).";
+                Button remove = SmallButton("✕", () => commands.Remove(cs));
+                remove.ToolTip = "Out of the simulation (its plan waits again; one of ADD NOW is gone).";
+                TextBlock text = RowText(cs);
+                text.Cursor = Cursors.Hand;
+                text.MouseLeftButtonUp += (_, _) => view.Select(cs);
+                flyingList.Children.Add(ThinRow(text, freeze, again, remove));
+                flyingRows.Add((cs, text, freeze));
+            }
+            if (traffic.Count == 0) flyingList.Children.Add(new TextBlock { Text = "None.", Foreground = DimBrush, FontSize = 11 });
+        }
+
+        /// <summary>The plan of an aircraft (its leader's) flown again from its start: its aircraft removed, started again.</summary>
+        private void RestartPlanOf(string callsign)
+        {
+            TowerPlan? plan = plans.FirstOrDefault(p => p.Now == TowerPlan.State.Flying && !p.Quick && (p.Members.Contains(callsign) || p.Flying == callsign));
+            if (plan == null) { Say($"{callsign} is not from a plan of the Traffic List (ADD NOW).", Area.Traffic); return; }
+            foreach (string m in MembersFlying(plan)) commands.Remove(m);
+            plan.Now = TowerPlan.State.Waiting;
+            StartPlan(plan);
         }
 
         private static Button SmallButton(string text, Action action)
         {
             Button button = ActionButton(text, action);
-            button.MinWidth = 24;
-            button.Padding = new Thickness(4, 0, 4, 0);
+            button.MinWidth = 20;
+            button.FontSize = 11;
+            button.Padding = new Thickness(3, 0, 3, 0);
             button.Margin = new Thickness(2, 0, 0, 0);
             return button;
         }
 
-        /// <summary>The state of each plan on its row; starts the plans whose time has come; frees those whose aircraft is gone.</summary>
+        /// <summary>
+        /// The two lists: starts the plans whose time has come; a plan whose aircraft are all gone waits again (one of ADD
+        /// NOW is gone); the rows of the aircraft flying with their values.
+        /// </summary>
         private void UpdatePlans()
         {
             double time = engine.Time;
-            foreach (TowerPlan plan in plans)
+            foreach (TowerPlan plan in plans.ToList())
             {
-                if (plan.Now == TowerPlan.State.Flying && MembersFlying(plan).Count == 0) { plan.Now = TowerPlan.State.Waiting; plan.Due = 0; }
+                if (plan.Now == TowerPlan.State.Flying && MembersFlying(plan).Count == 0)
+                {
+                    if (plan.Quick) { plans.Remove(plan); continue; }
+                    plan.Now = TowerPlan.State.Waiting;
+                    plan.Due = 0;
+                }
                 if (plan.Now == TowerPlan.State.Counting && time >= plan.Due) StartPlan(plan);
             }
             if (PlansKey() != plansKey)
@@ -1234,18 +1271,28 @@ namespace ATCRoom.TwrTrainer
                 ShowPlans();
                 return;
             }
-            foreach ((TowerPlan plan, TextBlock status, Button hold) in planRows)
+            foreach ((TowerPlan plan, TextBlock text, Button hold) in planRows)
             {
-                status.Text = plan.Now switch
+                string state = plan.Now switch
                 {
-                    TowerPlan.State.Counting => $"starts in {(int)(Math.Max(0, plan.Due - time) / 60)}:{(int)(Math.Max(0, plan.Due - time) % 60):00}",
-                    TowerPlan.State.Held => "held (⏸ again to go on)",
-                    TowerPlan.State.Flying => $"flying: {string.Join(", ", MembersFlying(plan))}",
-                    _ => "waiting"
+                    TowerPlan.State.Counting => $"{(int)(Math.Max(0, plan.Due - time) / 60)}:{(int)(Math.Max(0, plan.Due - time) % 60):00} ",
+                    TowerPlan.State.Held => "HELD ",
+                    _ => ""
                 };
-                bool frozen = plan.Now == TowerPlan.State.Flying && engine.Get(plan.Flying)?.Frozen == true;
-                hold.Content = plan.Now == TowerPlan.State.Held || frozen ? "⏵" : "⏸";
-                if (frozen) status.Text = $"frozen: {plan.Flying} (⏵ to go on)";
+                text.Text = state + PlanText(plan);
+                hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
+            }
+            IReadOnlyList<AircraftState> traffic = engine.Snapshot();
+            if (string.Join(",", traffic.Select(t => t.Callsign)) != flyingKey) ShowFlying(traffic);
+            foreach ((string cs, TextBlock text, Button freeze) in flyingRows)
+            {
+                AircraftState? a = traffic.FirstOrDefault(t => t.Callsign == cs);
+                if (a == null) continue;
+                string team = a.Formation is { Count: > 1 } f ? $"F{f.Count}" : "";
+                text.Text = string.Format(CultureInfo.InvariantCulture, "{0,-9}{1,-3}{2:000} {3,3} {4}", cs, team,
+                    Math.Max(0, Math.Round((a.AltitudeFt - airfield.ElevationFt) / 100)), Math.Round(a.GroundSpeedKt), a.Frozen ? "FROZEN" : TowerView.LegText(a));
+                text.Foreground = a.Callsign == view.Selected ? Brushes.Gold : TextBrush;
+                freeze.Content = a.Frozen ? "▶" : "II";
             }
         }
 
@@ -1336,7 +1383,7 @@ namespace ATCRoom.TwrTrainer
 
         private void SaveScenario()
         {
-            if (plans.Count == 0) { Say("The Traffic List is empty: nothing to save.", Area.Traffic); return; }
+            if (!plans.Any(p => !p.Quick)) { Say("No plans in the Traffic List (TO LIST): nothing to save.", Area.Traffic); return; }
             try { Directory.CreateDirectory(TowerScenario.Folder); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             Microsoft.Win32.SaveFileDialog dialog = new()
             {
@@ -1347,7 +1394,7 @@ namespace ATCRoom.TwrTrainer
             if (dialog.ShowDialog(this) != true) return;
             try
             {
-                new TowerScenario { Airport = airfield.Code, Runway = airfield.Runway?.Runway ?? "", Plans = plans.Select(p => p.Copy()).ToList() }.Save(dialog.FileName);
+                new TowerScenario { Airport = airfield.Code, Runway = airfield.Runway?.Runway ?? "", Plans = plans.Where(p => !p.Quick).Select(p => p.Copy()).ToList() }.Save(dialog.FileName);
                 Say("Scenario saved.", Area.Traffic);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1414,6 +1461,8 @@ namespace ATCRoom.TwrTrainer
             toHolder.Children.Add(gates.Count > 0 ? toRow : new TextBlock { Text = "(no gates: add them in Aerodrome)", Foreground = DimBrush, FontSize = 11 });
             ShowEntries();
             view.Gates = airfield.Gates;
+            view.Exits = airfield.Exits;
+            engine.SetRunwayExits(airfield.Exits);
             view.InvalidateVisual();
         }
 
@@ -1457,6 +1506,33 @@ namespace ATCRoom.TwrTrainer
                 newGateName.Text = "";
                 RebuildFrom();
             });
+        }
+
+        private void AddExit()
+        {
+            if (airfield.Map == null) { Say("Open a map first."); return; }
+            string typed = newExitName.Text.Trim().ToUpperInvariant();
+            view.AskPoint("Runway exit: click it on the runway edge  -  Esc: cancel", (x, y) =>
+            {
+                string name = typed.Length > 0 ? typed : Enumerable.Range(0, 26).Select(i => ((char)('A' + i)).ToString())
+                    .FirstOrDefault(l => !airfield.Exits.Any(e => string.Equals(e.Name, l, StringComparison.OrdinalIgnoreCase))) ?? "Z";
+                airfield.AddExit(name, x, y);
+                string? error = airfield.Save();
+                Say(error ?? $"Exit {name} added.");
+                newExitName.Text = "";
+                RebuildFrom();
+            });
+        }
+
+        private void RemoveExit()
+        {
+            string name = newExitName.Text.Trim().ToUpperInvariant();
+            if (name.Length == 0) { Say("Write the name of the exit to remove."); return; }
+            if (!airfield.Exits.Any(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase))) { Say($"There is no exit {name}."); return; }
+            airfield.RemoveExit(name);
+            Say(airfield.Save());
+            newExitName.Text = "";
+            RebuildFrom();
         }
 
         private void RemoveGate()

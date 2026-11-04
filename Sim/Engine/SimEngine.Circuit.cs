@@ -547,9 +547,9 @@ namespace ATCRoom.Sim
         public void SetEndAction(string callsign, EndAction action) => Change(callsign, a =>
         {
             if (a.Circuit == null) return;
+            // (The user, 4 Nov, A: with a plan of circuits, the instructor's end of the final for this circuit only; then
+            // the plan again.)
             a.Circuit.End = action;
-            // (The instructor's end of the final: the plan of its circuits no more.)
-            a.Circuit.LapsLeft = 0;
         });
 
         /// <summary>
@@ -559,7 +559,8 @@ namespace ATCRoom.Sim
         public void SetLaps(string callsign, int laps, EndAction last) => Change(callsign, a =>
         {
             if (a.Circuit == null) return;
-            a.Circuit.LapsLeft = Math.Max(0, laps);
+            // (0: on and on: −1, a plan of touch and go; 0 is no plan at all.)
+            a.Circuit.LapsLeft = laps <= 0 ? -1 : laps;
             a.Circuit.FinalEnd = last;
             a.Circuit.End = laps <= 0 ? EndAction.TouchAndGo : laps == 1 ? last : EndAction.TouchAndGo;
         });
@@ -567,8 +568,9 @@ namespace ATCRoom.Sim
         /// <summary>A circuit of the plan flown (a touch and go, a go-around): one less; the last one ends as planned.</summary>
         private static void LapDone(CircuitState circuit)
         {
-            if (circuit.LapsLeft <= 1) return;
-            circuit.LapsLeft--;
+            if (circuit.LapsLeft == 0) return;
+            if (circuit.LapsLeft > 1) circuit.LapsLeft--;
+            // The plan again (an end given for one circuit only: the plan's after it).
             circuit.End = circuit.LapsLeft == 1 ? circuit.FinalEnd : EndAction.TouchAndGo;
         }
 

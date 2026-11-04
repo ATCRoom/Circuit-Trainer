@@ -747,6 +747,11 @@ namespace ATCRoom.Sim
                     Roll(plane);
                     continue;
                 }
+                if (plane.Contact == GroundContact.Landed && plane.RollActive)
+                {
+                    LandingRoll(plane);
+                    continue;
+                }
                 CircuitStep(plane);
                 FollowRoute(plane);
                 Turn(plane);
@@ -760,7 +765,8 @@ namespace ATCRoom.Sim
             // The members of a formation split in this step: aircraft of their own.
             AddSpawned();
             // Landed aircraft roll on for a few seconds, then they are gone.
-            aircraft.RemoveAll(a => a.Contact == GroundContact.Landed && steps - a.LandedStep >= (long)Math.Round(LandedRemoveAfter / Step));
+            // (Those rolling out on the runway: when off it, at their exit.)
+            aircraft.RemoveAll(a => a.Contact == GroundContact.Landed && (a.RollActive ? a.RollOver : steps - a.LandedStep >= (long)Math.Round(LandedRemoveAfter / Step)));
             // Crossing aircraft at their exit gate: gone.
             aircraft.RemoveAll(a => a.Circuit is { TransitDone: true });
         }
@@ -796,6 +802,94 @@ namespace ATCRoom.Sim
                 plane.GroundSpeedKt = 0;
                 plane.TurnRateDps = 0;
             }
+            else
+            {
+                StartLandingRoll(plane);
+            }
+        }
+
+        /// <summary>Rolling out to this speed (kt), then off the runway.</summary>
+        private const double ExitSpeed = 15;
+        /// <summary>Turning off at the exit: so many degrees a second, gone after so many seconds.</summary>
+        private const double ExitTurnRate = 20;
+        private const double ExitTurnSeconds = 6;
+        private readonly List<(string Name, double X, double Y)> runwayExits = [];
+
+        /// <summary>
+        /// The runway exits of the aerodrome (the plane, NM: points on the runway edges): an aircraft landing takes the first
+        /// one it reaches at the exit speed. None: it stops braking where it reaches that speed and is gone there.
+        /// </summary>
+        public void SetRunwayExits(IEnumerable<(string Name, double X, double Y)> exits)
+        {
+            lock (sync)
+            {
+                runwayExits.Clear();
+                runwayExits.AddRange(exits.Where(e => double.IsFinite(e.X) && double.IsFinite(e.Y)));
+            }
+        }
+
+        /// <summary>At the touchdown: where it will leave the runway, from its speed and its class's braking.</summary>
+        private void StartLandingRoll(SimAircraft plane)
+        {
+            double course = glidePathCourse * Math.PI / 180;
+            double along = plane.X * Math.Sin(course) + plane.Y * Math.Cos(course);
+            double braking = Math.Max(0.5, plane.Class.BrakingKtPerSecond);
+            double speed = Math.Max(plane.SpeedKt, ExitSpeed);
+            // Where it is down to the exit speed (kt·s / 3600 = NM).
+            double slow = along + (speed * speed - ExitSpeed * ExitSpeed) / (2 * braking) / 3600;
+            double length = Math.Max(runwayLength, 0.3);
+            var exits = runwayExits
+                .Select(e => (e.Name, Along: e.X * Math.Sin(course) + e.Y * Math.Cos(course), Lateral: e.X * Math.Cos(course) - e.Y * Math.Sin(course)))
+                .Where(e => e.Along > along && e.Along <= length + 0.05 && Math.Abs(e.Lateral) < 0.3)
+                .OrderBy(e => e.Along).ToList();
+            var chosen = exits.FirstOrDefault(e => e.Along >= slow - 0.01);
+            if (chosen.Name == null && exits.Count > 0) chosen = exits[^1];
+            plane.RollActive = true;
+            plane.RollOver = false;
+            plane.ExitTurnStep = 0;
+            plane.ExitName = chosen.Name ?? "";
+            plane.ExitAlong = chosen.Name != null ? chosen.Along : Math.Min(slow, length);
+            plane.ExitSide = chosen.Name != null && chosen.Lateral < 0 ? -1 : 1;
+            plane.HeadingTrue = plane.TargetHeading = plane.TrackTrue = glidePathCourse;
+            plane.AltitudeFt = runwayElevation;
+        }
+
+        /// <summary>The landing roll: braking along the runway, at its exit turning off (then gone); no exit: gone once slow.</summary>
+        private void LandingRoll(SimAircraft plane)
+        {
+            if (double.IsNaN(glidePathCourse)) { plane.RollOver = true; return; }
+            double course = glidePathCourse * Math.PI / 180;
+            double along = plane.X * Math.Sin(course) + plane.Y * Math.Cos(course);
+            plane.VerticalSpeedFpm = 0;
+            plane.AltitudeFt = runwayElevation;
+            plane.DriftDegrees = 0;
+            if (plane.ExitTurnStep > 0)
+            {
+                // Turning off the runway at the exit, at the exit speed.
+                plane.HeadingTrue = Normalize(plane.HeadingTrue + plane.ExitSide * ExitTurnRate * Step);
+                if (Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) > 90) plane.HeadingTrue = Normalize(glidePathCourse + plane.ExitSide * 90);
+                plane.TurnRateDps = plane.ExitSide * ExitTurnRate;
+                if (steps - plane.ExitTurnStep >= (long)Math.Round(ExitTurnSeconds / Step)) plane.RollOver = true;
+            }
+            else
+            {
+                plane.HeadingTrue = glidePathCourse;
+                plane.TurnRateDps = 0;
+                double braking = Math.Max(0.5, plane.Class.BrakingKtPerSecond);
+                // Braking to the exit speed, then on at it to the exit.
+                plane.SpeedKt = Math.Max(ExitSpeed, plane.SpeedKt - braking * Step);
+                if (along >= plane.ExitAlong - 0.005 || along >= Math.Max(runwayLength, 0.3))
+                {
+                    if (plane.ExitName.Length > 0) plane.ExitTurnStep = steps;
+                    else plane.RollOver = true;
+                }
+            }
+            plane.TargetSpeedKt = plane.SpeedKt;
+            plane.TargetHeading = plane.TrackTrue = plane.HeadingTrue;
+            plane.GroundSpeedKt = plane.SpeedKt;
+            double h = plane.HeadingTrue * Math.PI / 180;
+            plane.X += plane.SpeedKt * Math.Sin(h) * Step / 3600;
+            plane.Y += plane.SpeedKt * Math.Cos(h) * Step / 3600;
         }
 
         /// <summary>Below this speed (kt) a helicopter flies over the ground, not in the air mass: no drift, its hover holds its place.</summary>
