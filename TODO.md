@@ -619,3 +619,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **The bar on the map movable (the user, 4 Nov; to do):** "non mi piace lì" (top middle of the map): a grip ⋮⋮ on its
   left to drag it anywhere over the map (always inside it), its place remembered; a double click on the grip: back to
   the top middle. (The user had thought of it on the frame of the program, the title bar: movable is better.)
+- **L1 / L2 (the user, 4 Nov; to do):** by default L1 10 NM, L2 20 NM across the map (now 7 and 40). Programmable
+  (proposed): a right click on L1 or L2 keeps the view of now (centre and zoom) in that button, saved with the
+  aerodrome (each field its own); a click (or F1 / F2) goes back to it; in the right click a "Default" item gives the
+  10 / 20 NM back.
