@@ -571,7 +571,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   ORB, G/A, SPLIT; landed: SPEED and EXP TAXI. No drop-down strip any more but for the height and the speed.
 - **ORB on and on (the user, 4 Nov; done):** CONT could be read as CONV: the button stays ORB; Shift + click orbits on
   and on, shown with a thick border; a click again: out of the orbit. The panel's ORBIT ∞ the same (thick border).
-- **Icon (the user, 4 Nov; to do, chosen "facciamo finta che sia la definitiva"):** Trainer/TWRTrainer-icon.svg: the ATCRoom
+- **Icon (the user, 4 Nov; done: Trainer/TWRTrainer.ico 256/64/48/32 with TWR, 24/16 without it, thicker; the exe and the window):** Trainer/TWRTrainer-icon.svg: the ATCRoom
   family tile, TWR in orange, the runway from above, the circuit dashed light blue, the white aircraft on the downwind.
   To do: TWRTrainer.ico (256, 48, 32, 16; matched in size to the other ATCRoom icons; 32 and 16 px with thicker strokes),
   ApplicationIcon in the project and the window icon.
@@ -580,9 +580,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   gates, exits, separation rule) over the link, for the session only: kept in memory, never saved on the student's PC
   ("it is like a remote view of my position"), so the rule "maps never distributed" holds. The extended centreline is
   drawn from the runway, as now.
-- **Edit a plan (the user, 4 Nov; to do):** a click on a row of WAITING loads all its values into New aircraft; TO LIST
+- **Edit a plan (the user, 4 Nov; done):** a click on a row of WAITING loads all its values into New aircraft; TO LIST
   becomes UPDATE (the plan replaced in the same place of the list), ADD NOW still starts a copy at once, CANCEL (or a
   click on another row) leaves it as it was. Also for a plan back in WAITING after it flew.
-- **Traffic List look (the user, 4 Nov; to do):** the callsigns stand out (bold, a colour of their own, in a column of
+- **Traffic List look (the user, 4 Nov; done):** the callsigns stand out (bold, a colour of their own, in a column of
   their own at the start of each row, FLYING and WAITING); the buttons at the bottom (PAUSE, START ALL, REMOVE ALL,
   GROUP, SAVE..., LOAD..., CLEAR ALL) on one row, wrapping onto more rows only when the part is narrow.

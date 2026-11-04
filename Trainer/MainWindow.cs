@@ -106,10 +106,16 @@ namespace ATCRoom.TwrTrainer
         private readonly List<TowerPlan> plans = [];
         private readonly StackPanel planList = new();
         private readonly StackPanel flyingList = new();
+        /// <summary>The plan of the Traffic List being changed in New aircraft (the user, 4 Nov), or null; its buttons.</summary>
+        private TowerPlan? editing;
+        private Button toListButton = null!, cancelEditButton = null!;
+        private static readonly Brush CallsignBrush = new SolidColorBrush(Color.FromRgb(0x8E, 0xC9, 0xF5));
         private readonly List<(string Callsign, TextBlock Text, Button Freeze)> flyingRows = [];
+        private readonly Dictionary<string, TextBlock> flyingCallsigns = [];
         private string flyingKey = "";
         private static readonly FontFamily RowFont = new("Consolas");
         private readonly List<(TowerPlan Plan, TextBlock Status, Button Hold)> planRows = [];
+        private readonly Dictionary<TowerPlan, TextBlock> planCallsigns = [];
         /// <summary>The panel the helpers add to (a section while it is built).</summary>
         private Panel current = null!;
         // The order buttons of the selected aircraft (grey when they do not apply).
@@ -147,6 +153,14 @@ namespace ATCRoom.TwrTrainer
             string version = Assembly.GetExecutingAssembly().GetName().Version is Version v ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
             appVersion = version;
             Title = $"TWR Trainer {version} - instructor";
+            try
+            {
+                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/TWRTrainer.ico"));
+            }
+            catch (Exception ex) when (ex is IOException or UriFormatException or NotSupportedException)
+            {
+                // (No icon: the window's default one.)
+            }
             Width = 1400;
             Height = 900;
             WindowState = WindowState.Maximized;
@@ -419,7 +433,12 @@ namespace ATCRoom.TwrTrainer
             Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
-            current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO LIST", AddPlan)));
+            toListButton = ActionButton("TO LIST", AddPlan);
+            cancelEditButton = ActionButton("CANCEL", CancelEdit);
+            cancelEditButton.Visibility = Visibility.Collapsed;
+            WrapPanel newButtons = Wrap(ActionButton("ADD NOW", AddAircraft), toListButton, cancelEditButton);
+            newButtons.Margin = new Thickness(0, 2, 0, 0);
+            current.Children.Add(newButtons);
 
             current = trafficContent;
             // (As in the PAR trainer, the user 4 Nov: the aircraft flying, one thin row each, and the plans waiting.)
@@ -428,9 +447,12 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(Caption("WAITING  (☐ GROUP · ▶ start · ⏸ hold · ⧉ duplicate · ✕ remove)"));
             current.Children.Add(new ScrollViewer { Content = planList, MaxHeight = 170, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
             trafficPauseButton.Click += (_, _) => TogglePause();
-            current.Children.Add(Wrap(trafficPauseButton));
-            current.Children.Add(ActionRow(("START ALL", StartAllPlans), ("REMOVE ALL", RemoveAllAircraft), ("GROUP", GroupPlans)));
-            current.Children.Add(ActionRow(("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR ALL", ClearPlans)));
+            // (One row; more only when the part is narrow: the user, 4 Nov.)
+            trafficPauseButton.Margin = new Thickness(0, 0, 4, 4);
+            WrapPanel trafficButtons = Wrap(trafficPauseButton, ActionButton("START ALL", StartAllPlans), ActionButton("REMOVE ALL", RemoveAllAircraft),
+                ActionButton("GROUP", GroupPlans), ActionButton("SAVE...", SaveScenario), ActionButton("LOAD...", LoadScenario), ActionButton("CLEAR ALL", ClearPlans));
+            trafficButtons.Margin = new Thickness(0, 6, 0, 0);
+            current.Children.Add(trafficButtons);
 
             current = selectedContent;
             current.Children.Add(selectedText);
@@ -654,6 +676,7 @@ namespace ATCRoom.TwrTrainer
             ["ADD GATE"] = "Click the entry gate on the map: a VRP gives its name (or the name written). At least 5 NM out.",
             ["REMOVE GATE"] = "Remove the gate written (or the one chosen in From).",
             ["ADD NOW"] = "Start this aircraft now.",
+            ["CANCEL"] = "The plan being changed stays as it was.",
             ["TO LIST"] = "Put it in the Traffic List: started by ▶ or by START ALL after its delay.",
             ["START ALL"] = "Start every aircraft of the Traffic List waiting, each after its delay (held ones stay held).",
             ["SAVE..."] = "Save the flight plans as a scenario of this aerodrome.",
@@ -1146,9 +1169,62 @@ namespace ATCRoom.TwrTrainer
 
         private void AddPlan()
         {
-            plans.Add(PlanOfRows());
+            TowerPlan plan = PlanOfRows();
+            if (editing != null && plans.IndexOf(editing) is int at && at >= 0)
+            {
+                // UPDATE: the plan changed in place, in the same place of the list.
+                plans[at] = plan;
+                Say($"{PlanText(plan)}: changed.", Area.Traffic);
+            }
+            else plans.Add(plan);
+            EndEdit();
             callsignBox.Text = "";
             ShowPlans();
+        }
+
+        /// <summary>A plan of WAITING into New aircraft, to change it (UPDATE) or to start a copy (ADD NOW).</summary>
+        private void EditPlan(TowerPlan p)
+        {
+            editing = p;
+            if (p.From.Length > 0) fromRow.Show(From.IsInCircuit(p.From) ? From.InCircuit : p.From);
+            typeRow.Show(p.Transit);
+            if (p.To.Length > 0) toRow.Show(p.To);
+            viaRow.Show(p.Overhead);
+            entryRow.Show(p.Entry);
+            circuitRow.Show(p.Circuit);
+            sideRow.Show(p.Side);
+            if (p.Class.Length > 0) classRow.Show(p.Class);
+            int laps = p.Laps ?? (p.End == EndAction.TouchAndGo ? 0 : 1);
+            lapsRow.Show(laps);
+            lastRow.Show(p.Laps != null ? p.Last : p.End is EndAction.Departure ? EndAction.Departure : EndAction.FullStop);
+            formationRow.Show(Math.Clamp(p.Formation, 1, SimEngine.MaxFormation));
+            splitRow.Show(p.SplitSeconds is 3.0 or 4.0 or 5.0 or 10.0 ? p.SplitSeconds : 3.0);
+            intervalLine.Visibility = p.Formation > 1 ? Visibility.Visible : Visibility.Collapsed;
+            callsignBox.Text = p.Callsign;
+            arrivalBox.Text = p.HeightFt is double h ? h.ToString("0", CultureInfo.InvariantCulture) : "";
+            delayBox.Text = p.DelayMinutes.ToString("0.#", CultureInfo.InvariantCulture);
+            ShowEntries();
+            lastRow.IsEnabled = !p.Transit && laps != 0;
+            toListButton.Content = "UPDATE";
+            toListButton.ToolTip = "The plan of the Traffic List changed as in these rows (in the same place).";
+            cancelEditButton.Visibility = Visibility.Visible;
+            Say($"Changing {PlanText(p)}: UPDATE to keep the changes, CANCEL to leave it as it was.", Area.New);
+            ShowPlans();
+        }
+
+        private void CancelEdit()
+        {
+            EndEdit();
+            Say(null, Area.New);
+            ShowPlans();
+        }
+
+        private void EndEdit()
+        {
+            editing = null;
+            toListButton.Content = "TO LIST";
+            toListButton.ToolTip = Tips["TO LIST"];
+            cancelEditButton.Visibility = Visibility.Collapsed;
         }
 
         private static string PlanText(TowerPlan p)
@@ -1182,18 +1258,36 @@ namespace ATCRoom.TwrTrainer
             TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = text
         };
 
-        /// <summary>A thin row: its text, its buttons on the right.</summary>
-        private static Grid ThinRow(UIElement text, params Button[] buttons)
+        /// <summary>The callsign of a row: bold, a colour of its own, in a column of its own (the user, 4 Nov).</summary>
+        private static TextBlock CallsignText(string text) => new()
+        {
+            Text = text, FontFamily = RowFont, FontSize = 12, FontWeight = FontWeights.Bold, Foreground = CallsignBrush,
+            VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
+        };
+
+        /// <summary>A thin row: the callsign, its text, its buttons on the right.</summary>
+        private static Grid ThinRow(TextBlock callsign, UIElement text, params Button[] buttons)
         {
             Grid row = new() { Margin = new Thickness(0, 0, 0, 1) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Children.Add(callsign);
+            Grid.SetColumn(text, 1);
             row.Children.Add(text);
             StackPanel right = new() { Orientation = Orientation.Horizontal };
             foreach (Button button in buttons) right.Children.Add(button);
-            Grid.SetColumn(right, 1);
+            Grid.SetColumn(right, 2);
             row.Children.Add(right);
             return row;
+        }
+
+        /// <summary>The callsign of a plan (with its formation) and the rest of its text.</summary>
+        private static (string Callsign, string Rest) PlanParts(TowerPlan p)
+        {
+            string callsign = (p.Callsign.Length > 0 ? p.Callsign : "(auto)") + (p.Formation > 1 ? $" F{p.Formation}" : "");
+            string text = PlanText(p);
+            return (callsign, text.StartsWith(callsign, StringComparison.Ordinal) ? text[callsign.Length..].TrimStart() : text);
         }
 
         /// <summary>The list of the plans waiting, built again.</summary>
@@ -1201,6 +1295,7 @@ namespace ATCRoom.TwrTrainer
         {
             planList.Children.Clear();
             planRows.Clear();
+            planCallsigns.Clear();
             plansKey = PlansKey();
             foreach (TowerPlan plan in Waiting())
             {
@@ -1212,10 +1307,21 @@ namespace ATCRoom.TwrTrainer
                 });
                 Button tick = SmallButton(p.Picked ? "☑" : "☐", () => { p.Picked = !p.Picked; ShowPlans(); });
                 tick.ToolTip = "Tick the rows to GROUP into a formation.";
-                TextBlock text = RowText(PlanText(p));
-                planList.Children.Add(ThinRow(text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
+                (string name, string rest) = PlanParts(p);
+                TextBlock callsign = CallsignText(name);
+                TextBlock text = RowText(rest);
+                // A click on the row: the plan into New aircraft, to change it (the user, 4 Nov).
+                foreach (TextBlock clickable in new[] { callsign, text })
+                {
+                    clickable.Cursor = Cursors.Hand;
+                    clickable.ToolTip = "Click: change it in New aircraft (UPDATE).";
+                    clickable.MouseLeftButtonUp += (_, _) => EditPlan(p);
+                }
+                if (ReferenceEquals(p, editing)) callsign.Foreground = text.Foreground = Brushes.Gold;
+                planList.Children.Add(ThinRow(callsign, text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
                     SmallButton("✕", () => { plans.Remove(p); ShowPlans(); })));
                 planRows.Add((p, text, hold));
+                planCallsigns[p] = callsign;
             }
             if (planList.Children.Count == 0) planList.Children.Add(new TextBlock { Text = "None: New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
             UpdatePlans();
@@ -1226,6 +1332,7 @@ namespace ATCRoom.TwrTrainer
         {
             flyingList.Children.Clear();
             flyingRows.Clear();
+            flyingCallsigns.Clear();
             flyingKey = string.Join(",", traffic.Select(t => t.Callsign));
             foreach (AircraftState aircraft in traffic)
             {
@@ -1236,11 +1343,16 @@ namespace ATCRoom.TwrTrainer
                 again.ToolTip = "Its plan again from the start (an aircraft of the Traffic List).";
                 Button remove = SmallButton("✕", () => commands.Remove(cs));
                 remove.ToolTip = "Out of the simulation (its plan waits again; one of ADD NOW is gone).";
-                TextBlock text = RowText(cs);
-                text.Cursor = Cursors.Hand;
-                text.MouseLeftButtonUp += (_, _) => view.Select(cs);
-                flyingList.Children.Add(ThinRow(text, freeze, again, remove));
+                TextBlock callsign = CallsignText(cs);
+                TextBlock text = RowText("");
+                foreach (TextBlock clickable in new[] { callsign, text })
+                {
+                    clickable.Cursor = Cursors.Hand;
+                    clickable.MouseLeftButtonUp += (_, _) => view.Select(cs);
+                }
+                flyingList.Children.Add(ThinRow(callsign, text, freeze, again, remove));
                 flyingRows.Add((cs, text, freeze));
+                flyingCallsigns[cs] = callsign;
             }
             if (traffic.Count == 0) flyingList.Children.Add(new TextBlock { Text = "None.", Foreground = DimBrush, FontSize = 11 });
         }
@@ -1295,7 +1407,7 @@ namespace ATCRoom.TwrTrainer
                     TowerPlan.State.Held => "HELD ",
                     _ => ""
                 };
-                text.Text = state + PlanText(plan);
+                text.Text = state + PlanParts(plan).Rest;
                 hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
             }
             IReadOnlyList<AircraftState> traffic = engine.Snapshot();
@@ -1305,9 +1417,12 @@ namespace ATCRoom.TwrTrainer
                 AircraftState? a = traffic.FirstOrDefault(t => t.Callsign == cs);
                 if (a == null) continue;
                 string team = a.Formation is { Count: > 1 } f ? $"F{f.Count}" : "";
-                text.Text = string.Format(CultureInfo.InvariantCulture, "{0,-9}{1,-3}{2:000} {3,3} {4}", cs, team,
+                text.Text = string.Format(CultureInfo.InvariantCulture, "{0,-3}{1:000} {2,3} {3}", team,
                     Math.Max(0, Math.Round((a.AltitudeFt - airfield.ElevationFt) / 100)), Math.Round(a.GroundSpeedKt), a.Frozen ? "FROZEN" : TowerView.LegText(a));
-                text.Foreground = a.Callsign == view.Selected ? Brushes.Gold : TextBrush;
+                // (The selected one in yellow, as on the map.)
+                bool chosen = a.Callsign == view.Selected;
+                text.Foreground = chosen ? Brushes.Gold : TextBrush;
+                if (flyingCallsigns.TryGetValue(cs, out TextBlock? name)) name.Foreground = chosen ? Brushes.Gold : CallsignBrush;
                 freeze.Content = a.Frozen ? "▶" : "II";
             }
         }

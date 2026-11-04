@@ -14,6 +14,14 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
+  <!-- The icon (the user, 4 Nov): of the program, and of its window (a resource). -->
+  <PropertyGroup>
+    <ApplicationIcon>TWRTrainer.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="TWRTrainer.ico" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Sim\Engine\ATCRoom.Sim.csproj" />
     <ProjectReference Include="..\MapCreator\Core\ATCRoom.Maps.csproj" />
