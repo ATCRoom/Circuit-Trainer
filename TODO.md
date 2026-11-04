@@ -616,3 +616,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   The controls of the lesson (Run / Pause, speed x1 x2 x4, Level 1 / Level 2) in a small bar at the top of the map,
   always visible; Remove all aircraft only in the Traffic List (REMOVE ALL). Parts: Settings, New aircraft, Traffic
   List, Selected aircraft (their places of the old two parts: Settings takes Aerodrome's).
+- **The bar on the map movable (the user, 4 Nov; to do):** "non mi piace lì" (top middle of the map): a grip ⋮⋮ on its
+  left to drag it anywhere over the map (always inside it), its place remembered; a double click on the grip: back to
+  the top middle. (The user had thought of it on the frame of the program, the title bar: movable is better.)
