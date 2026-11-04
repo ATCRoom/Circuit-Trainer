@@ -583,3 +583,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Edit a plan (the user, 4 Nov; to do):** a click on a row of WAITING loads all its values into New aircraft; TO LIST
   becomes UPDATE (the plan replaced in the same place of the list), ADD NOW still starts a copy at once, CANCEL (or a
   click on another row) leaves it as it was. Also for a plan back in WAITING after it flew.
+- **Traffic List look (the user, 4 Nov; to do):** the callsigns stand out (bold, a colour of their own, in a column of
+  their own at the start of each row, FLYING and WAITING); the buttons at the bottom (PAUSE, START ALL, REMOVE ALL,
+  GROUP, SAVE..., LOAD..., CLEAR ALL) on one row, wrapping onto more rows only when the part is narrow.
