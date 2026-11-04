@@ -591,3 +591,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   under the mouse and their text cannot be read: the default Windows template paints its own light hover colour under
   our light text. Fix: one template of our own for every button (a style for all of them): on mouse
   over a slightly lighter shade of the same blue, pressed a darker one, the text always readable; disabled greyed.
+  **Chosen (the user, 4 Nov, after the picture): B.** On mouse over the background does not change: only the text and
+  the border turn white (the text normally a little less light, so the change shows: action buttons #B9CBD6 on
+  #2F6F86, choices #A9B6C0 on #2A333C); the yellow choice chosen gets only a white border (its dark text stays); pressed
+  a little darker; disabled grey. One style for every button of the program.
