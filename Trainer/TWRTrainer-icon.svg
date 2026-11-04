@@ -1,0 +1,13 @@
+<svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- TWR Trainer icon (the user, 4 Nov): the ATCRoom family (dark tile, green border), TWR in orange, the runway
+       seen from above, the circuit dashed light blue, the aircraft white on the downwind. To be matched in size to the
+       other ATCRoom icons when the .ico is made; 32 and 16 px: thicker strokes. -->
+  <rect x="4" y="4" width="172" height="172" rx="30" fill="#0f1714" stroke="#2f8f4e" stroke-width="8"/>
+  <rect x="50" y="134" width="80" height="12" rx="2" fill="#c8d0d6"/>
+  <path d="M54 136 L54 144 M58 136 L58 144" stroke="#0f1714" stroke-width="2"/>
+  <path d="M46 140 L30 140 L30 84 L150 84 L150 140 L134 140" fill="none" stroke="#7dd3fc" stroke-width="7" stroke-dasharray="12 7" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(90,84) rotate(-90) scale(1.7)">
+    <path d="M0 -10 L3 -3 L11 1 L11 4 L3 2 L2 8 L6 11 L6 12 L0 11 L-6 12 L-6 11 L-2 8 L-3 2 L-11 4 L-11 1 L-3 -3 Z" fill="#ffffff"/>
+  </g>
+  <text x="90" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="46" fill="#ff9f40">TWR</text>
+</svg>

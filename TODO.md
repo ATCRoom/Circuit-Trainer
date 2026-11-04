@@ -571,3 +571,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   ORB, G/A, SPLIT; landed: SPEED and EXP TAXI. No drop-down strip any more but for the height and the speed.
 - **ORB on and on (the user, 4 Nov; done):** CONT could be read as CONV: the button stays ORB; Shift + click orbits on
   and on, shown with a thick border; a click again: out of the orbit. The panel's ORBIT ∞ the same (thick border).
+- **Icon (the user, 4 Nov; to do, chosen "facciamo finta che sia la definitiva"):** Trainer/TWRTrainer-icon.svg: the ATCRoom
+  family tile, TWR in orange, the runway from above, the circuit dashed light blue, the white aircraft on the downwind.
+  To do: TWRTrainer.ico (256, 48, 32, 16; matched in size to the other ATCRoom icons; 32 and 16 px with thicker strokes),
+  ApplicationIcon in the project and the window icon.
