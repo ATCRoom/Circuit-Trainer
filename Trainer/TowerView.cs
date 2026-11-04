@@ -526,7 +526,7 @@ namespace ATCRoom.TwrTrainer
             string leg = a.Leg == "LANDED" ? $"LANDED{(a.ExpediteTaxi ? " EXP" : "")}{(a.Exit.Length > 0 ? $" EXIT {a.Exit}" : "")}"
                 : a.Leg == "MANUAL" || a.Leg.Length == 0 ? $"{(a.Leg.Length > 0 ? a.Leg : "HDG")} {Math.Round(a.TargetHeading) % 360:000}°" : a.Leg;
             string title = a.Formation is { Count: > 1 } team ? $"{a.Callsign} F{team.Count}  {a.PerformanceClass}" : $"{a.Callsign}  {a.PerformanceClass}";
-            List<(string, string, Look)> now = [];
+            List<(string Field, string Text, Look Look)> now = [];
             if (a.Leg == "LANDED")
             {
                 // On the runway: its speed, EXPEDITE TAXI.
