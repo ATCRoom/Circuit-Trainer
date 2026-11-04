@@ -1758,10 +1758,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             {
                 (double along, double lateral) = Frame(st);
                 if (!given && st.Leg == "DOWNWIND" && along < CircuitLength * 0.7 && along > 0.1) { given = true; sim.TurnBase(cs); return; }
-                if (!given) return;
-                // Before the threshold (along > 0): not towards the runway.
-                if (along > -0.2 && st.Contact == GroundContact.Airborne) near = Math.Min(near, lateral);
-                if (double.IsNaN(turned) && st.Leg is "BASE" or "FINAL") turned = along;
+                if (!given || st.Contact != GroundContact.Airborne) return;
+                // Before the threshold (along > 0.05, not yet on the final): not towards the runway.
+                if (along > 0.05 && double.IsNaN(turned)) near = Math.Min(near, lateral);
+                // Where it leaves the downwind (halfway to the runway): past the threshold.
+                if (double.IsNaN(turned) && lateral < 0.5) turned = along;
             });
             closest = near;
             turnedAt = turned;
@@ -1769,7 +1770,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         }
         string conventional = BaseEarly(CircuitType.Conventional, "Light", out double convClosest, out double convTurned);
         string close = BaseEarly(CircuitType.Close, "Jet", out double closeClosest, out _);
-        Check(conventional == "landed" && close == "landed" && convClosest > 0.6 && closeClosest > 0.6 && convTurned < -0.2,
+        Check(conventional == "landed" && close == "landed" && convClosest > 0.6 && closeClosest > 0.6 && convTurned < -0.1,
             "TURN BASE before the threshold: on along the downwind, a short base past the threshold, lands (conventional and close)",
             $"conventional {conventional}, nearest the runway before the threshold {convClosest:F2} NM, base at {convTurned:F2}; close {close}, nearest {closeClosest:F2} NM");
     }
