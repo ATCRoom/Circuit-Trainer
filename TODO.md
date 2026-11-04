@@ -595,3 +595,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the border turn white (the text normally a little less light, so the change shows: action buttons #B9CBD6 on
   #2F6F86, choices #A9B6C0 on #2A333C); the yellow choice chosen gets only a white border (its dark text stays); pressed
   a little darker; disabled grey. One style for every button of the program.
+- **GROUP lights up (the user, 4 Nov; to do):** with two or more rows ticked (☑, not flying) the GROUP button lights
+  up (the yellow border of a choice, or yellow), with a message in the Traffic List "GROUP: 2 ticked → PONY01 F2";
+  greyed when fewer than two are ticked. The formation takes the plan of the first row ticked (said in the message).
