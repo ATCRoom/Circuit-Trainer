@@ -547,7 +547,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   gates, backwards compatible), drawn as a small mark. Each aircraft takes the first exit it reaches at the exit speed,
   turns off across the runway edge, then it is gone; its label LANDED, its speed and EXIT B. No exits: it slows down
   with its class and is gone where it reaches the exit speed. Later: the exit chosen from the label ("EXIT C").
-- **Formation landing separation (the user, 4 Nov; to do):** only when both the one ahead and the one behind end with
+- **Formation landing separation (the user, 4 Nov; done: Aerodrome, row Formation FS, REDUCED RWY SEP / FULL RWY SEP):** only when both the one ahead and the one behind end with
   a full stop, the one behind lengthens its downwind further (with the braking it came too close). Two rules, chosen in
   Aerodrome (saved in the aerodrome file: it depends on the country):
   - **Reduced rwy separation** (default; "in a formation the next one can be cleared with the runway occupied"): when
@@ -555,11 +555,19 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     leaves before a third: its exit).
   - **Full rwy separation**: the one behind touches down only when the one ahead has left the runway at its exit.
   Otherwise (not both FS) the spacing of now. Self-tests: overhead, 2 jets FS, with each rule.
-- **Exit speed (the user, 4 Nov; to do, "facciamo una prova così"):** the landing roll brakes down to 30 kt (15 was
+- **Exit speed (the user, 4 Nov; done, "facciamo una prova così"):** the landing roll brakes down to 30 kt (15 was
   "too little for the taxi"), keeps 30 kt along the runway, and near its exit slows down to 15 kt to turn off (braking of
   its class). The exit chosen: the first one it reaches at 30 kt. Self-test: Light still at B, Jet at C, 30 kt on the way
   and 15 kt at the exit.
-- **EXP TAXI (the user, 4 Nov; to do):** a button (label of a landed aircraft, Selected aircraft) "expedite taxi": it
+- **EXP TAXI (the user, 4 Nov; done: label, Selected aircraft row Runway, right-click menu):** a button (label of a landed aircraft, Selected aircraft) "expedite taxi": it
   keeps at least 45 kt along the runway, then slows down near its exit to 15 kt to turn off. Its exit stays the
   nearest one ahead (the user: "deve prendere l'uscita più vicina comunque"): the speed adapted so as not to pass it
   (braking started in time with its class's braking; too close for 45 kt: less than 45, still the same exit).
+- **The selected label again (the user, 4 Nov, after the mock-ups: "ora ci siamo"; done):** "it is counter-intuitive
+  that what is chosen now is white and what is available yellow": as in the panel, the value chosen now yellow (filled),
+  the others outlined; orders blue (grey: not where it is now). The callsign and the leg on top; a row per choice with its
+  name small on the left: HEIGHT / SPEED (click: the values, AUTO; wheel), PATTERN, SIDE, BREAK (overhead), LAND
+  (formation), END (with "N left"); under a line NOW: BREAK NOW / START SFO / HOLD / REJOIN when they apply, EXT DWN, BASE,
+  ORB, G/A, SPLIT; landed: SPEED and EXP TAXI. No drop-down strip any more but for the height and the speed.
+- **ORB on and on (the user, 4 Nov; done):** CONT could be read as CONV: the button stays ORB; Shift + click orbits on
+  and on, shown with a thick border; a click again: out of the orbit. The panel's ORBIT ∞ the same (thick border).

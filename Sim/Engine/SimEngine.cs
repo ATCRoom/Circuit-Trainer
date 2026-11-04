@@ -808,8 +808,13 @@ namespace ATCRoom.Sim
             }
         }
 
-        /// <summary>Rolling out to this speed (kt), then off the runway.</summary>
-        private const double ExitSpeed = 15;
+        /// <summary>
+        /// The landing roll (the user, 4 Nov): braking to the taxi speed (kt), on at it along the runway, near the exit down to
+        /// the turn-off speed; with EXPEDITE TAXI at least this speed, braking in time for the exit.
+        /// </summary>
+        private const double ExitSpeed = 30;
+        private const double TurnOffSpeed = 15;
+        private const double ExpediteSpeed = 45;
         /// <summary>Turning off at the exit: so many degrees a second, gone after so many seconds.</summary>
         private const double ExitTurnRate = 20;
         private const double ExitTurnSeconds = 6;
@@ -827,6 +832,32 @@ namespace ATCRoom.Sim
                 runwayExits.AddRange(exits.Where(e => double.IsFinite(e.X) && double.IsFinite(e.Y)));
             }
         }
+
+        /// <summary>
+        /// Instruction (landed, rolling out): expedite taxi: at least 45 kt along the runway to the nearest exit it can
+        /// still turn off at (braking in time), then off the runway.
+        /// </summary>
+        public void ExpediteTaxi(string callsign) =>
+            Instruct(callsign, Kind.Speed, a =>
+            {
+                if (a.Contact != GroundContact.Landed || !a.RollActive || a.ExitTurnStep > 0 || double.IsNaN(glidePathCourse)) return;
+                a.ExpediteTaxi = true;
+                double course = glidePathCourse * Math.PI / 180;
+                double along = a.X * Math.Sin(course) + a.Y * Math.Cos(course);
+                double braking = Math.Max(0.5, a.Class.BrakingKtPerSecond);
+                double stop = along + (a.SpeedKt * a.SpeedKt - TurnOffSpeed * TurnOffSpeed) / (2 * braking) / 3600;
+                // (The user: the nearest exit anyway, the speed adapted not to pass it.)
+                var nearest = runwayExits
+                    .Select(e => (e.Name, Along: e.X * Math.Sin(course) + e.Y * Math.Cos(course), Lateral: e.X * Math.Cos(course) - e.Y * Math.Sin(course)))
+                    .Where(e => e.Along >= stop - 0.005 && e.Along <= Math.Max(runwayLength, 0.3) + 0.05 && Math.Abs(e.Lateral) < 0.3)
+                    .OrderBy(e => e.Along).FirstOrDefault();
+                if (nearest.Name != null && nearest.Along < a.ExitAlong)
+                {
+                    a.ExitName = nearest.Name;
+                    a.ExitAlong = nearest.Along;
+                    a.ExitSide = nearest.Lateral < 0 ? -1 : 1;
+                }
+            });
 
         /// <summary>At the touchdown: where it will leave the runway, from its speed and its class's braking.</summary>
         private void StartLandingRoll(SimAircraft plane)
@@ -847,6 +878,7 @@ namespace ATCRoom.Sim
             plane.RollActive = true;
             plane.RollOver = false;
             plane.ExitTurnStep = 0;
+            plane.ExpediteTaxi = false;
             plane.ExitName = chosen.Name ?? "";
             plane.ExitAlong = chosen.Name != null ? chosen.Along : Math.Min(slow, length);
             plane.ExitSide = chosen.Name != null && chosen.Lateral < 0 ? -1 : 1;
@@ -876,8 +908,15 @@ namespace ATCRoom.Sim
                 plane.HeadingTrue = glidePathCourse;
                 plane.TurnRateDps = 0;
                 double braking = Math.Max(0.5, plane.Class.BrakingKtPerSecond);
-                // Braking to the exit speed, then on at it to the exit.
-                plane.SpeedKt = Math.Max(ExitSpeed, plane.SpeedKt - braking * Step);
+                // Braking to the taxi speed (expedite: at least 45 kt), then on at it; near the exit down to the turn-off speed
+                // (in time: as far as its braking needs).
+                double toExit = plane.ExitAlong - along;
+                double turnOff = plane.ExitName.Length > 0 ? TurnOffSpeed : ExitSpeed;
+                double needed = (plane.SpeedKt * plane.SpeedKt - turnOff * turnOff) / (2 * braking) / 3600;
+                double taxi = plane.ExpediteTaxi ? ExpediteSpeed : ExitSpeed;
+                if (toExit <= needed + 0.003) plane.SpeedKt = Math.Max(turnOff, plane.SpeedKt - braking * Step);
+                else if (plane.SpeedKt > taxi) plane.SpeedKt = Math.Max(taxi, plane.SpeedKt - braking * Step);
+                else if (plane.SpeedKt < taxi) plane.SpeedKt = Math.Min(taxi, plane.SpeedKt + Math.Max(1, plane.Class.AccelerationKtPerSecond) * Step);
                 if (along >= plane.ExitAlong - 0.005 || along >= Math.Max(runwayLength, 0.3))
                 {
                     if (plane.ExitName.Length > 0) plane.ExitTurnStep = steps;

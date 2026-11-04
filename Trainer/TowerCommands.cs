@@ -105,6 +105,9 @@ namespace ATCRoom.TwrTrainer
 
         public void Split(string callsign) => engine.SplitFormation(callsign);
 
+        /// <summary>Landed, rolling out: expedite taxi (at least 45 kt to the nearest exit it can still take).</summary>
+        public void ExpediteTaxi(string callsign) => engine.ExpediteTaxi(callsign);
+
         /// <summary>The plan of its circuits: how many (0: on and on), the last one's end.</summary>
         public void SetLaps(string callsign, int laps, EndAction last) => engine.SetLaps(callsign, laps, last);
 

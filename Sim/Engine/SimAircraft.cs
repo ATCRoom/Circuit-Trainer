@@ -128,7 +128,8 @@ namespace ATCRoom.Sim
         // The circuits of its plan still to fly, this one included (0: on and on).
         int LapsLeft = 0,
         // Rolling out after the landing: the runway exit it goes to (empty: none).
-        string Exit = "");
+        string Exit = "",
+        bool ExpediteTaxi = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -196,6 +197,8 @@ namespace ATCRoom.Sim
         public double ExitAlong;
         public int ExitSide = 1;
         public long ExitTurnStep;
+        /// <summary>EXPEDITE TAXI: at least 45 kt along the runway to its exit.</summary>
+        public bool ExpediteTaxi;
         /// <summary>
         /// A formation (the user, 4 Nov): the callsigns of its wingmen (empty: alone), which members land together on the
         /// short final (index 0 this one, the leader) and the seconds between them when it splits.
@@ -242,6 +245,6 @@ namespace ATCRoom.Sim
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
             Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
             Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
-            Circuit?.LapsLeft ?? 0, ExitName);
+            Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi);
     }
 }

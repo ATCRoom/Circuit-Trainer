@@ -98,6 +98,10 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         private readonly TextBox newExitName = new() { Width = 70 };
+        /// <summary>A formation landing, both full stop (the user, 4 Nov; it depends on the country, kept in the aerodrome file).</summary>
+        private readonly ChoiceRow<bool> separationRow = new([(false, "REDUCED RWY SEP"), (true, "FULL RWY SEP")], (full, _) => full
+            ? "Full rwy separation: the next one of a formation lands once the one ahead has left the runway."
+            : "Reduced rwy separation: the next one of a formation lands when the one ahead has rolled a third of the runway (both full stop).");
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
         private readonly List<TowerPlan> plans = [];
         private readonly StackPanel planList = new();
@@ -109,7 +113,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The panel the helpers add to (a section while it is built).</summary>
         private Panel current = null!;
         // The order buttons of the selected aircraft (grey when they do not apply).
-        private Button splitButton = null!;
+        private Button splitButton = null!, expTaxiButton = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
             orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
@@ -325,6 +329,15 @@ namespace ATCRoom.TwrTrainer
             Note("Entry gates (where the arriving aircraft start, at least 5 NM out): a name (empty: the VRP clicked), then click it on the map.");
             Row("Gate name", newGateName);
             current.Children.Add(ActionRow(("ADD GATE", AddGate), ("REMOVE GATE", RemoveGate)));
+            Row("Formation FS", separationRow);
+            separationRow.Picked += full =>
+            {
+                airfield.Circuits.FullRunwaySeparation = full;
+                string? error = airfield.Save();
+                engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
+                Say(error ?? (full ? "Full rwy separation: in a formation landing to a full stop, the next one lands once the one ahead has left the runway."
+                    : "Reduced rwy separation: in a formation landing to a full stop, the next one lands when the one ahead has rolled a third of the runway."));
+            };
             Note("Runway exits (where the landing aircraft leave the runway: each one the first it reaches slow enough): a name, then click on the runway edge.");
             Row("Exit name", newExitName);
             current.Children.Add(ActionRow(("ADD EXIT", AddExit), ("REMOVE EXIT", RemoveExit)));
@@ -470,6 +483,8 @@ namespace ATCRoom.TwrTrainer
             Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
             splitButton = Order("SPLIT", commands.Split);
             Row("Formation", Inline(splitButton), now, 62);
+            expTaxiButton = Order("EXP TAXI", commands.ExpediteTaxi);
+            Row("Runway", Inline(expTaxiButton), now, 62);
 
             StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
             Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
@@ -628,6 +643,7 @@ namespace ATCRoom.TwrTrainer
             ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
             ["REMOVE ALL"] = "Every aircraft out of the simulation (the rows stay, back to waiting).",
+            ["EXP TAXI"] = "Landed, rolling out: expedite taxi, at least 45 kt to the nearest exit it can still take.",
             ["ADD EXIT"] = "A runway exit: its name (empty: the next letter), then click on the runway edge where it leaves.",
             ["REMOVE EXIT"] = "Remove the exit whose name is written.",
             ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
@@ -1462,6 +1478,7 @@ namespace ATCRoom.TwrTrainer
             ShowEntries();
             view.Gates = airfield.Gates;
             view.Exits = airfield.Exits;
+            separationRow.Show(airfield.Circuits.FullRunwaySeparation);
             engine.SetRunwayExits(airfield.Exits);
             view.InvalidateVisual();
         }
@@ -1560,7 +1577,13 @@ namespace ATCRoom.TwrTrainer
             // A value chosen in the buttons under a field.
             if (field.Split('=') is [string name, string value])
             {
-                if (name == "LAND" && int.TryParse(value, out int member) && a.Formation is { } crew)
+                if (name == "SIDE" && Enum.TryParse(value, out CircuitSide chosenSide))
+                {
+                    // The side of the next circuit if one is ordered, else of this one (an S over the field).
+                    if (a.NextCircuit is CircuitType nextType) commands.NextCircuit(callsign, nextType, chosenSide);
+                    else if (chosenSide != a.CircuitSide) commands.FlyCircuit(callsign, type, chosenSide);
+                }
+                else if (name == "LAND" && int.TryParse(value, out int member) && a.Formation is { } crew)
                 {
                     List<bool> lands = Enumerable.Range(0, crew.Count).Select(i => a.Lands == null || i >= a.Lands.Count || a.Lands[i]).ToList();
                     if (member < lands.Count) lands[member] = !lands[member];
@@ -1607,7 +1630,15 @@ namespace ATCRoom.TwrTrainer
                     commands.HoldAtHighKey(callsign, false);
                     break;
                 case "ORBIT":
-                    commands.Orbit(callsign);
+                    // (Shift + click: orbits until clicked again, the user 4 Nov.)
+                    if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(callsign);
+                    else commands.Orbit(callsign);
+                    break;
+                case "REJOIN":
+                    commands.Rejoin(callsign);
+                    break;
+                case "EXPTAXI":
+                    commands.ExpediteTaxi(callsign);
                     break;
                 case "CONTINUE":
                     commands.Continue(callsign);
@@ -1743,6 +1774,7 @@ namespace ATCRoom.TwrTrainer
             items.Add(Item("Orbit", () => commands.Orbit(callsign)));
             items.Add(Item("Go around", () => commands.GoAround(callsign)));
             items.Add(Item("Rejoin the circuit", () => commands.Rejoin(callsign)));
+            if (a.Leg == "LANDED") items.Add(Item("Expedite taxi", () => commands.ExpediteTaxi(callsign)));
             items.Add(Item("Helipad on the map...", () => view.AskPoint($"{callsign}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(callsign, x, y))));
             items.Add(Item("Remove", () => commands.Remove(callsign)));
             return items;
@@ -1800,15 +1832,17 @@ namespace ATCRoom.TwrTrainer
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS";
                 orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
                 orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
-                orbitForeverButton.Content = a.OrbitForever ? "CONTINUE" : "ORBIT ∞";
+                // (Orbiting on and on: a thick border, the user 4 Nov; a click: out of the orbit.)
+                orbitForeverButton.Content = "ORBIT ∞";
                 orbitForeverButton.ToolTip = Tips[a.OrbitForever ? "CONTINUE" : "ORBIT ∞"];
                 orbitForeverButton.BorderBrush = a.OrbitForever ? Brushes.Gold : Brushes.Transparent;
-                orbitForeverButton.BorderThickness = new Thickness(a.OrbitForever ? 2 : 1);
+                orbitForeverButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
                 goAroundButton.IsEnabled = leg == "FINAL";
                 sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
                 splitButton.IsEnabled = a.SplitAllowed;
+                expTaxiButton.IsEnabled = leg == "LANDED" && !a.ExpediteTaxi;
             }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
                 : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";

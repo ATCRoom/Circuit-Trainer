@@ -501,109 +501,152 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>How a piece of the selected label is drawn (the user, 4 Nov: as in the panel, yellow = chosen now).</summary>
+        private enum Look { Text, Tag, Option, On, Command, Off, Thick }
+
+        private static readonly Brush OnText = Frozen(new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)));
+        private static readonly Brush CommandBack = Frozen(new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x8F)));
+        private static readonly Brush CommandEdge = Frozen(new SolidColorBrush(Color.FromRgb(0x5D, 0x9A, 0xC0)));
+        private static readonly Brush OffText = Frozen(new SolidColorBrush(Color.FromRgb(0x5F, 0x6B, 0x75)));
+        private static readonly Brush OffEdge = Frozen(new SolidColorBrush(Color.FromRgb(0x3B, 0x46, 0x4F)));
+
         /// <summary>
-        /// The label of the selected aircraft, larger, with its commands (step 4b): the fields CCT (the circuit: click = list),
-        /// side (click = the other side), NEXT (the end of the final: click = list, wheel = the next one), BRK (overhead: where
-        /// it breaks: list, wheel), and the buttons BREAK NOW (overhead), HOLD / START (SFO), ORB (orbit), G/A (go around).
+        /// The label of the selected aircraft (the user, 4 Nov: larger, easy to understand): the callsign and the leg, then a
+        /// row for each choice, its name small on the left (HEIGHT / SPEED, PATTERN, SIDE, BREAK, LAND, END): the value now
+        /// yellow, the others outlined (a click: that one; the wheel: the next one); under a line the row NOW: the orders
+        /// at once, blue (grey: not where it is now). ORB: Shift + click orbits until clicked again (a thick border).
         /// </summary>
         private void DrawSelectedLabel(DrawingContext dc, double dip, AircraftState a, Point at, string heightSpeed)
         {
             fields.Clear();
-            FormattedText Text(string text, Brush brush) => new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 13, brush, dip);
-            string next = a.NextCircuit is CircuitType n ? $"  >{Short(n)}" : "";
-            List<List<(string Field, string Text, bool Button)>> rows =
-            [
-                [("", a.Formation is { Count: > 1 } team ? $"{a.Callsign} F{team.Count} ({team[0]}–{Number(team[^1])})  {a.PerformanceClass}" : $"{a.Callsign}  {a.PerformanceClass}", false)],
-                [("ALT", HeightText(a), false), ("SPD", SpeedText(a), false), ("", $"{a.Leg}{next}", false)]
-            ];
-            if (a.Formation is { Count: > 1 } crew)
+            List<List<(string Field, string Text, Look Look)>> rows = [];
+            void Choices<T>(string tag, string name, IEnumerable<T> values, T now, Func<T, string> text) where T : notnull =>
+                rows.Add([("", tag, Look.Tag), .. values.Select(v => ($"{name}={v}", text(v), EqualityComparer<T>.Default.Equals(v, now) ? Look.On : Look.Option))]);
+            bool airborne = a.Contact == GroundContact.Airborne;
+            string leg = a.Leg == "LANDED" ? $"LANDED{(a.ExpediteTaxi ? " EXP" : "")}{(a.Exit.Length > 0 ? $" EXIT {a.Exit}" : "")}"
+                : a.Leg == "MANUAL" || a.Leg.Length == 0 ? $"{(a.Leg.Length > 0 ? a.Leg : "HDG")} {Math.Round(a.TargetHeading) % 360:000}°" : a.Leg;
+            string title = a.Formation is { Count: > 1 } team ? $"{a.Callsign} F{team.Count}  {a.PerformanceClass}" : $"{a.Callsign}  {a.PerformanceClass}";
+            List<(string, string, Look)> now = [];
+            if (a.Leg == "LANDED")
             {
-                // The members that land together (yellow: they land; the others go around), and SPLIT where it can be given.
-                List<(string, string, bool)> land = [("", "LAND", false)];
-                for (int i = 0; i < crew.Count; i++) land.Add(($"LAND={i}", Number(crew[i]), a.Lands == null || i >= a.Lands.Count || a.Lands[i]));
-                if (a.SplitAllowed) land.Add(("SPLIT", "SPLIT", true));
-                rows.Add(land);
+                // On the runway: its speed, EXPEDITE TAXI.
+                rows.Add([("", "SPEED", Look.Tag), ("", $"{Math.Round(a.GroundSpeedKt):000}", Look.Option)]);
+                now.Add(("EXPTAXI", "EXP TAXI", a.ExpediteTaxi ? Look.On : Look.Command));
             }
-            // The buttons of the height or the speed clicked (any aircraft): AUTO (its circuit's again) and the values.
-            List<(string, string, bool)> values = strip switch
+            else
             {
-                "ALT" => [("ALT=AUTO", "AUTO", !a.RouteAltitude && a.Route != null && a.Navigation == NavigationMode.Route), .. HeightChoices.Select(h => ($"ALT={h:0}", $"{h:0}", true))],
-                "SPD" => [("SPD=AUTO", "AUTO", !a.RouteSpeed && a.Route != null && a.Navigation == NavigationMode.Route), .. (SpeedChoices?.Invoke(a) ?? []).Select(v => ($"SPD={v:0}", $"{v:0}", true))],
-                _ => []
-            };
-            if (a.Transit)
-            {
-                // Crossing the zone: only its orbits.
-                rows.Add([a.OrbitForever ? ("CONTINUE", "CONT", true) : ("ORBIT", "ORB", true)]);
-            }
-            else if (a.Circuit is CircuitType type)
-            {
-                string circuit = PendingCircuit is CircuitType pending ? $"Ⓒ {Short(pending)}?" : $"Ⓒ {Short(type)}";
-                rows.Add([("CIRC", circuit, false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", a.LapsLeft > 1 ? $"NEXT {EndShort(a.EndAction)} ({a.LapsLeft} left)" : $"NEXT {EndShort(a.EndAction)}", false)]);
-                List<(string, string, bool)> buttons = [];
-                if (type == CircuitType.Overhead)
+                rows.Add([("", "HEIGHT", Look.Tag), ("ALT", HeightText(a), Look.Option), ("", "SPEED", Look.Tag), ("SPD", SpeedText(a), Look.Option)]);
+                if (strip == "ALT")
                 {
-                    buttons.Add(("BRK", $"BRK {BreakShort(a.Break)}", false));
-                    buttons.Add(("BREAKNOW", "BREAK NOW", true));
+                    rows.Add([("", "", Look.Tag), ("ALT=AUTO", "AUTO", !a.RouteAltitude && a.Route != null && a.Navigation == NavigationMode.Route ? Look.Command : Look.Off),
+                        .. HeightChoices.Select(h => ($"ALT={h:0}", $"{h:0}", Look.Option))]);
                 }
-                if (type == CircuitType.Sfo) buttons.Add(a.SfoHold ? ("START", "START", true) : ("HOLD", "HOLD", true));
-                if (a.Leg == "DOWNWIND") buttons.Add(("EXTEND", "EXT DWN", true));
-                if (a.Leg is "DOWNWIND" or "EXT DOWNWIND") buttons.Add(("BASE", "BASE", true));
-                if (a.OrbitForever) buttons.Add(("CONTINUE", "CONT", true));
-                else if (a.Leg != "FINAL") buttons.Add(("ORBIT", "ORB", true));
-                if (a.Leg == "FINAL") buttons.Add(("GA", "G/A", true));
-                rows.Add(buttons);
-                // The buttons of the field clicked, under the label: the value now outlined, the others to click.
-                List<(string, string, bool)> choices = strip switch
+                if (strip == "SPD")
                 {
-                    "CIRC" => Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c), c != (a.NextCircuit ?? type))).ToList(),
-                    "NEXT" => Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e != a.EndAction)).ToList(),
-                    "BRK" when type == CircuitType.Overhead => Enum.GetValues<BreakPoint>().Select(b => ($"BRK={b}", BreakShort(b), b != a.Break)).ToList(),
-                    _ => []
-                };
-                if (choices.Count > 0) rows.Add(choices);
+                    rows.Add([("", "", Look.Tag), ("SPD=AUTO", "AUTO", !a.RouteSpeed && a.Route != null && a.Navigation == NavigationMode.Route ? Look.Command : Look.Off),
+                        .. (SpeedChoices?.Invoke(a) ?? []).Select(v => ($"SPD={v:0}", $"{v:0}", Look.Option))]);
+                }
+                bool manual = a.Leg is "MANUAL" or "GO AROUND" || (a.Circuit == null && !a.Transit);
+                if (a.Circuit is CircuitType type && !a.Transit)
+                {
+                    CircuitType shown = PendingCircuit ?? a.NextCircuit ?? type;
+                    rows.Add([("", "PATTERN", Look.Tag), .. Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c) + (PendingCircuit == c ? "?" : ""), c == shown ? Look.On : Look.Option))]);
+                    Choices("SIDE", "SIDE", new[] { CircuitSide.Left, CircuitSide.Right }, a.NextCircuit != null ? a.NextSide : a.CircuitSide, s => s == CircuitSide.Left ? "L" : "R");
+                    if (shown == CircuitType.Overhead) Choices("BREAK", "BRK", Enum.GetValues<BreakPoint>(), a.Break, BreakShort);
+                    if (a.Formation is { Count: > 1 } crew)
+                    {
+                        // Yellow: they land together; the others go around (any of them; from a circuit at most 2 land).
+                        rows.Add([("", "LAND", Look.Tag), .. crew.Select((m, i) => ($"LAND={i}", Number(m), a.Lands == null || i >= a.Lands.Count || a.Lands[i] ? Look.On : Look.Option))]);
+                    }
+                    rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction ? Look.On : Look.Option)),
+                        .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
+                    // The orders of where it is now.
+                    if (shown == CircuitType.Overhead && a.Leg == "INITIAL") now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
+                    if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Command) : ("HOLD", "HOLD", Look.Command));
+                    if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
+                    now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Command : Look.Off));
+                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" ? Look.Command : Look.Off));
+                    bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
+                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Command : Look.Off));
+                    now.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Command : Look.Off));
+                }
+                else
+                {
+                    // Crossing, or not in a circuit: its orbits, back onto its way.
+                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", a.Leg == "TRANSIT" ? Look.Command : Look.Off));
+                    now.Add(("REJOIN", "REJOIN", a.Leg is "MANUAL" or "" ? Look.Command : Look.Off));
+                }
+                if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Command : Look.Off));
             }
-            if (values.Count > 0) rows.Add(values);
-            const double pad = 4, gap = 6, lineGap = 3;
-            double width = 0, height = pad;
-            List<List<(string Field, FormattedText Text, bool Button)>> made = [];
-            foreach (var row in rows)
-            {
-                List<(string, FormattedText, bool)> line = row.Select(r => (r.Field, Text(r.Text, r.Button ? SelectedBrush : r.Field.Length > 0 ? AircraftBrush : SelectedBrush), r.Button)).ToList();
-                made.Add(line);
-                width = Math.Max(width, line.Sum(t => t.Item2.Width + (t.Item1.Length > 0 ? 8 : 0)) + gap * (line.Count - 1));
-                height += line.Max(t => t.Item2.Height) + lineGap;
-            }
+            const double pad = 6, gap = 4, lineGap = 4, tagWidth = 50;
+            FormattedText Text(string text, Look look, double size = 12) => new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, look == Look.Tag ? 10 : size,
+                look switch
+                {
+                    Look.Tag => GroundBrush,
+                    Look.On => OnText,
+                    Look.Command or Look.Thick => Brushes.White,
+                    Look.Off => OffText,
+                    Look.Text => SelectedBrush,
+                    _ => AircraftBrush
+                }, dip);
+            FormattedText titleText = Text(title, Look.Text, 13), legText = Text(leg, Look.Text, 13);
+            double PieceWidth((string Field, string Text, Look Look) piece, FormattedText text) => piece.Look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : text.Width + 10;
+            List<List<((string Field, string Text, Look Look) Piece, FormattedText Text)>> made = rows.Select(r => r.Select(p => (p, Text(p.Text, p.Look))).ToList()).ToList();
+            List<((string Field, string Text, Look Look) Piece, FormattedText Text)> nowMade = now.Select(p => (p, Text(p.Text, p.Look))).ToList();
+            double RowWidth(IEnumerable<((string Field, string Text, Look Look) Piece, FormattedText Text)> line) =>
+                line.Sum(t => PieceWidth(t.Piece, t.Text)) + gap * Math.Max(0, line.Count() - 1);
+            double width = Math.Max(titleText.Width + 16 + legText.Width, Math.Max(made.Count > 0 ? made.Max(RowWidth) : 0, nowMade.Count > 0 ? RowWidth(nowMade) + tagWidth + gap : 0));
+            double rowHeight = Text("X", Look.Option).Height + 2;
+            double height = pad + titleText.Height + lineGap + made.Count * (rowHeight + lineGap) + (nowMade.Count > 0 ? 6 + rowHeight + lineGap : 0) + pad - lineGap;
             width += 2 * pad;
-            height += pad - lineGap;
             Point corner = at + (labelOffsets.TryGetValue(a.Callsign, out Vector moved) ? moved : new Vector(14, -height - 8));
             selectedLabel = new Rect(corner, new Size(width, height));
             labelRects[a.Callsign] = selectedLabel;
             dc.DrawLine(new Pen(SelectedBrush, 0.8), at, Nearest(selectedLabel, at));
             dc.DrawRectangle(LabelBack, new Pen(SelectedBrush, 1), selectedLabel);
             double y = corner.Y + pad;
-            foreach (var line in made)
+            dc.DrawText(titleText, new Point(corner.X + pad, y));
+            dc.DrawText(legText, new Point(corner.X + width - pad - legText.Width, y));
+            y += titleText.Height + lineGap;
+            void Draw(List<((string Field, string Text, Look Look) Piece, FormattedText Text)> line, double x)
             {
-                double x = corner.X + pad;
-                double lineHeight = line.Max(t => t.Text.Height);
-                foreach ((string field, FormattedText text, bool button) in line)
+                foreach (((string field, string _, Look look), FormattedText text) in line)
                 {
-                    if (field.Length > 0)
+                    double w = look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : text.Width + 10;
+                    Rect area = new(x, y, w, rowHeight);
+                    switch (look)
                     {
-                        // A field or button: a box around it, kept for the clicks.
-                        Rect area = new(x, y - 1, text.Width + 8, lineHeight + 2);
-                        dc.DrawRectangle(button ? FieldBrush : null, new Pen(button ? SelectedBrush : GroundBrush, 0.8), area);
-                        dc.DrawText(text, new Point(x + 4, y));
-                        fields.Add((area, field));
-                        x += area.Width + gap;
+                        case Look.Tag:
+                        case Look.Text:
+                            dc.DrawText(text, new Point(x, y + (rowHeight - text.Height) / 2));
+                            break;
+                        default:
+                            Brush? fill = look switch { Look.On => SelectedBrush, Look.Command or Look.Thick => CommandBack, _ => null };
+                            Pen edge = look switch
+                            {
+                                Look.On => new Pen(SelectedBrush, 1),
+                                Look.Command => new Pen(CommandEdge, 1),
+                                Look.Thick => new Pen(SelectedBrush, 2.5),
+                                Look.Off => new Pen(OffEdge, 1),
+                                _ => new Pen(GroundBrush, 0.8)
+                            };
+                            dc.DrawRectangle(fill, edge, area);
+                            dc.DrawText(text, new Point(x + 5, y + (rowHeight - text.Height) / 2));
+                            // (Grey orders are not where it is now: no click.)
+                            if (field.Length > 0 && look != Look.Off) fields.Add((area, field));
+                            break;
                     }
-                    else
-                    {
-                        dc.DrawText(text, new Point(x, y));
-                        x += text.Width + gap;
-                    }
+                    x += w + gap;
                 }
-                y += lineHeight + lineGap;
+                y += rowHeight + lineGap;
+            }
+            foreach (var line in made) Draw(line, corner.X + pad);
+            if (nowMade.Count > 0)
+            {
+                y += 2;
+                dc.DrawLine(new Pen(OffEdge, 1), new Point(corner.X + pad, y - 3), new Point(corner.X + width - pad, y - 3));
+                y += 4;
+                Draw([(("", "NOW", Look.Tag), Text("NOW", Look.Tag)), .. nowMade], corner.X + pad);
             }
         }
 
@@ -737,9 +780,12 @@ namespace ATCRoom.TwrTrainer
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             Point at = e.GetPosition(this);
-            if (Selected != null && FieldAt(at) is string field && (field is "NEXT" or "BRK" or "CIRC" or "ALT" or "SPD" || field.StartsWith("LAND=", StringComparison.Ordinal)))
+            if (Selected != null && FieldAt(at) is string field && (field is "ALT" or "SPD" || field.StartsWith("LAND=", StringComparison.Ordinal)
+                || field.StartsWith("CIRC=", StringComparison.Ordinal) || field.StartsWith("NEXT=", StringComparison.Ordinal) || field.StartsWith("BRK=", StringComparison.Ordinal)))
             {
-                FieldWheel?.Invoke(Selected, field, e.Delta < 0 ? 1 : -1);
+                // (The wheel on a row of choices: the next one; on the height, the speed, LAND: as before.)
+                string key = field.StartsWith("LAND=", StringComparison.Ordinal) ? field : field.Split('=')[0];
+                FieldWheel?.Invoke(Selected, key, e.Delta < 0 ? 1 : -1);
                 e.Handled = true;
                 return;
             }
@@ -827,7 +873,7 @@ namespace ATCRoom.TwrTrainer
             }
             if (Selected != null && FieldAt(at) is string clicked)
             {
-                if (clicked is "CIRC" or "NEXT" or "BRK" or "ALT" or "SPD")
+                if (clicked is "ALT" or "SPD")
                 {
                     // Its buttons open under the label (closed by a second click).
                     strip = strip == clicked ? null : clicked;

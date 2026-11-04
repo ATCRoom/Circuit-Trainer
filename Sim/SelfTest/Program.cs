@@ -1718,6 +1718,33 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             "Plan of circuits: a low pass given for one circuit, then the plan again (one touch and go, then the full stop)", $"{touchAndGo} touch and go");
     }
 
+    // 42. Formation landing, both full stop (the user, 4 Nov): reduced rwy separation (the one ahead has rolled a third of
+    // the runway when the one behind touches down) and full (the one ahead has left the runway).
+    {
+        (double sepFirst, bool sepGone) Separation(bool full)
+        {
+            SimEngine sim = NewCircuitEngine();
+            if (full) sim.SetAerodrome(new AerodromeCircuits { FullRunwaySeparation = true }, "");
+            string lead = sim.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, CircuitSide.Left, EndAction.FullStop, "EAGLE1", "Jet");
+            sim.MakeFormation(lead, 2);
+            double ahead = double.NaN;
+            bool gone = false;
+            FlyAll(sim, 900, (t, now) =>
+            {
+                AircraftState? two = now.FirstOrDefault(st => st.Callsign == "EAGLE2");
+                if (!double.IsNaN(ahead) || gone || two == null || two.Contact == GroundContact.Airborne) return;
+                AircraftState? one = now.FirstOrDefault(st => st.Callsign == "EAGLE1");
+                if (one == null) gone = true; else ahead = Frame(one).Along;
+            });
+            return (ahead, gone);
+        }
+        (double reducedAhead, bool reducedGone) = Separation(false);
+        (double fullAhead, bool fullGone) = Separation(true);
+        Check((reducedGone || reducedAhead >= 0.15 + CircuitLength / 3 - 0.03) && fullGone,
+            "Formation landing, both full stop: reduced rwy separation (a third of the runway ahead), full (the one ahead off the runway)",
+            $"reduced: the one ahead {(reducedGone ? "gone" : $"at {reducedAhead:F2} NM")}; full: {(fullGone ? "gone" : $"still on the runway at {fullAhead:F2} NM")}");
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

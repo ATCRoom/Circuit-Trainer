@@ -122,6 +122,9 @@ namespace ATCRoom.Sim
             CircuitSide side = member.Circuit.Side;
             double third = Math.Max(runwayLength, 0.3) / 3;
             double needed = third / Math.Max(30, member.Class.FinalSpeedKt) * 3600;
+            // Both landing to a full stop (the user, 4 Nov): the one ahead brakes, so more: reduced rwy separation (it has rolled
+            // a third of the runway, or reached its exit before) or full (it has left the runway).
+            if (member.Circuit.End == EndAction.FullStop) needed = Math.Max(needed, RollSeconds(member.Class, aerodrome?.FullRunwaySeparation == true));
             double extra = Math.Max(0, needed - intervalSeconds) * Math.Max(30, member.Class.CircuitSpeedKt) / 3600 / 2;
             if (extra <= 0.01) return;
             double shift = extra * n + SpacingMarginNM * n;
@@ -135,6 +138,34 @@ namespace ATCRoom.Sim
                 route[i] = route[i] with { X = x, Y = y };
             }
             member.Route = route.ToArray();
+        }
+
+        /// <summary>
+        /// The seconds the one ahead needs after its touchdown (on the aim point, at the final speed): to roll a third of the
+        /// runway (or to its exit, if it leaves before), or to be off the runway (full: to its exit and the turn off).
+        /// </summary>
+        private double RollSeconds(PerformanceClass kind, bool full)
+        {
+            double course = double.IsNaN(glidePathCourse) ? 0 : glidePathCourse * Math.PI / 180;
+            double length = Math.Max(runwayLength, 0.3);
+            double braking = Math.Max(0.5, kind.BrakingKtPerSecond);
+            double speed = Math.Max(kind.FinalSpeedKt, ExitSpeed);
+            double slow = TouchdownAim + (speed * speed - ExitSpeed * ExitSpeed) / (2 * braking) / 3600;
+            var exits = runwayExits.Select(e => (e.Name, Along: e.X * Math.Sin(course) + e.Y * Math.Cos(course), Lateral: e.X * Math.Cos(course) - e.Y * Math.Sin(course)))
+                .Where(e => e.Along > TouchdownAim && e.Along <= length + 0.05 && Math.Abs(e.Lateral) < 0.3).OrderBy(e => e.Along).ToList();
+            var chosen = exits.FirstOrDefault(e => e.Along >= slow - 0.01);
+            if (chosen.Name == null && exits.Count > 0) chosen = exits[^1];
+            double exitAlong = chosen.Name != null ? chosen.Along : Math.Min(slow, length);
+            double target = full ? exitAlong : Math.Min(TouchdownAim + length / 3, exitAlong);
+            // Its roll, step by step (as LandingRoll: braking to the taxi speed, then on at it).
+            double s = TouchdownAim, v = speed, t = 0;
+            while (s < target && t < 300)
+            {
+                v = Math.Max(ExitSpeed, v - braking * Step);
+                s += v * Step / 3600;
+                t += Step;
+            }
+            return t + (full && chosen.Name != null ? ExitTurnSeconds : 0);
         }
 
         /// <summary>A little more than needed (NM per member): the turns and the slowing down on the final.</summary>

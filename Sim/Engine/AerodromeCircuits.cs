@@ -36,6 +36,12 @@ namespace ATCRoom.Sim
         public List<EntryGate> Gates { get; set; } = [];
         /// <summary>The runway exits (the user, 4 Nov: no taxiways, so where it leaves the runway after landing): a name and a point on the runway edge.</summary>
         public List<EntryGate> Exits { get; set; } = [];
+        /// <summary>
+        /// A formation landing, both full stop (the user, 4 Nov; it depends on the country): false, "reduced rwy separation":
+        /// the one behind touches down when the one ahead has rolled a third of the runway; true, "full rwy separation":
+        /// when the one ahead has left the runway.
+        /// </summary>
+        public bool FullRunwaySeparation { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
