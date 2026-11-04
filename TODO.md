@@ -540,3 +540,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **REMOVE and the Traffic List (the user, 4 Nov; to do):** REMOVE (Selected aircraft, the right-click menu) removes the
   aircraft but its row stays in the Traffic List. With the two lists of the PAR trainer (FLYING / WAITING): the aircraft
   out of FLYING; its plan back to WAITING (a plan of TO LIST) or gone (an aircraft of ADD NOW).
+- **Landing roll and runway exits (the user, 4 Nov; to do):** a landed aircraft is not gone at once: it stays on the
+  runway slowing down with its class's deceleration (performance.json) to an exit speed (about 15 kt) — no fixed 2/3
+  of the runway ("a Light does not need all that runway"). No taxiways in the simulation, so: runway exits clicked once
+  per aerodrome in Aerodrome (ADD EXIT, a name A, B, C..., on the runway edge; saved in the aerodrome file like the
+  gates, backwards compatible), drawn as a small mark. Each aircraft takes the first exit it reaches at the exit speed,
+  turns off across the runway edge, then it is gone; its label LANDED, its speed and EXIT B. No exits: it slows down
+  with its class and is gone where it reaches the exit speed. Later: the exit chosen from the label ("EXIT C").
