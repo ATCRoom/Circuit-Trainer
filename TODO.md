@@ -586,7 +586,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Traffic List look (the user, 4 Nov; done):** the callsigns stand out (bold, a colour of their own, in a column of
   their own at the start of each row, FLYING and WAITING); the buttons at the bottom (PAUSE, START ALL, REMOVE ALL,
   GROUP, SAVE..., LOAD..., CLEAR ALL) on one row, wrapping onto more rows only when the part is narrow.
-- **Buttons on mouse over (the user, 4 Nov; to do):** the buttons of the Traffic List (all of them) turn very light
+- **Buttons on mouse over (the user, 4 Nov; to do; "anzi, tutti i pulsanti": every button of the program, the action
+  buttons, the rows of choices (ChoiceRow, yellow chosen), the bars of the parts, Run / Pause):** they turn very light
   under the mouse and their text cannot be read: the default Windows template paints its own light hover colour under
-  our light text. Fix: a template of our own for the action buttons (everywhere, not only the Traffic List): on mouse
+  our light text. Fix: one template of our own for every button (a style for all of them): on mouse
   over a slightly lighter shade of the same blue, pressed a darker one, the text always readable; disabled greyed.
