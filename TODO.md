@@ -586,7 +586,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Traffic List look (the user, 4 Nov; done):** the callsigns stand out (bold, a colour of their own, in a column of
   their own at the start of each row, FLYING and WAITING); the buttons at the bottom (PAUSE, START ALL, REMOVE ALL,
   GROUP, SAVE..., LOAD..., CLEAR ALL) on one row, wrapping onto more rows only when the part is narrow.
-- **Buttons on mouse over (the user, 4 Nov; to do; "anzi, tutti i pulsanti": every button of the program, the action
+- **Buttons on mouse over (the user, 4 Nov; done 4 Nov; "anzi, tutti i pulsanti": every button of the program, the action
   buttons, the rows of choices (ChoiceRow, yellow chosen), the bars of the parts, Run / Pause):** they turn very light
   under the mouse and their text cannot be read: the default Windows template paints its own light hover colour under
   our light text. Fix: one template of our own for every button (a style for all of them): on mouse
@@ -595,22 +595,22 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the border turn white (the text normally a little less light, so the change shows: action buttons #B9CBD6 on
   #2F6F86, choices #A9B6C0 on #2A333C); the yellow choice chosen gets only a white border (its dark text stays); pressed
   a little darker; disabled grey. One style for every button of the program.
-- **GROUP lights up (the user, 4 Nov; to do):** with two or more rows ticked (☑, not flying) the GROUP button lights
+- **GROUP lights up (the user, 4 Nov; done):** with two or more rows ticked (☑, not flying) the GROUP button lights
   up (the yellow border of a choice, or yellow), with a message in the Traffic List "GROUP: 2 ticked → PONY01 F2";
   greyed when fewer than two are ticked. The formation takes the plan of the first row ticked (said in the message).
-- **UNGROUP (the user, 4 Nov; to do):** one row ticked that is a formation (not flying): the GROUP button becomes
+- **UNGROUP (the user, 4 Nov; done):** one row ticked that is a formation (not flying): the GROUP button becomes
   UNGROUP and lights up the same way. It splits the formation into single rows in the same place of the list: a
   formation made with GROUP gives back the rows it was made of, each with its own plan (the formation keeps them, also
   in the saved scenario: a list of the plans grouped, read back by older versions as an unknown field kept); one made
   as a formation in New aircraft gives single rows with the callsigns in sequence (PONY01, PONY02...), each with the
   formation's plan.
-- **Parts as tall as their content (the user, 4 Nov; to do; every part):** a floating part grows (and shrinks) by
+- **Parts as tall as their content (the user, 4 Nov; done; every part):** a floating part grows (and shrinks) by
   itself to show all its content without scrolling: an expander opened (Map layers, More...), rows added; the Traffic
   List too, as plans are added (no fixed height for FLYING / WAITING any more). Only when it would pass the bottom of
   the window: as tall as fits, then it scrolls. The grip in the corner stays free in both directions (the user: "libero"):
   a height set by hand holds (auto height off for that part, remembered) until a double click on the grip, or docking
   it again, gives the automatic height back.
-- **Settings and the map bar (the user, 4 Nov; to do):** Aerodrome and Simulation become one part, Settings, with
+- **Settings and the map bar (the user, 4 Nov; done; the runway in use and the sides as buttons too):** Aerodrome and Simulation become one part, Settings, with
   collapsible sections: Map (open map, runway in use, new runway), Circuits (sides, heights per class, long final and
   IP — now per aerodrome, in its file; none: 10 and 3 NM —, Formation FS), Gates and exits, Weather (METAR), Map layers.
   The controls of the lesson (Run / Pause, speed x1 x2 x4, Level 1 / Level 2) in a small bar at the top of the map,

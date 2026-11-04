@@ -14,7 +14,7 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush OnBack = new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A));
         private static readonly Brush OnText = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A));
         private static readonly Brush OffBack = new SolidColorBrush(Color.FromRgb(0x2A, 0x33, 0x3C));
-        private static readonly Brush OffText = new SolidColorBrush(Color.FromRgb(0xD6, 0xE2, 0xEC));
+        private static readonly Brush OffText = new SolidColorBrush(Color.FromRgb(0xA9, 0xB6, 0xC0));
         private static readonly Brush Edge = new SolidColorBrush(Color.FromRgb(0x5F, 0x6B, 0x75));
 
         private readonly List<(T Value, Button Button)> buttons = [];
@@ -69,6 +69,9 @@ namespace ATCRoom.TwrTrainer
                 bool on = EqualityComparer<T>.Default.Equals(v, value);
                 b.Background = on ? OnBack : OffBack;
                 b.Foreground = on ? OnText : OffText;
+                // (Under the mouse: the chosen one keeps its dark text, see ButtonStyle.)
+                b.Tag = on ? "on" : null;
+                b.BorderBrush = on ? OnBack : Edge;
             }
         }
 

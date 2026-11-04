@@ -15,6 +15,8 @@ namespace ATCRoom.TwrTrainer
         public double Width { get; set; } = 340;
         public double Height { get; set; } = 420;
         public bool Open { get; set; } = true;
+        /// <summary>A height set by hand with the grip (else: as tall as its content, the user 4 Nov).</summary>
+        public bool ManualHeight { get; set; }
     }
 
     /// <summary>
@@ -106,10 +108,24 @@ namespace ATCRoom.TwrTrainer
             };
             grip.DragDelta += (_, e) =>
             {
+                // (The height by hand from now on: kept until a double click on the grip or docking it again.)
+                if (!place.ManualHeight)
+                {
+                    place.ManualHeight = true;
+                    place.Height = Math.Max(MinHeight, floatHost.ActualHeight);
+                }
                 place.Width = Math.Max(MinWidth, place.Width + e.HorizontalChange);
                 place.Height = Math.Max(MinHeight, place.Height + e.VerticalChange);
                 Fit();
             };
+            grip.MouseDoubleClick += (_, e) =>
+            {
+                place.ManualHeight = false;
+                Fit();
+                changed();
+                e.Handled = true;
+            };
+            grip.ToolTip = "Drag to change the size; double click: as tall as its content again.";
             grip.DragCompleted += (_, _) => changed();
             Grid body = new();
             body.Children.Add(floatHost);
@@ -214,6 +230,7 @@ namespace ATCRoom.TwrTrainer
         private void Dock()
         {
             place.Floating = false;
+            place.ManualHeight = false;
             Show();
             changed();
         }
@@ -282,7 +299,18 @@ namespace ATCRoom.TwrTrainer
             double top = Math.Clamp(place.Top ?? 20, 0, Math.Max(0, layer.ActualHeight - 28));
             Canvas.SetLeft(floating, left);
             Canvas.SetTop(floating, top);
-            floatHost.Height = Math.Max(40, Math.Min(Math.Max(MinHeight, place.Height), layer.ActualHeight - top - 30));
+            double room = Math.Max(40, layer.ActualHeight - top - 30);
+            if (place.ManualHeight)
+            {
+                floatHost.MaxHeight = double.PositiveInfinity;
+                floatHost.Height = Math.Max(40, Math.Min(Math.Max(MinHeight, place.Height), room));
+            }
+            else
+            {
+                // As tall as its content (an expander opened, rows added), as far as the window allows, then it scrolls.
+                floatHost.Height = double.NaN;
+                floatHost.MaxHeight = room;
+            }
         }
 
         private static T Freeze<T>(T item) where T : Freezable

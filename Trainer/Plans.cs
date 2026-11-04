@@ -44,6 +44,8 @@ namespace ATCRoom.TwrTrainer
         public EndAction Last { get; set; } = EndAction.FullStop;
         public List<bool>? Lands { get; set; }
         public double SplitSeconds { get; set; } = 3;
+        /// <summary>A formation made with GROUP: the plans it was made of (UNGROUP gives them back).</summary>
+        public List<TowerPlan>? GroupedFrom { get; set; }
         /// <summary>Minutes after START ALL.</summary>
         public double DelayMinutes { get; set; }
 
@@ -67,7 +69,7 @@ namespace ATCRoom.TwrTrainer
         public TowerPlan Copy() => new()
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
-            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last,
+            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

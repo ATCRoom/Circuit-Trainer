@@ -15,6 +15,8 @@ namespace ATCRoom.TwrTrainer
                     "TWR Trainer", MessageBoxButton.OK, MessageBoxImage.Warning);
                 e.Handled = true;
             };
+            // (Every button: one look, readable under the mouse: the user, 4 Nov.)
+            app.Resources[typeof(System.Windows.Controls.Button)] = ButtonStyle.Make();
             app.Run(new MainWindow());
         }
     }
