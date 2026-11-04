@@ -547,3 +547,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   gates, backwards compatible), drawn as a small mark. Each aircraft takes the first exit it reaches at the exit speed,
   turns off across the runway edge, then it is gone; its label LANDED, its speed and EXIT B. No exits: it slows down
   with its class and is gone where it reaches the exit speed. Later: the exit chosen from the label ("EXIT C").
+- **Formation landing separation (the user, 4 Nov; to do):** only when both the one ahead and the one behind end with
+  a full stop, the one behind lengthens its downwind further (with the braking it came too close). Two rules, chosen in
+  Aerodrome (saved in the aerodrome file: it depends on the country):
+  - **Reduced rwy separation** (default; "in a formation the next one can be cleared with the runway occupied"): when
+    the one behind touches down, the one ahead has rolled at least a third of the runway, braking included (one that
+    leaves before a third: its exit).
+  - **Full rwy separation**: the one behind touches down only when the one ahead has left the runway at its exit.
+  Otherwise (not both FS) the spacing of now. Self-tests: overhead, 2 jets FS, with each rule.
