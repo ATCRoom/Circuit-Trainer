@@ -555,5 +555,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     leaves before a third: its exit).
   - **Full rwy separation**: the one behind touches down only when the one ahead has left the runway at its exit.
   Otherwise (not both FS) the spacing of now. Self-tests: overhead, 2 jets FS, with each rule.
-- **Exit speed 30 kt (the user, 4 Nov; to do):** the landing roll brakes down to 30 kt (not 15: "too little for the
-  taxi"), then to its exit; the self-test of the exits checks 30 kt (Light still at B, Jet at C).
+- **Exit speed (the user, 4 Nov; to do, "facciamo una prova così"):** the landing roll brakes down to 30 kt (15 was
+  "too little for the taxi"), keeps 30 kt along the runway, and near its exit slows down to 15 kt to turn off (braking of
+  its class). The exit chosen: the first one it reaches at 30 kt. Self-test: Light still at B, Jet at C, 30 kt on the way
+  and 15 kt at the exit.
+- **EXP TAXI (the user, 4 Nov; to do):** a button (label of a landed aircraft, Selected aircraft) "expedite taxi": it
+  keeps at least 45 kt along the runway, then slows down near its exit to 15 kt to turn off.
