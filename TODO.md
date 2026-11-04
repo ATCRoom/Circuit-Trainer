@@ -580,3 +580,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   gates, exits, separation rule) over the link, for the session only: kept in memory, never saved on the student's PC
   ("it is like a remote view of my position"), so the rule "maps never distributed" holds. The extended centreline is
   drawn from the runway, as now.
+- **Edit a plan (the user, 4 Nov; to do):** a click on a row of WAITING loads all its values into New aircraft; TO LIST
+  becomes UPDATE (the plan replaced in the same place of the list), ADD NOW still starts a copy at once, CANCEL (or a
+  click on another row) leaves it as it was. Also for a plan back in WAITING after it flew.
