@@ -161,6 +161,14 @@ namespace ATCRoom.Sim
         public bool StraightIn;
         /// <summary>A member of a formation going around: its turn to the downwind this many seconds later than the first one's.</summary>
         public double TurnWaitSeconds;
+        /// <summary>
+        /// The plan of the aircraft (the user, 4 Nov): the circuits still to fly, this one included (0: on and on), each
+        /// ending with a touch and go but the last one, which ends with <see cref="FinalEnd"/>; a touchdown of a touch and
+        /// go counted, taken off from (<see cref="LapTouched"/>).
+        /// </summary>
+        public int LapsLeft;
+        public EndAction FinalEnd = EndAction.FullStop;
+        public bool LapTouched;
 
         public CircuitState Copy() => (CircuitState)MemberwiseClone();
     }
@@ -538,8 +546,31 @@ namespace ATCRoom.Sim
         /// <summary>What the aircraft does at the end of each final, at once (it can be changed at any time).</summary>
         public void SetEndAction(string callsign, EndAction action) => Change(callsign, a =>
         {
-            if (a.Circuit != null) a.Circuit.End = action;
+            if (a.Circuit == null) return;
+            a.Circuit.End = action;
+            // (The instructor's end of the final: the plan of its circuits no more.)
+            a.Circuit.LapsLeft = 0;
         });
+
+        /// <summary>
+        /// The plan of its circuits (the user, 4 Nov): this many circuits (0: on and on, touch and go), each ending with a
+        /// touch and go but the last one, which ends with <paramref name="last"/>. At once.
+        /// </summary>
+        public void SetLaps(string callsign, int laps, EndAction last) => Change(callsign, a =>
+        {
+            if (a.Circuit == null) return;
+            a.Circuit.LapsLeft = Math.Max(0, laps);
+            a.Circuit.FinalEnd = last;
+            a.Circuit.End = laps <= 0 ? EndAction.TouchAndGo : laps == 1 ? last : EndAction.TouchAndGo;
+        });
+
+        /// <summary>A circuit of the plan flown (a touch and go, a go-around): one less; the last one ends as planned.</summary>
+        private static void LapDone(CircuitState circuit)
+        {
+            if (circuit.LapsLeft <= 1) return;
+            circuit.LapsLeft--;
+            circuit.End = circuit.LapsLeft == 1 ? circuit.FinalEnd : EndAction.TouchAndGo;
+        }
 
         /// <summary>Where the overhead pattern breaks, at once: middle (default), beginning, end, a point along the runway track (NM from the threshold), or standby.</summary>
         public void SetBreak(string callsign, BreakPoint where, double alongNM = double.NaN) => Change(callsign, a =>
@@ -1273,6 +1304,7 @@ namespace ATCRoom.Sim
             CircuitState? circuit = plane.Circuit;
             if (circuit == null || circuit.Suspended || circuit.HasPad || circuit.End is not (EndAction.TouchAndGo or EndAction.Departure)) return false;
             plane.Contact = GroundContact.Rolling;
+            circuit.LapTouched = true;
             circuit.RollTime = 0;
             circuit.OnFinal = false;
             plane.AltitudeFt = runwayElevation;
@@ -1308,9 +1340,16 @@ namespace ATCRoom.Sim
                 plane.SpeedKt = Math.Max(plane.SpeedKt, liftOff);
                 plane.AltitudeFt = runwayElevation + 1;
                 NextCircuit(circuit);
+                // (A circuit of its plan flown: the next one's end; the end of this one decides what it does now.)
+                EndAction flown = circuit.End;
+                if (circuit.LapTouched)
+                {
+                    circuit.LapTouched = false;
+                    LapDone(circuit);
+                }
                 double upwind = Math.Max(UpwindAlong(circuit.Type, kind), along + 0.3);
                 double height = runwayElevation + CircuitHeight(circuit.Type, kind);
-                if (circuit.End == EndAction.Departure)
+                if (flown == EndAction.Departure)
                 {
                     circuit.Departed = true;
                     GiveRoute(plane, [Point(upwind, 0, circuit.Side, height, kind.CircuitSpeedKt, "UPWIND"), Point(upwind + 10, 0, circuit.Side, height, kind.CircuitSpeedKt, "DEPARTURE")]);
@@ -1340,6 +1379,7 @@ namespace ATCRoom.Sim
             circuit.OnFinal = false;
             circuit.Departed = false;
             NextCircuit(circuit);
+            LapDone(circuit);
             (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double upwind = Math.Max(UpwindAlong(circuit.Type, plane.Class), along + 0.5);
             RoutePoint up = Point(upwind, 0, circuit.Side, runwayElevation + CircuitHeight(circuit.Type, plane.Class), plane.Class.CircuitSpeedKt, "UPWIND");

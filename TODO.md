@@ -523,3 +523,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   FLYING (a row per aircraft: callsign, height, speed, leg; II/▶, ↺ its plan again, ✕) and WAITING (the plans not
   started: ☐ ▶ ⏸ ⧉ ✕); thin one-line rows (11 pt, monospace), each list up to about 8 rows then it scrolls; ADD NOW only
   in FLYING (a plan only with TO LIST).
+- **New aircraft simpler (the user, 4 Nov; done): "anyone must be able to set it up; I must think of nothing until I
+  want to step in".** A plan is the whole flight: Circuits 1/2/3/4/∞ (each a touch and go but the last) and Last FS /
+  DEP (LOW left out: what after it would be unclear); the instructor's end of the final (NEXT, At the end) ends the plan.
+  The Land row out of New aircraft (all land; the rules decide; LAND stays in the label). Jet the default class. The
+  crossing's To / Via only with TRANSIT, Interval s only for a formation; Callsign, Height ft, Delay min under More….
+- **Spacing after the split (the user, 4 Nov; done):** "they keep the interval of the break down to the runway; in
+  reality each one lengthens its downwind to be at least a third of the runway after the one before": each member
+  after the split (and each one going around from a formation) moves the end of its downwind and its turn to the base /
+  final further out, by what the interval does not give (a third of the runway at the final speed), plus a margin.

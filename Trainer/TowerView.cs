@@ -522,7 +522,7 @@ namespace ATCRoom.TwrTrainer
             else if (a.Circuit is CircuitType type)
             {
                 string circuit = PendingCircuit is CircuitType pending ? $"Ⓒ {Short(pending)}?" : $"Ⓒ {Short(type)}";
-                rows.Add([("CIRC", circuit, false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", $"NEXT {EndShort(a.EndAction)}", false)]);
+                rows.Add([("CIRC", circuit, false), ("SIDE", a.CircuitSide == CircuitSide.Left ? "L" : "R", false), ("NEXT", a.LapsLeft > 1 ? $"NEXT {EndShort(a.EndAction)} ({a.LapsLeft} left)" : $"NEXT {EndShort(a.EndAction)}", false)]);
                 List<(string, string, bool)> buttons = [];
                 if (type == CircuitType.Overhead)
                 {

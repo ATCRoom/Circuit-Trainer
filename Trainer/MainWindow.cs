@@ -88,7 +88,12 @@ namespace ATCRoom.TwrTrainer
         /// <summary>A formation (the user, 4 Nov): how many, which of them land together, the seconds between them at the split.</summary>
         private readonly ChoiceRow<int> formationRow = new([(1, "1"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
             ? "Alone." : $"A formation of {n}: one label until it splits (its wingmen: the numbers after the leader's: VIPER01, 02...).");
-        private readonly ToggleRow landRow = new(i => i == 0 ? "The leader: lands (yellow) or goes around." : $"Wingman {i + 1}: lands (yellow) or goes around (alone, close pattern).");
+        /// <summary>The plan of the circuits: how many (0: on and on, touch and go), how the last one ends.</summary>
+        private readonly ChoiceRow<int> lapsRow = new([(1, "1"), (2, "2"), (3, "3"), (4, "4"), (0, "∞")], (n, _) => n == 0
+            ? "Circuits on and on, each with a touch and go (until you change it)." : n == 1 ? "One circuit, ended as in Last." : $"{n} circuits: {n - 1} with a touch and go, the last ended as in Last.");
+        private readonly ChoiceRow<EndAction> lastRow = new([(EndAction.FullStop, "FS"), (EndAction.Departure, "DEP")], (end, _) => end == EndAction.FullStop
+            ? "The last circuit ends with a full stop (landed, then gone)." : "The last circuit ends with a touch and go, then it leaves straight ahead.");
+        private Grid toLine = null!, viaLine = null!, intervalLine = null!;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
@@ -105,7 +110,6 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => ChoiceTip(t));
         private ChoiceRow<string> classRow = new([]);
         private readonly StackPanel classHolder = new();
-        private readonly ChoiceRow<EndAction> endRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)), (_, t) => ChoiceTip(t));
         private readonly TextBox callsignBox = new() { Width = 90 };
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
@@ -169,7 +173,9 @@ namespace ATCRoom.TwrTrainer
             engine.SetPerformanceClasses(classes);
             foreach (PerformanceClass kind in engine.Classes) heightClassBox.Items.Add(kind.Name);
             classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its values in performance.json; its heights at this aerodrome above).");
-            classRow.Show(engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name);
+            // (The user, 4 Nov: the jet by default, the most used.)
+            classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
+                ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
             classHolder.Children.Add(classRow);
             heightClassBox.SelectedIndex = heightClassBox.Items.Count > 0 ? 0 : -1;
             if (note != null) Say(note);
@@ -327,8 +333,8 @@ namespace ATCRoom.TwrTrainer
             Note("From an entry gate (it joins its circuit by itself), the long final, the runway (a take-off) or PTRN (already in the circuit, for tests). Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
             Row("From", fromHolder, null, 62);
             Row("Type", typeRow, null, 62);
-            Row("To", toHolder, null, 62);
-            Row("Via", viaRow, null, 62);
+            toLine = Row("To", toHolder, null, 62);
+            viaLine = Row("Via", viaRow, null, 62);
             typeRow.Show(false);
             viaRow.Show(true);
             typeRow.Picked += _ => ShowEntries();
@@ -336,19 +342,18 @@ namespace ATCRoom.TwrTrainer
             Row("Circuit", circuitRow, null, 62);
             Row("Side", sideRow, null, 62);
             Row("Class", classHolder, null, 62);
+            // (The user, 4 Nov: a plan is the whole flight: how many circuits, how the last one ends; nothing else to think of.)
+            Row("Circuits", lapsRow, null, 62);
+            Row("Last", lastRow, null, 62);
             Row("Formation", formationRow, null, 62);
-            Row("Land", landRow, null, 62);
-            Row("Interval s", splitRow, null, 62);
+            intervalLine = Row("Interval s", splitRow, null, 62);
             formationRow.Show(1);
             splitRow.Show(3.0);
-            landRow.Set(["LEAD"]);
-            formationRow.Picked += n =>
-            {
-                landRow.Set(Enumerable.Range(0, n).Select(i => i == 0 ? "LEAD" : $"{i + 1}").ToList());
-                landRow.IsEnabled = splitRow.IsEnabled = n > 1;
-            };
-            landRow.IsEnabled = splitRow.IsEnabled = false;
-            Row("At the end", endRow, null, 62);
+            lapsRow.Show(1);
+            lastRow.Show(EndAction.FullStop);
+            formationRow.Picked += n => intervalLine.Visibility = n > 1 ? Visibility.Visible : Visibility.Collapsed;
+            intervalLine.Visibility = Visibility.Collapsed;
+            lapsRow.Picked += laps => lastRow.IsEnabled = laps != 0;
             // (The user, 3 Nov: IP is the overhead's, HK the SFO's; after a take-off only the conventional or the wide.)
             entryRow.Picked += entry =>
             {
@@ -379,12 +384,14 @@ namespace ATCRoom.TwrTrainer
             entryRow.Show(CircuitEntry.Downwind);
             circuitRow.Show(CircuitType.Conventional);
             sideRow.Show(null);
-            endRow.Show(EndAction.TouchAndGo);
             RebuildFrom();
-            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
-            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, 62);
+            // The rest when wanted (the user, 4 Nov): closed.
+            StackPanel more = new();
+            current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
+            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
+            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
-            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center }), null, 62);
+            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
             current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO LIST", AddPlan)));
 
             current = trafficContent;
@@ -660,7 +667,7 @@ namespace ATCRoom.TwrTrainer
             return button;
         }
 
-        private void Row(string label, UIElement control, Panel? into = null, double labelWidth = 130)
+        private Grid Row(string label, UIElement control, Panel? into = null, double labelWidth = 130)
         {
             Grid grid = new() { Margin = new Thickness(0, 2, 0, 2) };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelWidth) });
@@ -670,6 +677,7 @@ namespace ATCRoom.TwrTrainer
             Grid.SetColumn(control, 1);
             grid.Children.Add(control);
             (into ?? current ?? panel).Children.Add(grid);
+            return grid;
         }
 
         /// <summary>Boxes side by side, each with its name above it.</summary>
@@ -1009,9 +1017,11 @@ namespace ATCRoom.TwrTrainer
                 Entry = entryRow.Value,
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
-                End = endRow.Value,
+                End = (lapsRow.HasValue ? lapsRow.Value : 1) == 1 ? lastRow.Value : EndAction.TouchAndGo,
+                Laps = lapsRow.HasValue ? lapsRow.Value : 1,
+                Last = lastRow.Value,
                 Formation = formationRow.HasValue ? formationRow.Value : 1,
-                Lands = formationRow.HasValue && formationRow.Value > 1 ? landRow.Values.ToList() : null,
+                Lands = null,
                 SplitSeconds = splitRow.HasValue ? splitRow.Value : 3,
                 Transit = typeRow.HasValue && typeRow.Value,
                 To = toRow.HasValue ? toRow.Value ?? "" : "",
@@ -1040,7 +1050,10 @@ namespace ATCRoom.TwrTrainer
         private string? Launch(TowerPlan plan, out string added)
         {
             string? error = LaunchOne(plan, out added);
-            if (error != null || plan.Formation <= 1) return error;
+            if (error != null) return error;
+            // The plan of its circuits (a crossing has none).
+            if (plan.Laps is int laps && !plan.Transit) commands.SetLaps(added, laps, plan.Last);
+            if (plan.Formation <= 1) return null;
             // A formation: the aircraft added leads it (its wingmen after its number).
             error = commands.MakeFormation(added, plan.Formation, plan.Lands, plan.SplitSeconds);
             if (error != null)
@@ -1105,7 +1118,9 @@ namespace ATCRoom.TwrTrainer
         {
             string side = p.Side is CircuitSide s ? (s == CircuitSide.Left ? " L" : " R") : "";
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
-            string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
+            string end = p.Laps is int laps
+                ? (laps == 0 ? "∞ T/G" : laps == 1 ? TowerCommands.Ends.FirstOrDefault(e => e.End == p.Last).Short ?? "" : $"{laps}× → {TowerCommands.Ends.FirstOrDefault(e => e.End == p.Last).Short}")
+                : TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
@@ -1408,7 +1423,10 @@ namespace ATCRoom.TwrTrainer
             string from = fromRow.Value ?? "";
             bool transit = typeRow.HasValue && typeRow.Value;
             toRow.IsEnabled = viaRow.IsEnabled = transit;
-            circuitRow.IsEnabled = sideRow.IsEnabled = endRow.IsEnabled = !transit;
+            circuitRow.IsEnabled = sideRow.IsEnabled = lapsRow.IsEnabled = lastRow.IsEnabled = !transit;
+            if (!transit && lapsRow.HasValue && lapsRow.Value == 0) lastRow.IsEnabled = false;
+            // (The crossing's rows only for a crossing.)
+            toLine.Visibility = viaLine.Visibility = transit ? Visibility.Visible : Visibility.Collapsed;
             entryRow.IsEnabled = !transit && from != From.Runway;
             bool circuit = from == From.InCircuit;
             bool longFinal = from == From.LongFinal;

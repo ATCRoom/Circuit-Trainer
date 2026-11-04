@@ -1606,9 +1606,15 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         List<int> gaps = allBroke ? names.Skip(1).Select((n, i) => brokeAt[n] - brokeAt[names[i]]).ToList() : [];
         bool allLanded = names.All(n => LandedOnRunway(TrackOf(all, n)));
         bool downwinds = names.All(n => TrackOf(all, n).Any(st => st.Leg == "DOWNWIND"));
-        Check(alone > 10 && !splitEarly && allBroke && gaps.All(g => g >= 2 && g <= 4) && downwinds && allLanded,
-            "Formation (overhead, 4 jets): one aircraft until the break, each breaks about 3 s after the one before, each lands",
-            $"together {alone} s, gaps {string.Join(" ", gaps)} s, landed {names.Count(n => LandedOnRunway(TrackOf(all, n)))} of 4");
+        // (The user, 4 Nov: on the runway at least a third of it after the one before: the downwinds lengthened.)
+        Dictionary<string, int> down = [];
+        for (int t = 0; t < all.Count; t++)
+            foreach (AircraftState st in all[t]) if (st.Contact != GroundContact.Airborne && !down.ContainsKey(st.Callsign)) down[st.Callsign] = t;
+        double finalKt = PerformanceClass.Defaults().First(k => k.Name == "Jet").FinalSpeedKt;
+        List<double> spacing = names.All(down.ContainsKey) ? names.Skip(1).Select((n, i) => (down[n] - down[names[i]]) * finalKt / 3600).ToList() : [];
+        Check(alone > 10 && !splitEarly && allBroke && gaps.All(g => g >= 2 && g <= 4) && downwinds && allLanded && spacing.Count == 3 && spacing.All(d => d >= CircuitLength / 3 * 0.9),
+            "Formation (overhead, 4 jets): one aircraft until the break, each breaks about 3 s after the one before, each lands a third of the runway after the one before",
+            $"together {alone} s, gaps {string.Join(" ", gaps)} s, landed {names.Count(n => LandedOnRunway(TrackOf(all, n)))} of 4, apart on the runway {string.Join(" ", spacing.Select(d => d.ToString("F2")))} NM");
         foreach (string n in names) pictures.Add(($"Formation overhead: {n}", TrackOf(all, n)));
     }
 
@@ -1659,6 +1665,18 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(pairLanding && threeAround && LandedOnRunway(TrackOf(all, "VIPER01")) && allowed && cobraA != null && cobraB != null && cobraA.Formation == null
             && cobraB.Circuit == CircuitType.Conventional && cobraB.Leg == "DOWNWIND",
             "Formation (conventional, 3): two land together, the third goes around; SPLIT on the downwind: two aircraft in the circuit");
+    }
+
+    // 39. The plan of its circuits (the user, 4 Nov): 3 circuits, the first two with a touch and go, the last a full stop.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        sim.SetLaps(cs, 3, EndAction.FullStop);
+        List<AircraftState> flown = Fly(sim, cs, 2400);
+        int touches = 0;
+        for (int i = 1; i < flown.Count; i++) if (flown[i].Contact == GroundContact.Rolling && flown[i - 1].Contact == GroundContact.Airborne) touches++;
+        Check(touches == 2 && LandedOnRunway(flown) && sim.Get(cs) == null && flown[0].LapsLeft == 3,
+            "Circuits of the plan: 3 circuits, two touch and go, then a full stop", $"{touches} touch and go");
     }
 
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside

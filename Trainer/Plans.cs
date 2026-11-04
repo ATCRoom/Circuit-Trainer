@@ -39,6 +39,9 @@ namespace ATCRoom.TwrTrainer
         public bool Overhead { get; set; }
         /// <summary>A formation (the user, 4 Nov): how many (1: alone), which land together (null: all), the seconds between them at the split.</summary>
         public int Formation { get; set; } = 1;
+        /// <summary>The plan of its circuits (the user, 4 Nov): how many (0: on and on), the last one's end. Null (the first scenarios): <see cref="End"/> every time.</summary>
+        public int? Laps { get; set; }
+        public EndAction Last { get; set; } = EndAction.FullStop;
         public List<bool>? Lands { get; set; }
         public double SplitSeconds { get; set; } = 3;
         /// <summary>Minutes after START ALL.</summary>
@@ -62,7 +65,7 @@ namespace ATCRoom.TwrTrainer
         public TowerPlan Copy() => new()
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
-            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds,
+            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

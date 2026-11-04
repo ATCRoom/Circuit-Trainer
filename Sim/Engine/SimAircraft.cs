@@ -124,7 +124,9 @@ namespace ATCRoom.Sim
         // A formation: its members (the leader first; null: alone), which land together, and whether SPLIT can be given now.
         IReadOnlyList<string>? Formation = null,
         IReadOnlyList<bool>? Lands = null,
-        bool SplitAllowed = false);
+        bool SplitAllowed = false,
+        // The circuits of its plan still to fly, this one included (0: on and on).
+        int LapsLeft = 0);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -227,6 +229,7 @@ namespace ATCRoom.Sim
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
             Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
-            Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed);
+            Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
+            Circuit?.LapsLeft ?? 0);
     }
 }

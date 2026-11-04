@@ -103,11 +103,42 @@ namespace ATCRoom.Sim
                 SimAircraft wingman = Member(lead, lead.Wingmen[i]);
                 Echelon(wingman, lead, n);
                 Delay(wingman, lead.SplitSeconds * n);
+                Spacing(wingman, n, lead.SplitSeconds);
                 spawned.Add(wingman);
             }
             lead.Wingmen = [];
             lead.Lands = [];
         }
+
+        /// <summary>
+        /// The n-th member after the split lengthens its downwind (the user, 4 Nov: as in reality, to land at least a third
+        /// of the runway after the one before): the end of its downwind and its turn to the base (or the final) further
+        /// out, by what the interval does not give: the time of a third of the runway at the final speed, less the
+        /// interval, flown out and back along the downwind.
+        /// </summary>
+        private void Spacing(SimAircraft member, int n, double intervalSeconds)
+        {
+            if (n <= 0 || member.Circuit == null || member.Route == null || double.IsNaN(glidePathCourse)) return;
+            CircuitSide side = member.Circuit.Side;
+            double third = Math.Max(runwayLength, 0.3) / 3;
+            double needed = third / Math.Max(30, member.Class.FinalSpeedKt) * 3600;
+            double extra = Math.Max(0, needed - intervalSeconds) * Math.Max(30, member.Class.CircuitSpeedKt) / 3600 / 2;
+            if (extra <= 0.01) return;
+            double shift = extra * n + SpacingMarginNM * n;
+            List<RoutePoint> route = member.Route.ToList();
+            int end = route.FindLastIndex(p => p.Name == "DOWNWIND" && !p.Turn180);
+            if (end < 0 || end + 1 >= route.Count || end < member.RouteNext - 1) return;
+            for (int i = end; i <= end + 1; i++)
+            {
+                (double along, double lateral) = RunwayFrame(route[i].X, route[i].Y, side);
+                (double x, double y) = FromRunway(along - shift, lateral, side);
+                route[i] = route[i] with { X = x, Y = y };
+            }
+            member.Route = route.ToArray();
+        }
+
+        /// <summary>A little more than needed (NM per member): the turns and the slowing down on the final.</summary>
+        private const double SpacingMarginNM = 0.05;
 
         /// <summary>The n-th place of the echelon: behind and outside the leader (away from the side of the turns: a left-hand circuit, to the right).</summary>
         private static void Echelon(SimAircraft member, SimAircraft lead, int n)
@@ -210,6 +241,7 @@ namespace ATCRoom.Sim
                 // Side by side on the climb out, each turning to the downwind one interval after the one before.
                 if (going[k] != 0) Echelon(goer, plane, k + 1);
                 mine.TurnWaitSeconds = interval * k;
+                Spacing(goer, k, interval);
             }
             // Into the traffic: the ones going around and the leader of the landing ones (the others stay its wingmen).
             for (int i = 1; i < made.Count; i++) if (going.Contains(i) || (landing.Count > 0 && i == landing[0])) spawned.Add(made[i]);

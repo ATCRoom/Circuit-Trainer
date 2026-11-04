@@ -105,6 +105,9 @@ namespace ATCRoom.TwrTrainer
 
         public void Split(string callsign) => engine.SplitFormation(callsign);
 
+        /// <summary>The plan of its circuits: how many (0: on and on), the last one's end.</summary>
+        public void SetLaps(string callsign, int laps, EndAction last) => engine.SetLaps(callsign, laps, last);
+
         public void FormationLanding(string callsign, IReadOnlyList<bool> lands) => engine.SetFormationLanding(callsign, lands);
 
         /// <summary>AUTO: the height (the speed) of its circuit or its way again.</summary>
