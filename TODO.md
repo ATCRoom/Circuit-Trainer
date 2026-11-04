@@ -575,3 +575,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   family tile, TWR in orange, the runway from above, the circuit dashed light blue, the white aircraft on the downwind.
   To do: TWRTrainer.ico (256, 48, 32, 16; matched in size to the other ATCRoom icons; 32 and 16 px with thicker strokes),
   ApplicationIcon in the project and the window icon.
+- **The student's map (the user, 4 Nov; decided, for step 4c):** the student makes nothing: when the two PCs connect,
+  the instructor's program sends the map (made with Map Creator) and the aerodrome file (runway in use, sides, heights,
+  gates, exits, separation rule) over the link, for the session only: kept in memory, never saved on the student's PC
+  ("it is like a remote view of my position"), so the rule "maps never distributed" holds. The extended centreline is
+  drawn from the runway, as now.
