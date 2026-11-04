@@ -604,3 +604,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   in the saved scenario: a list of the plans grouped, read back by older versions as an unknown field kept); one made
   as a formation in New aircraft gives single rows with the callsigns in sequence (PONY01, PONY02...), each with the
   formation's plan.
+- **Parts as tall as their content (the user, 4 Nov; to do; every part):** a floating part grows (and shrinks) by
+  itself to show all its content without scrolling: an expander opened (Map layers, More...), rows added; the Traffic
+  List too, as plans are added (no fixed height for FLYING / WAITING any more). Only when it would pass the bottom of
+  the window: as tall as fits, then it scrolls. The grip in the corner sets the width (the height follows the content).
