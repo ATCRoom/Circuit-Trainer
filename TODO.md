@@ -513,3 +513,5 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   aircraft already flying into a formation).
 - **The empty column (the user, 4 Nov; to do):** all the parts floating: the column on the right hidden, the map on the
   whole width of the window; a part docked again (⇲, double click on its bar): the column back.
+- **Split s renamed (the user, 4 Nov; to do):** the row "Split s" of New aircraft becomes "Interval s" (the seconds
+  between one aircraft and the next when the formation splits).
