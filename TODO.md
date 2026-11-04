@@ -623,3 +623,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (proposed): a right click on L1 or L2 keeps the view of now (centre and zoom) in that button, saved with the
   aerodrome (each field its own); a click (or F1 / F2) goes back to it; in the right click a "Default" item gives the
   10 / 20 NM back.
+- **Order of the Traffic List by drag and drop (the user, 4 Nov; to do):** the rows moved above or below the others,
+  as a list of priorities: a grip ⋮⋮ at the start of each row (FLYING and WAITING) dragged up or down, a line showing
+  where it goes. WAITING: the order of the plans (saved in the scenario; START ALL with the same delay: in this order).
+  FLYING: an order of the instructor's (new aircraft at the bottom, the gone ones out), kept while the program runs.
