@@ -607,4 +607,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Parts as tall as their content (the user, 4 Nov; to do; every part):** a floating part grows (and shrinks) by
   itself to show all its content without scrolling: an expander opened (Map layers, More...), rows added; the Traffic
   List too, as plans are added (no fixed height for FLYING / WAITING any more). Only when it would pass the bottom of
-  the window: as tall as fits, then it scrolls. The grip in the corner sets the width (the height follows the content).
+  the window: as tall as fits, then it scrolls. The grip in the corner stays free in both directions (the user: "libero"):
+  a height set by hand holds (auto height off for that part, remembered) until a double click on the grip, or docking
+  it again, gives the automatic height back.
