@@ -511,3 +511,5 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   most 2), the others go around alone into the close pattern (CLS by default), one interval apart. New aircraft:
   Formation 1-4, Land, Split s; Traffic List: GROUP the rows ticked (before the flight). Later idea: rendezvous (joining
   aircraft already flying into a formation).
+- **The empty column (the user, 4 Nov; to do):** all the parts floating: the column on the right hidden, the map on the
+  whole width of the window; a part docked again (⇲, double click on its bar): the column back.
