@@ -1283,7 +1283,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The callsign of a plan (with its formation) and the rest of its text.</summary>
-        private static (string Callsign, string Rest) PlanParts(TowerPlan p)
+        private static (string Callsign, string Detail) PlanParts(TowerPlan p)
         {
             string callsign = (p.Callsign.Length > 0 ? p.Callsign : "(auto)") + (p.Formation > 1 ? $" F{p.Formation}" : "");
             string text = PlanText(p);
@@ -1407,7 +1407,7 @@ namespace ATCRoom.TwrTrainer
                     TowerPlan.State.Held => "HELD ",
                     _ => ""
                 };
-                text.Text = state + PlanParts(plan).Rest;
+                text.Text = state + PlanParts(plan).Detail;
                 hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
             }
             IReadOnlyList<AircraftState> traffic = engine.Snapshot();
