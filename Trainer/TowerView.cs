@@ -435,28 +435,31 @@ namespace ATCRoom.TwrTrainer
                     foreach (Point p in trail) dc.DrawEllipse(brush, null, ToScreen(p.X, p.Y), 1.3, 1.3);
                 }
                 Point at = ToScreen(a.X, a.Y);
-                Pen pen = new(brush, 1.4);
+                // (A formation: a larger symbol, the user 4 Nov.)
+                bool formation = a.Formation is { Count: > 1 };
+                double size = formation ? 8 : 4;
+                Pen pen = new(brush, formation ? 2.2 : 1.4);
                 if (a.PerformanceClass.Equals("Helicopter", StringComparison.OrdinalIgnoreCase))
                 {
                     StreamGeometry diamond = new();
                     using (StreamGeometryContext c = diamond.Open())
                     {
-                        c.BeginFigure(new Point(at.X, at.Y - 5), false, true);
-                        c.LineTo(new Point(at.X + 5, at.Y), true, false);
-                        c.LineTo(new Point(at.X, at.Y + 5), true, false);
-                        c.LineTo(new Point(at.X - 5, at.Y), true, false);
+                        c.BeginFigure(new Point(at.X, at.Y - size - 1), false, true);
+                        c.LineTo(new Point(at.X + size + 1, at.Y), true, false);
+                        c.LineTo(new Point(at.X, at.Y + size + 1), true, false);
+                        c.LineTo(new Point(at.X - size - 1, at.Y), true, false);
                     }
                     dc.DrawGeometry(null, pen, diamond);
                 }
                 else
                 {
-                    dc.DrawEllipse(null, pen, at, 4, 4);
+                    dc.DrawEllipse(null, pen, at, size, size);
                 }
                 // Where it will be in 30 s (heading and speed over the ground).
                 double vector = a.GroundSpeedKt / 3600 * 30;
                 double track = a.TrackTrue * Math.PI / 180;
                 dc.DrawLine(pen, at, ToScreen(a.X + vector * Math.Sin(track), a.Y + vector * Math.Cos(track)));
-                string line1 = a.Callsign;
+                string line1 = a.Formation is { Count: > 1 } members ? $"{a.Callsign} F{members.Count}" : a.Callsign;
                 string line2 = $"{Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt) / 100)):000} {Math.Round(a.GroundSpeedKt):0}";
                 if (selected)
                 {
@@ -493,9 +496,17 @@ namespace ATCRoom.TwrTrainer
             string next = a.NextCircuit is CircuitType n ? $"  >{Short(n)}" : "";
             List<List<(string Field, string Text, bool Button)>> rows =
             [
-                [("", $"{a.Callsign}  {a.PerformanceClass}", false)],
+                [("", a.Formation is { Count: > 1 } team ? $"{a.Callsign} F{team.Count} ({team[0]}–{Number(team[^1])})  {a.PerformanceClass}" : $"{a.Callsign}  {a.PerformanceClass}", false)],
                 [("ALT", HeightText(a), false), ("SPD", SpeedText(a), false), ("", $"{a.Leg}{next}", false)]
             ];
+            if (a.Formation is { Count: > 1 } crew)
+            {
+                // The members that land together (yellow: they land; the others go around), and SPLIT where it can be given.
+                List<(string, string, bool)> land = [("", "LAND", false)];
+                for (int i = 0; i < crew.Count; i++) land.Add(($"LAND={i}", Number(crew[i]), a.Lands == null || i >= a.Lands.Count || a.Lands[i]));
+                if (a.SplitAllowed) land.Add(("SPLIT", "SPLIT", true));
+                rows.Add(land);
+            }
             // The buttons of the height or the speed clicked (any aircraft): AUTO (its circuit's again) and the values.
             List<(string, string, bool)> values = strip switch
             {
@@ -604,6 +615,14 @@ namespace ATCRoom.TwrTrainer
             return text;
         }
 
+        /// <summary>The number at the end of a callsign (VIPER03: 03), else the callsign.</summary>
+        private static string Number(string callsign)
+        {
+            int digits = 0;
+            while (digits < callsign.Length && char.IsAsciiDigit(callsign[callsign.Length - 1 - digits])) digits++;
+            return digits > 0 ? callsign[^digits..] : callsign;
+        }
+
         private static string Short(CircuitType type) => type switch
         {
             CircuitType.Close => "CLS",
@@ -700,7 +719,7 @@ namespace ATCRoom.TwrTrainer
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             Point at = e.GetPosition(this);
-            if (Selected != null && FieldAt(at) is ("NEXT" or "BRK" or "CIRC" or "ALT" or "SPD") and string field)
+            if (Selected != null && FieldAt(at) is string field && (field is "NEXT" or "BRK" or "CIRC" or "ALT" or "SPD" || field.StartsWith("LAND=", StringComparison.Ordinal)))
             {
                 FieldWheel?.Invoke(Selected, field, e.Delta < 0 ? 1 : -1);
                 e.Handled = true;

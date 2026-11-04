@@ -63,6 +63,8 @@ namespace ATCRoom.TwrTrainer
             ? "On the map only the station, the time, the wind and the QNH of the METAR." : "On the map the whole METAR.");
         private string appVersion = "";
         private readonly Button pauseButton = new();
+        /// <summary>The same RUN / PAUSE in the Traffic List.</summary>
+        private readonly Button trafficPauseButton = new() { Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 4, 0, 0) };
         private readonly ComboBox speedBox = Combo<double>([(1.0, "x1"), (2.0, "x2"), (4.0, "x4")]);
         private readonly TextBox longFinalBox = new() { Width = 45 };
         private readonly TextBox initialPointBox = new() { Width = 45 };
@@ -83,6 +85,11 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<bool> viaRow = new([(false, "DIRECT"), (true, "OVERHEAD")], (overhead, _) => overhead
             ? "Crossing over the field (the middle of the runway), then to the gate To." : "Crossing straight from gate to gate.");
         private readonly TextBox arrivalBox = new() { Width = 55 };
+        /// <summary>A formation (the user, 4 Nov): how many, which of them land together, the seconds between them at the split.</summary>
+        private readonly ChoiceRow<int> formationRow = new([(1, "1"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
+            ? "Alone." : $"A formation of {n}: one label until it splits (its wingmen: the numbers after the leader's: VIPER01, 02...).");
+        private readonly ToggleRow landRow = new(i => i == 0 ? "The leader: lands (yellow) or goes around." : $"Wingman {i + 1}: lands (yellow) or goes around (alone, close pattern).");
+        private readonly ChoiceRow<double> splitRow = new([(0.0, "0"), (3.0, "3"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
         private readonly List<TowerPlan> plans = [];
@@ -91,6 +98,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The panel the helpers add to (a section while it is built).</summary>
         private Panel current = null!;
         // The order buttons of the selected aircraft (grey when they do not apply).
+        private Button splitButton = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
             orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
@@ -112,7 +120,10 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The four parts of the panel (in the column or floating).</summary>
         private DockablePart aerodromePart = null!, simulationPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!;
         private readonly StackPanel aerodromeContent = new(), simulationContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
-        private readonly TextBlock message = new() { TextWrapping = TextWrapping.Wrap, Foreground = WarnBrush, Margin = new Thickness(0, 8, 0, 0) };
+        /// <summary>Where a message is shown: in the part it is about (the user, 3 Nov), one line each.</summary>
+        private enum Area { Aerodrome, Simulation, New, Traffic, Selected }
+        private readonly Dictionary<Area, TextBlock> messages = Enum.GetValues<Area>().ToDictionary(area => area,
+            _ => new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = WarnBrush, Margin = new Thickness(0, 6, 0, 0) });
 
         public MainWindow()
         {
@@ -142,7 +153,7 @@ namespace ATCRoom.TwrTrainer
             view.FieldWheel += LabelWheel;
             view.SpeedChoices = SpeedChoices;
             view.MenuAsked += callsign => OpenMenu(Menu(callsign));
-            view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back)."); };
+            view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back).", Area.Selected); };
             Loaded += (_, _) => Start();
             Closing += (_, _) => settings.Save();
             PreviewKeyDown += OnKeys;
@@ -308,7 +319,7 @@ namespace ATCRoom.TwrTrainer
             Row("Long final / IP NM", Inline(longFinalBox, initialPointBox));
             longFinalBox.LostFocus += (_, _) => ApplyDistances();
             initialPointBox.LostFocus += (_, _) => ApplyDistances();
-            Buttons(("Remove all aircraft", () => { engine.Clear(); view.Select(null); }));
+            Buttons(("Remove all aircraft", RemoveAllAircraft));
             Expander layersBox = new() { Header = "Map layers", Content = layers, Foreground = TextBrush, Margin = new Thickness(0, 6, 0, 0) };
             current.Children.Add(layersBox);
 
@@ -325,6 +336,18 @@ namespace ATCRoom.TwrTrainer
             Row("Circuit", circuitRow, null, 62);
             Row("Side", sideRow, null, 62);
             Row("Class", classHolder, null, 62);
+            Row("Formation", formationRow, null, 62);
+            Row("Land", landRow, null, 62);
+            Row("Split s", splitRow, null, 62);
+            formationRow.Show(1);
+            splitRow.Show(3.0);
+            landRow.Set(["LEAD"]);
+            formationRow.Picked += n =>
+            {
+                landRow.Set(Enumerable.Range(0, n).Select(i => i == 0 ? "LEAD" : $"{i + 1}").ToList());
+                landRow.IsEnabled = splitRow.IsEnabled = n > 1;
+            };
+            landRow.IsEnabled = splitRow.IsEnabled = false;
             Row("At the end", endRow, null, 62);
             // (The user, 3 Nov: IP is the overhead's, HK the SFO's; after a take-off only the conventional or the wide.)
             entryRow.Picked += entry =>
@@ -338,13 +361,13 @@ namespace ATCRoom.TwrTrainer
             {
                 if (fromRow.Value == From.Runway && type is not (CircuitType.Conventional or CircuitType.Wide))
                 {
-                    Say("After a take-off: the conventional or the wide circuit (or DEP at the end).");
+                    Say("After a take-off: the conventional or the wide circuit (or DEP at the end).", Area.New);
                     circuitRow.Show(CircuitType.Conventional);
                     return;
                 }
                 if (fromRow.Value == From.LongFinal && type is CircuitType.Overhead or CircuitType.Sfo)
                 {
-                    Say("From the long final: the conventional, close or wide circuit (or CIRCLING).");
+                    Say("From the long final: the conventional, close or wide circuit (or CIRCLING).", Area.New);
                     circuitRow.Show(CircuitType.Conventional);
                     return;
                 }
@@ -365,9 +388,12 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(ActionRow(("ADD NOW", AddAircraft), ("TO LIST", AddPlan)));
 
             current = trafficContent;
-            Note("▶ start now · ⏸ hold / go on · ⧉ duplicate · ✕ remove. START ALL: each after its delay.");
+            Note("☐ tick (GROUP) · ▶ start now · ⏸ hold, or freeze it flying · ⧉ duplicate · ✕ remove (and its aircraft). START ALL: each after its delay.");
             current.Children.Add(planList);
-            current.Children.Add(ActionRow(("START ALL", StartAllPlans), ("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR", ClearPlans)));
+            trafficPauseButton.Click += (_, _) => TogglePause();
+            current.Children.Add(Wrap(trafficPauseButton));
+            current.Children.Add(ActionRow(("START ALL", StartAllPlans), ("REMOVE ALL", RemoveAllAircraft), ("GROUP", GroupPlans)));
+            current.Children.Add(ActionRow(("SAVE...", SaveScenario), ("LOAD...", LoadScenario), ("CLEAR ALL", ClearPlans)));
 
             current = selectedContent;
             current.Children.Add(selectedText);
@@ -418,6 +444,8 @@ namespace ATCRoom.TwrTrainer
             Row("Downwind", Wrap(extendButton, baseButton, orbitButton, orbitForeverButton), now, 62);
             Row("Final", Inline(goAroundButton), now, 62);
             Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
+            splitButton = Order("SPLIT", commands.Split);
+            Row("Formation", Inline(splitButton), now, 62);
 
             StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
             Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
@@ -430,8 +458,13 @@ namespace ATCRoom.TwrTrainer
                 Order("REMOVE", commands.Remove)));
             Note("Right click on an aircraft: all its commands. Its label can be dragged.", selectedPanel);
             current = panel;
-            panel.Children.Add(message);
-            Note($"Maps: {Paths.MapsFolderText} (made with ATCRoom Map Creator). Aerodromes and settings: {Paths.FolderText}.");
+            // Each part its message line, at its bottom; the folders in the Aerodrome.
+            aerodromeContent.Children.Add(messages[Area.Aerodrome]);
+            Note($"Maps: {Paths.MapsFolderText} (made with ATCRoom Map Creator). Aerodromes and settings: {Paths.FolderText}.", aerodromeContent);
+            simulationContent.Children.Add(messages[Area.Simulation]);
+            newContent.Children.Add(messages[Area.New]);
+            trafficContent.Children.Add(messages[Area.Traffic]);
+            selectedContent.Children.Add(messages[Area.Selected]);
             ShowSelected();
         }
 
@@ -521,8 +554,8 @@ namespace ATCRoom.TwrTrainer
         private void Number(TextBox box, string what, Action<double> use)
         {
             string text = box.Text.Trim().Replace(',', '.');
-            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && double.IsFinite(value)) { Say(null); use(value); }
-            else Say($"Write {what}.");
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && double.IsFinite(value)) { Say(null, Area.Selected); use(value); }
+            else Say($"Write {what}.", Area.Selected);
         }
 
         /// <summary>The side changed now (an S over the aerodrome, the same circuit).</summary>
@@ -568,6 +601,9 @@ namespace ATCRoom.TwrTrainer
             ["Place on the map"] = "Write the name and the elevation of the runway, then click its threshold and its end on the map.",
             ["Remove runway"] = "Remove the runway in use (and the same runway the other way) from the aerodrome file.",
             ["Save heights"] = "Save the heights of this class at this aerodrome (for the aircraft added from now on).",
+            ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
+            ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
+            ["REMOVE ALL"] = "Every aircraft out of the simulation (the rows stay, back to waiting).",
             ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
             ["Get METAR"] = "The newest METAR of this aerodrome from the internet (aviationweather.gov, by its ICAO code): into the box, its wind applied.",
             ["Level 1 (F1)"] = "The aerodrome and its circuits (about 7 NM).",
@@ -580,7 +616,7 @@ namespace ATCRoom.TwrTrainer
             ["START ALL"] = "Start every aircraft of the Traffic List waiting, each after its delay (held ones stay held).",
             ["SAVE..."] = "Save the flight plans as a scenario of this aerodrome.",
             ["LOAD..."] = "Load a scenario (its flight plans replace those of the list).",
-            ["CLEAR"] = "Remove all the flight plans (the aircraft flying go on).",
+            ["CLEAR ALL"] = "Every row out of the Traffic List (the aircraft flying go on).",
             ["▶"] = "Start this plan now.",
             ["⏸"] = "Hold this plan (it does not start); again: it goes on.",
             ["⏵"] = "Go on (it starts at its time).",
@@ -682,9 +718,19 @@ namespace ATCRoom.TwrTrainer
             into.Children.Add(row);
         }
 
-        private void Say(string? text)
+        /// <summary>A message in its part (null: none); the part closed to its bar: on its bar for a few seconds.</summary>
+        private void Say(string? text, Area area = Area.Aerodrome)
         {
-            message.Text = text ?? "";
+            messages[area].Text = text ?? "";
+            DockablePart? part = area switch
+            {
+                Area.Aerodrome => aerodromePart,
+                Area.Simulation => simulationPart,
+                Area.New => newPart,
+                Area.Traffic => trafficPart,
+                _ => selectedPart
+            };
+            if (part != null && !part.IsOpen && !string.IsNullOrEmpty(text)) part.Flash(text);
         }
 
         // ----- Aerodrome -------------------------------------------------------------------------------------------------
@@ -935,7 +981,11 @@ namespace ATCRoom.TwrTrainer
             UpdatePause();
         }
 
-        private void UpdatePause() => pauseButton.Content = engine.Paused ? "Run" : "Pause";
+        private void UpdatePause()
+        {
+            pauseButton.Content = engine.Paused ? "Run" : "Pause";
+            trafficPauseButton.Content = engine.Paused ? "RUN" : "PAUSE";
+        }
 
         private void ApplyDistances()
         {
@@ -960,6 +1010,9 @@ namespace ATCRoom.TwrTrainer
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
                 End = endRow.Value,
+                Formation = formationRow.HasValue ? formationRow.Value : 1,
+                Lands = formationRow.HasValue && formationRow.Value > 1 ? landRow.Values.ToList() : null,
+                SplitSeconds = splitRow.HasValue ? splitRow.Value : 3,
                 Transit = typeRow.HasValue && typeRow.Value,
                 To = toRow.HasValue ? toRow.Value ?? "" : "",
                 Overhead = viaRow.HasValue && viaRow.Value,
@@ -970,9 +1023,15 @@ namespace ATCRoom.TwrTrainer
 
         private void AddAircraft()
         {
-            string? error = Launch(PlanOfRows(), out string added);
-            Say(error);
+            TowerPlan plan = PlanOfRows();
+            string? error = Launch(plan, out string added);
+            Say(error, Area.New);
             if (error != null) return;
+            // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
+            plan.Now = TowerPlan.State.Flying;
+            plan.Flying = added;
+            plans.Add(plan);
+            ShowPlans();
             callsignBox.Text = "";
             view.SetTraffic(engine.Snapshot(), engine.Time);
             view.Select(added);
@@ -980,6 +1039,20 @@ namespace ATCRoom.TwrTrainer
 
         /// <summary>An aircraft of a plan, now: from its gate, the runway or already in the circuit. Returns an error, or null.</summary>
         private string? Launch(TowerPlan plan, out string added)
+        {
+            string? error = LaunchOne(plan, out added);
+            if (error != null || plan.Formation <= 1) return error;
+            // A formation: the aircraft added leads it (its wingmen after its number).
+            error = commands.MakeFormation(added, plan.Formation, plan.Lands, plan.SplitSeconds);
+            if (error != null)
+            {
+                commands.Remove(added);
+                added = "";
+            }
+            return error;
+        }
+
+        private string? LaunchOne(TowerPlan plan, out string added)
         {
             added = "";
             string? callsign = plan.Callsign.Length > 0 ? plan.Callsign : null;
@@ -1036,8 +1109,9 @@ namespace ATCRoom.TwrTrainer
             string end = TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
-            if (p.Transit) return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  +{p.DelayMinutes:0.#}'";
-            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
+            string team = p.Formation > 1 ? $" F{p.Formation}" : "";
+            if (p.Transit) return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  +{p.DelayMinutes:0.#}'";
+            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
         }
 
         /// <summary>The rows of the plans, built again (after a change).</summary>
@@ -1056,12 +1130,27 @@ namespace ATCRoom.TwrTrainer
                 TextBlock status = new() { Foreground = DimBrush, FontSize = 11 };
                 texts.Children.Add(status);
                 row.Children.Add(texts);
-                Button hold = SmallButton("⏸", () => { p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : p.Now is TowerPlan.State.Flying ? p.Now : TowerPlan.State.Held; UpdatePlans(); });
+                // ⏸: before the start it holds the row; flying, it freezes the aircraft (again: on).
+                Button hold = SmallButton("⏸", () =>
+                {
+                    if (p.Now == TowerPlan.State.Flying) engine.SetFrozen(p.Flying, engine.Get(p.Flying)?.Frozen != true);
+                    else p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : TowerPlan.State.Held;
+                    UpdatePlans();
+                });
+                Button tick = SmallButton(p.Picked ? "☑" : "☐", () => { p.Picked = !p.Picked; ShowPlans(); });
+                tick.ToolTip = "Tick the rows to GROUP into a formation.";
                 StackPanel buttons = new() { Orientation = Orientation.Horizontal };
+                buttons.Children.Add(tick);
                 buttons.Children.Add(SmallButton("▶", () => StartPlan(p)));
                 buttons.Children.Add(hold);
                 buttons.Children.Add(SmallButton("⧉", () => DuplicatePlan(p)));
-                buttons.Children.Add(SmallButton("✕", () => { plans.Remove(p); ShowPlans(); }));
+                // ✕: the row, and its aircraft if it flies (the user, 3 Nov).
+                buttons.Children.Add(SmallButton("✕", () =>
+                {
+                    if (p.Now == TowerPlan.State.Flying) commands.Remove(p.Flying);
+                    plans.Remove(p);
+                    ShowPlans();
+                }));
                 Grid.SetColumn(buttons, 1);
                 row.Children.Add(buttons);
                 planList.Children.Add(row);
@@ -1098,7 +1187,9 @@ namespace ATCRoom.TwrTrainer
                     TowerPlan.State.Flying => $"flying: {plan.Flying}",
                     _ => "waiting"
                 };
-                hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
+                bool frozen = plan.Now == TowerPlan.State.Flying && engine.Get(plan.Flying)?.Frozen == true;
+                hold.Content = plan.Now == TowerPlan.State.Held || frozen ? "⏵" : "⏸";
+                if (frozen) status.Text = $"frozen: {plan.Flying} (⏵ to go on)";
             }
         }
 
@@ -1108,7 +1199,7 @@ namespace ATCRoom.TwrTrainer
             string? error = Launch(plan, out string added);
             if (error != null)
             {
-                Say($"{PlanText(plan)}: {error}");
+                Say($"{PlanText(plan)}: {error}", Area.Traffic);
                 plan.Now = TowerPlan.State.Held;
             }
             else
@@ -1147,14 +1238,38 @@ namespace ATCRoom.TwrTrainer
 
         private void ClearPlans()
         {
-            if (plans.Count > 0 && MessageBox.Show(this, $"Remove the {plans.Count} flight plans (the aircraft flying go on)?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (plans.Count > 0 && MessageBox.Show(this, $"Remove the {plans.Count} rows of the Traffic List (the aircraft flying go on)?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             plans.Clear();
+            ShowPlans();
+        }
+
+        /// <summary>REMOVE ALL: every aircraft out of the simulation; the rows of the Traffic List back to waiting (the user, 3 Nov).</summary>
+        private void RemoveAllAircraft()
+        {
+            engine.Clear();
+            view.Select(null);
+            UpdatePlans();
+        }
+
+        /// <summary>GROUP: the rows ticked (not flying) into one formation, the first one's callsign leading (at most 4 aircraft).</summary>
+        private void GroupPlans()
+        {
+            List<TowerPlan> picked = plans.Where(p => p.Picked && p.Now != TowerPlan.State.Flying).ToList();
+            int count = picked.Sum(p => Math.Max(1, p.Formation));
+            if (picked.Count < 2) { Say("Tick two or more rows (☐) not flying, then GROUP.", Area.Traffic); return; }
+            if (count > SimEngine.MaxFormation) { Say($"At most {SimEngine.MaxFormation} aircraft in a formation ({count} ticked).", Area.Traffic); return; }
+            TowerPlan group = picked[0].Copy();
+            group.Formation = count;
+            group.Lands = null;
+            plans.Insert(plans.IndexOf(picked[0]), group);
+            foreach (TowerPlan p in picked) plans.Remove(p);
+            Say($"{PlanText(group)}: a formation of {count}.", Area.Traffic);
             ShowPlans();
         }
 
         private void SaveScenario()
         {
-            if (plans.Count == 0) { Say("No flight plans to save."); return; }
+            if (plans.Count == 0) { Say("The Traffic List is empty: nothing to save.", Area.Traffic); return; }
             try { Directory.CreateDirectory(TowerScenario.Folder); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             Microsoft.Win32.SaveFileDialog dialog = new()
             {
@@ -1166,11 +1281,11 @@ namespace ATCRoom.TwrTrainer
             try
             {
                 new TowerScenario { Airport = airfield.Code, Runway = airfield.Runway?.Runway ?? "", Plans = plans.Select(p => p.Copy()).ToList() }.Save(dialog.FileName);
-                Say("Scenario saved.");
+                Say("Scenario saved.", Area.Traffic);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                Say($"The scenario could not be saved: {ex.Message}");
+                Say($"The scenario could not be saved: {ex.Message}", Area.Traffic);
             }
         }
 
@@ -1190,11 +1305,11 @@ namespace ATCRoom.TwrTrainer
                 plans.AddRange(scenario.Plans);
                 ShowPlans();
                 Say(scenario.Airport.Length > 0 && !string.Equals(scenario.Airport, airfield.Code, StringComparison.OrdinalIgnoreCase)
-                    ? $"Scenario of {scenario.Airport}, not of {airfield.Code}: its gates may be missing here." : null);
+                    ? $"Scenario of {scenario.Airport}, not of {airfield.Code}: its gates may be missing here." : null, Area.Traffic);
             }
             catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
             {
-                Say($"The scenario could not be read: {ex.Message}");
+                Say($"The scenario could not be read: {ex.Message}", Area.Traffic);
             }
         }
 
@@ -1299,7 +1414,13 @@ namespace ATCRoom.TwrTrainer
             // A value chosen in the buttons under a field.
             if (field.Split('=') is [string name, string value])
             {
-                if (name == "ALT")
+                if (name == "LAND" && int.TryParse(value, out int member) && a.Formation is { } crew)
+                {
+                    List<bool> lands = Enumerable.Range(0, crew.Count).Select(i => a.Lands == null || i >= a.Lands.Count || a.Lands[i]).ToList();
+                    if (member < lands.Count) lands[member] = !lands[member];
+                    commands.FormationLanding(callsign, lands);
+                }
+                else if (name == "ALT")
                 {
                     if (value == "AUTO") commands.HeightAuto(callsign);
                     else if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double feet)) commands.Height(callsign, feet);
@@ -1348,6 +1469,9 @@ namespace ATCRoom.TwrTrainer
                 case "GA":
                     commands.GoAround(callsign);
                     break;
+                case "SPLIT":
+                    commands.Split(callsign);
+                    break;
             }
             ShowSelected();
         }
@@ -1360,6 +1484,15 @@ namespace ATCRoom.TwrTrainer
         {
             AircraftState? a = engine.Get(callsign);
             if (a == null) return;
+            if (field.StartsWith("LAND=", StringComparison.Ordinal) && a.Formation is { } team)
+            {
+                // The wheel on LAND: how many land, from the leader on.
+                int landing = Enumerable.Range(0, team.Count).Count(i => a.Lands == null || i >= a.Lands.Count || a.Lands[i]);
+                landing = Math.Clamp(landing - step, 0, team.Count);
+                commands.FormationLanding(callsign, Enumerable.Range(0, team.Count).Select(i => i < landing).ToList());
+                ShowSelected();
+                return;
+            }
             if (field is "ALT" or "SPD")
             {
                 // (The user, 3 Nov: the wheel on the height ±100 ft, on the speed ±10 kt; ordered when it stops a moment.)
@@ -1482,7 +1615,7 @@ namespace ATCRoom.TwrTrainer
         private void WithSelected(Action<string> action)
         {
             if (view.Selected is string callsign) action(callsign);
-            else Say("Select an aircraft first (click it on the map).");
+            else Say("Select an aircraft first (click it on the map).", Area.Selected);
         }
 
         private void ShowSelected()
@@ -1529,9 +1662,10 @@ namespace ATCRoom.TwrTrainer
                 sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
+                splitButton.IsEnabled = a.SplitAllowed;
             }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
-                : $"{a.Callsign}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
+                : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
         }
     }
 }

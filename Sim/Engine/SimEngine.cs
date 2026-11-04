@@ -74,7 +74,7 @@ namespace ATCRoom.Sim
         public const double LandedRemoveAfter = 5;
 
         /// <summary>Kinds of pilot instructions: a new one replaces the one of the same kind still waiting.</summary>
-        private enum Kind { Heading, Vertical, Speed }
+        private enum Kind { Heading, Vertical, Speed, Formation }
 
         private sealed record Pending(string Callsign, Kind Kind, long DueStep, Action<SimAircraft> Change);
 
@@ -234,7 +234,7 @@ namespace ATCRoom.Sim
             {
                 // Callsigns also flying outside the simulation (real or test traffic): never given (the radar's filters
                 // and track IDs follow the callsign, so it is chosen once, before the aircraft exists).
-                bool Taken(string candidate) => Find(candidate) != null || takenElsewhere?.Invoke(candidate) == true;
+                bool Taken(string candidate) => Find(candidate) != null || Reserved(candidate) || takenElsewhere?.Invoke(candidate) == true;
                 string name;
                 if (string.IsNullOrWhiteSpace(callsign))
                 {
@@ -244,7 +244,7 @@ namespace ATCRoom.Sim
                 else
                 {
                     name = CheckCallsign(callsign);
-                    if (Find(name) != null) throw new InvalidOperationException($"{name} is already in the simulation.");
+                    if (Find(name) != null || Reserved(name)) throw new InvalidOperationException($"{name} is already in the simulation.");
                     if (takenElsewhere?.Invoke(name) == true)
                     {
                         // Flying outside the simulation: the same with a letter (SIM1 → SIM1A).
@@ -572,6 +572,7 @@ namespace ATCRoom.Sim
             lock (sync)
             {
                 aircraft.Clear();
+                spawned.Clear();
                 pending.Clear();
                 number = 0;
             }
@@ -687,6 +688,7 @@ namespace ATCRoom.Sim
                 pending.Remove(item);
                 if (plane != null) item.Change(plane);
             }
+            AddSpawned();
         }
 
         /// <summary>Wind now (towards east, towards north, kt), gusts included.</summary>
@@ -755,6 +757,8 @@ namespace ATCRoom.Sim
                 plane.X += plane.GroundSpeedKt * Math.Sin(plane.TrackTrue * Math.PI / 180) * Step / 3600;
                 plane.Y += plane.GroundSpeedKt * Math.Cos(plane.TrackTrue * Math.PI / 180) * Step / 3600;
             }
+            // The members of a formation split in this step: aircraft of their own.
+            AddSpawned();
             // Landed aircraft roll on for a few seconds, then they are gone.
             aircraft.RemoveAll(a => a.Contact == GroundContact.Landed && steps - a.LandedStep >= (long)Math.Round(LandedRemoveAfter / Step));
             // Crossing aircraft at their exit gate: gone.

@@ -133,10 +133,34 @@ namespace ATCRoom.TwrTrainer
             Show();
         }
 
-        /// <summary>The text on its bar (the state of what it holds).</summary>
+        private string summary = "";
+        private DateTime flashUntil = DateTime.MinValue;
+
+        /// <summary>The text on its bar (the state of what it holds); a message flashed there a moment ago first.</summary>
         public string SummaryText
         {
-            set { dockedSummary.Text = value; floatSummary.Text = value; }
+            set
+            {
+                summary = value;
+                if (DateTime.UtcNow >= flashUntil) dockedSummary.Text = floatSummary.Text = value;
+            }
+        }
+
+        /// <summary>Open (not closed to its bar).</summary>
+        public bool IsOpen => place.Open;
+
+        /// <summary>A message on its bar for a few seconds (the part closed: the user, 3 Nov), then its summary again.</summary>
+        public void Flash(string text)
+        {
+            flashUntil = DateTime.UtcNow.AddSeconds(6);
+            dockedSummary.Text = floatSummary.Text = text;
+            System.Windows.Threading.DispatcherTimer back = new() { Interval = TimeSpan.FromSeconds(6.2) };
+            back.Tick += (_, _) =>
+            {
+                back.Stop();
+                if (DateTime.UtcNow >= flashUntil) dockedSummary.Text = floatSummary.Text = summary;
+            };
+            back.Start();
         }
 
         private static TextBlock Summary() => new() { Foreground = DimBrush, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };

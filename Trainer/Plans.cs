@@ -37,6 +37,10 @@ namespace ATCRoom.TwrTrainer
         public bool Transit { get; set; }
         public string To { get; set; } = "";
         public bool Overhead { get; set; }
+        /// <summary>A formation (the user, 4 Nov): how many (1: alone), which land together (null: all), the seconds between them at the split.</summary>
+        public int Formation { get; set; } = 1;
+        public List<bool>? Lands { get; set; }
+        public double SplitSeconds { get; set; } = 3;
         /// <summary>Minutes after START ALL.</summary>
         public double DelayMinutes { get; set; }
 
@@ -50,10 +54,13 @@ namespace ATCRoom.TwrTrainer
         [JsonIgnore] public double Due { get; set; }
         /// <summary>The aircraft flying it.</summary>
         [JsonIgnore] public string Flying { get; set; } = "";
+        /// <summary>Ticked in the list (for GROUP).</summary>
+        [JsonIgnore] public bool Picked { get; set; }
 
         public TowerPlan Copy() => new()
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
+            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

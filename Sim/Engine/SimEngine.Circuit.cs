@@ -154,6 +154,15 @@ namespace ATCRoom.Sim
         /// <summary>A helicopter's landing point (the plane, NM): its final goes there, hovering down to the ground.</summary>
         public bool HasPad;
         public double PadX, PadY;
+        /// <summary>A wingman just split off: straight on with this heading until this step, then its circuit.</summary>
+        public long DelayUntilStep;
+        public double DelayHeading;
+        /// <summary>Straight in from the long final (a formation lands all together; from a circuit at most 2). Cleared by a new route.</summary>
+        public bool StraightIn;
+        /// <summary>A member of a formation going around: its turn to the downwind this many seconds later than the first one's.</summary>
+        public double TurnWaitSeconds;
+
+        public CircuitState Copy() => (CircuitState)MemberwiseClone();
     }
 
     public sealed partial class SimEngine
@@ -269,6 +278,7 @@ namespace ATCRoom.Sim
                     case CircuitStart.LongFinal:
                         GiveRoute(plane, [Point(0, 0, side, double.NaN, kind.FinalSpeedKt, "FINAL")]);
                         plane.TargetSpeedKt = kind.ApproachSpeedKt;
+                        plane.Circuit.StraightIn = true;
                         break;
                     case CircuitStart.InitialPoint when type == CircuitType.Overhead:
                         GiveRoute(plane, OverheadRoute(plane));
@@ -782,6 +792,7 @@ namespace ATCRoom.Sim
             {
                 // Straight in: onto the extended centreline 4 NM out, on the glide path.
                 GiveRoute(plane, [Point(-4, 0, side, runwayElevation + 4 * glide, kind.ApproachSpeedKt, "JOIN"), final]);
+                circuit.StraightIn = true;
                 return;
             }
             // Straight to the start of the base (abeam its turn, on the downwind line), then the base and the final.
@@ -851,7 +862,9 @@ namespace ATCRoom.Sim
         private void CircuitStep(SimAircraft plane)
         {
             CircuitState? circuit = plane.Circuit;
-            if (circuit == null || circuit.Departed || circuit.Waiting || plane.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
+            if (circuit == null || plane.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
+            if (Delayed(plane, circuit)) return;
+            if (circuit.Departed || circuit.Waiting) return;
             bool routeOver = plane.Route != null && plane.RouteNext >= plane.Route.Count;
             if (circuit.Turning && !circuit.Suspended)
             {
@@ -935,6 +948,13 @@ namespace ATCRoom.Sim
                     // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind at once, climbing.
                     if (plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
                     {
+                        if (circuit.TurnWaitSeconds > 0)
+                        {
+                            // (A formation going around: one after the other.)
+                            Delay(plane, circuit.TurnWaitSeconds);
+                            circuit.TurnWaitSeconds = 0;
+                            return;
+                        }
                         PassPoint(plane, fromHere: true);
                     }
                 }
@@ -983,6 +1003,8 @@ namespace ATCRoom.Sim
             }
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double height = plane.AltitudeFt - runwayElevation;
+            // A formation on the short final: the members chosen land, the others go around (the user, 4 Nov).
+            if (plane.Wingmen.Count > 0 && height <= GoAroundHeight && along >= -GoAroundShortFinal && LandingSplit(plane, circuit)) return;
             // The end of the final: low pass over the threshold, go-around at its height, past the runway without landing.
             if ((circuit.End == EndAction.LowPass && along >= 0) || (circuit.End == EndAction.GoAround && height <= GoAroundHeight && along >= -GoAroundShortFinal)
                 || (routeOver && along > Math.Max(runwayLength, 0.3)))
@@ -1133,6 +1155,9 @@ namespace ATCRoom.Sim
         private void StartTurn(SimAircraft plane, CircuitState circuit, RoutePoint after)
         {
             bool toFinal = after.Name == "FINAL";
+            // A formation splits at the break, at the 180° turn of the close pattern to its downwind, at the High Key
+            // (the user, 4 Nov): the wingmen after it, one interval each.
+            if (!toFinal && plane.Wingmen.Count > 0) Split(plane);
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double width = Width(CircuitType.Close, plane.Class, circuit.Side);
             double radius = Math.Max(0.15, toFinal ? lateral / 2 : (width - lateral) / 2);
@@ -1637,6 +1662,7 @@ namespace ATCRoom.Sim
             if (plane.Circuit != null)
             {
                 plane.Circuit.LegIndex = -1;
+                plane.Circuit.StraightIn = false;
                 plane.Circuit.Turning = false;
                 plane.Circuit.Orbit = 0;
                 plane.Circuit.Spiral = false;

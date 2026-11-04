@@ -100,6 +100,13 @@ namespace ATCRoom.TwrTrainer
 
         public void Speed(string callsign, double speedKt) => engine.SetSpeed(callsign, speedKt);
 
+        /// <summary>A formation: the aircraft just added leads it (null, or why not).</summary>
+        public string? MakeFormation(string leader, int size, IReadOnlyList<bool>? lands, double splitSeconds) => engine.MakeFormation(leader, size, lands, splitSeconds);
+
+        public void Split(string callsign) => engine.SplitFormation(callsign);
+
+        public void FormationLanding(string callsign, IReadOnlyList<bool> lands) => engine.SetFormationLanding(callsign, lands);
+
         /// <summary>AUTO: the height (the speed) of its circuit or its way again.</summary>
         public void HeightAuto(string callsign) => engine.ResumeRouteAltitude(callsign);
 

@@ -120,7 +120,11 @@ namespace ATCRoom.Sim
         // Orbiting until "continue".
         bool OrbitForever = false,
         // Crossing the zone (from a gate to another one, not landing).
-        bool Transit = false);
+        bool Transit = false,
+        // A formation: its members (the leader first; null: alone), which land together, and whether SPLIT can be given now.
+        IReadOnlyList<string>? Formation = null,
+        IReadOnlyList<bool>? Lands = null,
+        bool SplitAllowed = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -178,6 +182,29 @@ namespace ATCRoom.Sim
         /// <summary>The circuit it flies (null: none) and, while it flies it, the bank of its turns (0: the class limit).</summary>
         public CircuitState? Circuit;
         public double CircuitBankDegrees;
+        /// <summary>
+        /// A formation (the user, 4 Nov): the callsigns of its wingmen (empty: alone), which members land together on the
+        /// short final (index 0 this one, the leader) and the seconds between them when it splits.
+        /// </summary>
+        public List<string> Wingmen = [];
+        public List<bool> Lands = [];
+        public double SplitSeconds = 3;
+
+        /// <summary>The formation can be split by command now: not before the break of the overhead, the close pattern, the SFO.</summary>
+        public bool SplitAllowed => Wingmen.Count > 0
+            && !(Circuit is { Suspended: false, Waiting: false, Transit: false, Departed: false, StraightIn: false } c && c.Type is CircuitType.Overhead or CircuitType.Close or CircuitType.Sfo);
+
+        /// <summary>A copy of this aircraft (a member of its formation splitting off): its own circuit and route, no wingmen.</summary>
+        public SimAircraft Copy()
+        {
+            SimAircraft copy = (SimAircraft)MemberwiseClone();
+            copy.Class = Class.Copy();
+            copy.Route = Route?.ToArray();
+            copy.Circuit = Circuit?.Copy();
+            copy.Wingmen = [];
+            copy.Lands = [];
+            return copy;
+        }
 
         /// <summary>The leg of the circuit now, for the label (empty: not in a circuit).</summary>
         public string Leg => Circuit == null ? ""
@@ -199,6 +226,7 @@ namespace ATCRoom.Sim
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
-            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true);
+            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
+            Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed);
     }
 }

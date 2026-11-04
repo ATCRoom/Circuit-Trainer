@@ -492,13 +492,22 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   opposite runway, down to the conventional circuit height (the same heights of each class), aside by 45° onto the
   conventional downwind of the runway in use, then the conventional circuit. New aircraft: Entry CIRCLING, only with
   From LONG FIN (the circuit CONV). Leg CIRCLING until the downwind. Also in the Traffic List and scenarios.
-- **Traffic List commands (the user, 3 Nov; to do):** ADD NOW also puts the aircraft in the Traffic List (a row
+- **Traffic List commands (the user, 3 Nov; done 4 Nov):** ADD NOW also puts the aircraft in the Traffic List (a row
   flying; back to waiting when it is gone). Each row: ▶ start; ⏸ hold before the start / freeze the aircraft flying
   (again: on); ⧉ duplicate; ✕ the row and its aircraft (no confirmation). At the bottom: RUN / PAUSE (the whole
   simulation, also kept in Simulation), START ALL, REMOVE ALL (only the aircraft: the rows back to waiting; also kept in
   Simulation), SAVE..., LOAD..., CLEAR ALL (only the rows). A row restarted: an automatic callsign gets a new free one,
   a callsign written is used again.
-- **Messages in their panels (the user, 3 Nov; to do):** one message line per part instead of the one at the bottom of
+- **Messages in their panels (the user, 3 Nov; done 4 Nov):** one message line per part instead of the one at the bottom of
   the column: commands to the aircraft (label, heading drag, buttons) in Selected aircraft; ADD NOW / TO LIST errors in
   New aircraft; starts, errors, scenarios in Traffic List; map, runway, gates, heights, METAR in Aerodrome. A part
   closed to its bar: the message for a few seconds in its bar. The note "Maps: %AppData%..." at the bottom of Aerodrome.
+- **Formations (the user, 4 Nov; done):** one aircraft simulated (the leader, a larger symbol, label `VIPER01 F4`)
+  carrying up to 3 wingmen (callsigns after its number, reserved: VIPER02 leads 03, 04). The overhead splits only at
+  the break, the close pattern at its 180° turn to the downwind, the SFO at the High Key (by themselves); the long final,
+  the conventional and the wide circuit: SPLIT at any time. At the split each wingman goes straight on for its share of
+  the interval (0/3/5/10 s, default 3), then its circuit (the leader's). On the short final (200 ft) the members chosen
+  (LAND, any of them; label toggles and wheel, also in flight) land together (from the long final all, from a circuit at
+  most 2), the others go around alone into the close pattern (CLS by default), one interval apart. New aircraft:
+  Formation 1-4, Land, Split s; Traffic List: GROUP the rows ticked (before the flight). Later idea: rendezvous (joining
+  aircraft already flying into a formation).

@@ -1553,6 +1553,113 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             onDownwind != null ? $"{Height(first):F0} ft at the gate, {Height(onDownwind):F0} ft on the downwind" : "no downwind");
     }
 
+    // 35-38. Formations (the user, 4 Nov). Every second, the traffic of an engine for a while.
+    List<List<AircraftState>> FlyAll(SimEngine sim, double seconds, Action<int, List<AircraftState>>? each = null)
+    {
+        List<List<AircraftState>> all = [];
+        for (int t = 0; t < seconds; t++)
+        {
+            sim.RunFor(1);
+            List<AircraftState> now = sim.Snapshot().ToList();
+            all.Add(now);
+            each?.Invoke(t, now);
+            if (now.Count == 0) break;
+        }
+        return all;
+    }
+    List<AircraftState> TrackOf(List<List<AircraftState>> all, string callsign) => all.SelectMany(n => n.Where(st => st.Callsign == callsign)).ToList();
+
+    // 35. The callsigns of a formation: in sequence after the leader's number, reserved; a leader without a number refused.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string lead = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, "VIPER02", "Light");
+        string? made = sim.MakeFormation(lead, 3);
+        bool refused = false;
+        try { sim.Add(0, 0, 3000, 0, 100, "VIPER04"); } catch (InvalidOperationException) { refused = true; }
+        string other = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, "HAWK", "Light");
+        string? noNumber = sim.MakeFormation(other, 2);
+        AircraftState? shown = sim.Get(lead);
+        Check(made == null && shown?.Formation is ["VIPER02", "VIPER03", "VIPER04"] && refused && noNumber != null && sim.Get("HAWK")?.Formation == null
+            && SimEngine.FormationNames("VIPER09", 3) is ["VIPER10", "VIPER11"],
+            "Formation: VIPER02 leads VIPER03 and VIPER04 (reserved); a leader without a number refused", made ?? noNumber ?? "");
+    }
+
+    // 36. Overhead pattern in formation of 4: one aircraft until the break, then each one breaks 3 s after the one before.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string lead = sim.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, CircuitSide.Left, EndAction.FullStop, "VIPER01", "Jet");
+        sim.MakeFormation(lead, 4);
+        string[] names = ["VIPER01", "VIPER02", "VIPER03", "VIPER04"];
+        Dictionary<string, int> brokeAt = [];
+        int alone = 0;
+        bool splitEarly = false;
+        List<List<AircraftState>> all = FlyAll(sim, 900, (t, now) =>
+        {
+            if (now.Count == 1 && now[0].Formation?.Count == 4) alone++;
+            if (now.Count == 1 && now[0].Leg == "INITIAL" && now[0].SplitAllowed) splitEarly = true;
+            foreach (AircraftState st in now)
+            {
+                if (!brokeAt.ContainsKey(st.Callsign) && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) > 30) brokeAt[st.Callsign] = t;
+            }
+        });
+        bool allBroke = names.All(brokeAt.ContainsKey);
+        List<int> gaps = allBroke ? names.Skip(1).Select((n, i) => brokeAt[n] - brokeAt[names[i]]).ToList() : [];
+        bool allLanded = names.All(n => LandedOnRunway(TrackOf(all, n)));
+        bool downwinds = names.All(n => TrackOf(all, n).Any(st => st.Leg == "DOWNWIND"));
+        Check(alone > 10 && !splitEarly && allBroke && gaps.All(g => g >= 2 && g <= 4) && downwinds && allLanded,
+            "Formation (overhead, 4 jets): one aircraft until the break, each breaks about 3 s after the one before, each lands",
+            $"together {alone} s, gaps {string.Join(" ", gaps)} s, landed {names.Count(n => LandedOnRunway(TrackOf(all, n)))} of 4");
+        foreach (string n in names) pictures.Add(($"Formation overhead: {n}", TrackOf(all, n)));
+    }
+
+    // 37. From the long final in formation of 4: VIPER01 and VIPER03 land together, VIPER02 and VIPER04 go around (close pattern).
+    {
+        SimEngine sim = NewCircuitEngine();
+        string lead = sim.AddInCircuit(CircuitStart.LongFinal, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, "VIPER01", "Light");
+        sim.MakeFormation(lead, 4, [true, false, true, false]);
+        bool landersTogether = false;
+        List<List<AircraftState>> all = FlyAll(sim, 600, (t, now) =>
+        {
+            if (now.Any(st => st.Callsign == "VIPER01" && st.Formation is ["VIPER01", "VIPER03"])) landersTogether = true;
+        });
+        List<AircraftState> two = TrackOf(all, "VIPER02"), four = TrackOf(all, "VIPER04");
+        bool goneAround = two.Any(st => st.Leg == "GO AROUND") && four.Any(st => st.Leg == "GO AROUND")
+            && two.Any(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND") && four.Any(st => st.Circuit == CircuitType.Close && st.Leg == "DOWNWIND");
+        bool landed = LandedOnRunway(TrackOf(all, "VIPER01")) && TrackOf(all, "VIPER03").Count == 0;
+        // The two going around not on top of each other: apart on their downwind.
+        List<double> apart = all.Where(n => n.Any(st => st.Callsign == "VIPER02" && st.Leg == "DOWNWIND") && n.Any(st => st.Callsign == "VIPER04" && st.Leg == "DOWNWIND"))
+            .Select(n => { AircraftState a2 = n.First(st => st.Callsign == "VIPER02"), a4 = n.First(st => st.Callsign == "VIPER04"); return Math.Sqrt(Math.Pow(a2.X - a4.X, 2) + Math.Pow(a2.Y - a4.Y, 2)); }).ToList();
+        Check(landersTogether && landed && goneAround && apart.Count > 5 && apart.Min() > 0.05,
+            "Formation (long final, 4): two chosen land together, the other two go around alone into the close pattern, apart",
+            $"apart on the downwind {(apart.Count > 0 ? apart.Min() : double.NaN):F2} NM at least");
+        pictures.Add(("Formation from the long final: VIPER02 going around", two));
+    }
+
+    // 38. Conventional circuit in formation of 3: at most 2 land together (VIPER01, VIPER02), VIPER03 goes around; a split
+    // by command on the downwind: two aircraft of their own.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string lead = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, "VIPER01", "Light");
+        sim.MakeFormation(lead, 3);
+        bool pairLanding = false;
+        List<List<AircraftState>> all = FlyAll(sim, 600, (t, now) =>
+        {
+            if (now.Any(st => st.Callsign == "VIPER01" && st.Formation is ["VIPER01", "VIPER02"])) pairLanding = true;
+        });
+        bool threeAround = TrackOf(all, "VIPER03").Any(st => st.Leg == "GO AROUND");
+        SimEngine sim2 = NewCircuitEngine();
+        string lead2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, "COBRA1", "Light");
+        sim2.MakeFormation(lead2, 2);
+        bool allowed = sim2.Get(lead2)?.SplitAllowed == true;
+        sim2.RunFor(5);
+        sim2.SplitFormation(lead2);
+        sim2.RunFor(10);
+        AircraftState? cobraA = sim2.Get("COBRA1"), cobraB = sim2.Get("COBRA2");
+        Check(pairLanding && threeAround && LandedOnRunway(TrackOf(all, "VIPER01")) && allowed && cobraA != null && cobraB != null && cobraA.Formation == null
+            && cobraB.Circuit == CircuitType.Conventional && cobraB.Leg == "DOWNWIND",
+            "Formation (conventional, 3): two land together, the third goes around; SPLIT on the downwind: two aircraft in the circuit");
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {
