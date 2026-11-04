@@ -53,6 +53,9 @@ namespace ATCRoom.TwrTrainer
         public string Metar { get; set; } = "";
         /// <summary>The METAR on the map with only the wind and the QNH (the user, 3 Nov).</summary>
         public bool MetarWindQnhOnly { get; set; }
+        /// <summary>Where the bar of the map is (its top left corner on the map; null: top middle).</summary>
+        public double? MapBarLeft { get; set; }
+        public double? MapBarTop { get; set; }
         /// <summary>The map categories turned off (null: the defaults: MVA, CTR, FIX and the others off by default).</summary>
         public List<string>? CategoriesOff { get; set; }
         public double LongFinalNM { get; set; } = 10;

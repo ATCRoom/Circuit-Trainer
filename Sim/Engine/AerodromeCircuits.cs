@@ -45,6 +45,9 @@ namespace ATCRoom.Sim
         /// <summary>The long final and the initial point of this aerodrome (NM; the user, 4 Nov: they depend on the field); null: 10 and 3.</summary>
         public double? LongFinalNM { get; set; }
         public double? InitialPointNM { get; set; }
+        /// <summary>The views of L1 and L2 kept by the instructor (the user, 4 Nov: programmable); null: the default ones.</summary>
+        public SavedView? View1 { get; set; }
+        public SavedView? View2 { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -166,6 +169,17 @@ namespace ATCRoom.Sim
             string otherLetter = letter switch { "L" => "R", "R" => "L", _ => letter };
             return other.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + otherLetter;
         }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    /// <summary>A view of the map kept on L1 / L2: its centre (degrees) and how many NM across.</summary>
+    public sealed class SavedView
+    {
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double AcrossNM { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? Extra { get; set; }

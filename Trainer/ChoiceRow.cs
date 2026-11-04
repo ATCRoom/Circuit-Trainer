@@ -53,6 +53,9 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>The button of a value (null: none).</summary>
+        public Button? ButtonOf(T value) => buttons.Where(b => EqualityComparer<T>.Default.Equals(b.Value, value)).Select(b => b.Button).FirstOrDefault();
+
         /// <summary>One button usable or grey (it does not apply now).</summary>
         public void SetEnabled(T value, bool enabled)
         {

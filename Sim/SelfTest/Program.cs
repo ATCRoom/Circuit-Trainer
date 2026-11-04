@@ -1745,6 +1745,35 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             $"reduced: the one ahead {(reducedGone ? "gone" : $"at {reducedAhead:F2} NM")}; full: {(fullGone ? "gone" : $"still on the runway at {fullAhead:F2} NM")}");
     }
 
+    // 43. TURN BASE before the threshold (the user, 4 Nov): on along the downwind to 0.3 NM past the threshold, a short base,
+    // never across the field; a conventional circuit and a close pattern.
+    {
+        string BaseEarly(CircuitType type, string kind, out double closest, out double turnedAt)
+        {
+            SimEngine sim = NewCircuitEngine();
+            string cs = sim.AddInCircuit(CircuitStart.Downwind, type, CircuitSide.Left, EndAction.FullStop, performanceClass: kind);
+            bool given = false;
+            double near = double.PositiveInfinity, turned = double.NaN;
+            List<AircraftState> flown = Fly(sim, cs, 1200, st =>
+            {
+                (double along, double lateral) = Frame(st);
+                if (!given && st.Leg == "DOWNWIND" && along < CircuitLength * 0.7 && along > 0.1) { given = true; sim.TurnBase(cs); return; }
+                if (!given) return;
+                // Before the threshold (along > 0): not towards the runway.
+                if (along > -0.2 && st.Contact == GroundContact.Airborne) near = Math.Min(near, lateral);
+                if (double.IsNaN(turned) && st.Leg is "BASE" or "FINAL") turned = along;
+            });
+            closest = near;
+            turnedAt = turned;
+            return given && LandedOnRunway(flown) ? "landed" : given ? "not landed" : "never given";
+        }
+        string conventional = BaseEarly(CircuitType.Conventional, "Light", out double convClosest, out double convTurned);
+        string close = BaseEarly(CircuitType.Close, "Jet", out double closeClosest, out _);
+        Check(conventional == "landed" && close == "landed" && convClosest > 0.6 && closeClosest > 0.6 && convTurned < -0.2,
+            "TURN BASE before the threshold: on along the downwind, a short base past the threshold, lands (conventional and close)",
+            $"conventional {conventional}, nearest the runway before the threshold {convClosest:F2} NM, base at {convTurned:F2}; close {close}, nearest {closeClosest:F2} NM");
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

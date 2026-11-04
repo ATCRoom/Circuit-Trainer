@@ -175,6 +175,8 @@ namespace ATCRoom.Sim
 
     public sealed partial class SimEngine
     {
+        /// <summary>The shortest base on TURN BASE: this far past the threshold along the downwind (NM, negative).</summary>
+        private const double ShortBaseAlong = -0.3;
         /// <summary>Where the descent of the final aims (NM past the threshold), and the low pass height (ft).</summary>
         private const double TouchdownAim = 0.15;
         private const double LowPassHeight = 100;
@@ -378,16 +380,30 @@ namespace ATCRoom.Sim
                 circuit.Extended = false;
                 PerformanceClass kind = a.Class;
                 RoutePoint final = Point(0, 0, circuit.Side, double.NaN, kind.FinalSpeedKt, "FINAL");
+                // (The user, 4 Nov: BASE before the threshold cut across to it. Now: on along the downwind — or onto it,
+                // if still on the way — to 0.3 NM past the threshold, then a short base; past it: the base from here.)
+                double turnAlong = Math.Min(along, ShortBaseAlong);
+                double width = Width(circuit.Type, kind, circuit.Side);
+                double circuitHeight = runwayElevation + CircuitHeight(circuit.Type, kind);
+                List<RoutePoint> route = [];
+                RoutePoint target = a.Route[a.RouteNext];
+                if (AlongOf(target, circuit.Side) > turnAlong + 0.1) route.Add(target);
+                if (along > turnAlong + 0.05)
+                {
+                    double downwindHeight = IsJetShape(circuit.Type) ? circuitHeight : Math.Min(circuitHeight, runwayElevation + (width - turnAlong) * GlideFeetPerNM());
+                    route.Add(Point(turnAlong, width, circuit.Side, downwindHeight, kind.CircuitSpeedKt, "DOWNWIND"));
+                }
                 if (IsJetShape(circuit.Type))
                 {
-                    GiveRoute(a, [Point(along, 0, circuit.Side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true), final]);
+                    route.Add(Point(turnAlong, 0, circuit.Side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true));
                 }
                 else
                 {
-                    double baseAlong = Math.Min(along, -0.3);
-                    double height = Math.Min(runwayElevation + CircuitHeight(circuit.Type, kind), runwayElevation + -baseAlong * GlideFeetPerNM());
-                    GiveRoute(a, [Point(baseAlong, 0, circuit.Side, height, kind.FinalSpeedKt, "BASE"), final]);
+                    double height = Math.Min(circuitHeight, runwayElevation + -turnAlong * GlideFeetPerNM());
+                    route.Add(Point(turnAlong, 0, circuit.Side, height, kind.FinalSpeedKt, "BASE"));
                 }
+                route.Add(final);
+                GiveRoute(a, route);
             });
 
         /// <summary>The circuit from where the aircraft is (see <see cref="SetCircuit"/>).</summary>

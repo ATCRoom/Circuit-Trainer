@@ -144,6 +144,12 @@ namespace ATCRoom.TwrTrainer
         private readonly Canvas layer = new();
         /// <summary>The column of the parts on the right: hidden when they all float (the user, 4 Nov).</summary>
         private ScrollViewer column = null!;
+        /// <summary>The bar of the lesson on the map (Run / Pause, speed, L1 / L2), movable.</summary>
+        private Border mapBar = null!;
+        /// <summary>The order of FLYING chosen by the instructor (drag and drop): callsigns, the new ones at the bottom.</summary>
+        private readonly List<string> flyingOrder = [];
+        /// <summary>A row of the Traffic List being dragged (by its grip).</summary>
+        private Border? dragRow;
         /// <summary>The four parts of the panel (in the column or floating).</summary>
         private DockablePart settingsPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!;
         private readonly StackPanel settingsContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
@@ -181,6 +187,14 @@ namespace ATCRoom.TwrTrainer
             Grid map = new();
             map.Children.Add(view);
             StackPanel bar = new() { Orientation = Orientation.Horizontal };
+            // (Movable, the user 4 Nov: by its grip; a double click on it: back to the top middle.)
+            TextBlock barGrip = new()
+            {
+                Text = "⋮⋮", Foreground = DimBrush, FontSize = 14, Cursor = Cursors.SizeAll, VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 4), Padding = new Thickness(2, 0, 2, 0), Background = Brushes.Transparent,
+                ToolTip = "Drag to move the bar; double click: back to the top middle."
+            };
+            bar.Children.Add(barGrip);
             bar.Children.Add(pauseButton);
             bar.Children.Add(new TextBlock { Text = "Speed", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) });
             speedRow.VerticalAlignment = VerticalAlignment.Center;
@@ -188,19 +202,52 @@ namespace ATCRoom.TwrTrainer
             bar.Children.Add(speedRow);
             bar.Children.Add(new TextBlock { Text = "View", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
             bar.Children.Add(levelRow);
-            map.Children.Add(new Border
+            mapBar = new Border
             {
                 Child = bar,
                 Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1A, 0x21, 0x28)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x5D, 0x7A, 0x99)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(6, 4, 6, 0),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 8, 0, 0)
-            });
+                Padding = new Thickness(6, 4, 6, 0)
+            };
             map.Children.Add(layer);
+            layer.Children.Add(mapBar);
+            layer.SizeChanged += (_, _) => PlaceBar();
+            mapBar.SizeChanged += (_, _) => PlaceBar();
+            Point? barFrom = null;
+            Point barStart = default;
+            barGrip.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.ClickCount >= 2)
+                {
+                    settings.MapBarLeft = settings.MapBarTop = null;
+                    PlaceBar();
+                    settings.Save();
+                    e.Handled = true;
+                    return;
+                }
+                barFrom = e.GetPosition(layer);
+                barStart = new Point(Canvas.GetLeft(mapBar), Canvas.GetTop(mapBar));
+                barGrip.CaptureMouse();
+                e.Handled = true;
+            };
+            barGrip.MouseMove += (_, e) =>
+            {
+                if (barFrom is not Point from) return;
+                Vector moved = e.GetPosition(layer) - from;
+                settings.MapBarLeft = barStart.X + moved.X;
+                settings.MapBarTop = barStart.Y + moved.Y;
+                PlaceBar();
+            };
+            barGrip.MouseLeftButtonUp += (_, e) =>
+            {
+                if (barFrom == null) return;
+                barFrom = null;
+                barGrip.ReleaseMouseCapture();
+                settings.Save();
+                e.Handled = true;
+            };
             root.Children.Add(map);
             Content = root;
 
@@ -293,10 +340,51 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>The bar on the map at its place (top middle unless moved), always inside the map.</summary>
+        private void PlaceBar()
+        {
+            if (mapBar == null || layer.ActualWidth <= 0) return;
+            double width = mapBar.ActualWidth, height = mapBar.ActualHeight;
+            double left = settings.MapBarLeft ?? (layer.ActualWidth - width) / 2;
+            double top = settings.MapBarTop ?? 8;
+            Canvas.SetLeft(mapBar, Math.Clamp(left, 0, Math.Max(0, layer.ActualWidth - width)));
+            Canvas.SetTop(mapBar, Math.Clamp(top, 0, Math.Max(0, layer.ActualHeight - height)));
+        }
+
+        /// <summary>L1 / L2: the view kept on it for this aerodrome, else the default one (10 / 20 NM).</summary>
+        private void GoLevel(int level)
+        {
+            SavedView? kept = level == 1 ? airfield.Circuits.View1 : airfield.Circuits.View2;
+            if (kept != null && airfield.Map != null)
+            {
+                (double x, double y) = airfield.Plane.FromGeo(kept.Latitude, kept.Longitude);
+                view.ShowView(x, y, kept.AcrossNM);
+            }
+            else view.ShowLevel(level);
+            levelRow.Show(level);
+        }
+
+        /// <summary>L1 / L2 programmed (the user, 4 Nov): the view of now kept on it, or the default one again.</summary>
+        private void KeepLevel(int level, bool keep)
+        {
+            if (airfield.Map == null) { Say("Open a map first."); return; }
+            SavedView? kept = null;
+            if (keep)
+            {
+                (double x, double y, double across) = view.CurrentView;
+                (double lat, double lon) = airfield.Plane.ToGeo(x, y);
+                kept = new SavedView { Latitude = lat, Longitude = lon, AcrossNM = across };
+            }
+            if (level == 1) airfield.Circuits.View1 = kept; else airfield.Circuits.View2 = kept;
+            string? error = airfield.Save();
+            Say(error ?? (keep ? $"L{level}: this view ({view.CurrentView.AcrossNM:0.#} NM across) kept for {airfield.Code}." : $"L{level}: the default view again."));
+            GoLevel(level);
+        }
+
         private void OnKeys(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F1) { view.ShowLevel(1); levelRow.Show(1); e.Handled = true; }
-            else if (e.Key == Key.F2) { view.ShowLevel(2); levelRow.Show(2); e.Handled = true; }
+            if (e.Key == Key.F1) { GoLevel(1); e.Handled = true; }
+            else if (e.Key == Key.F2) { GoLevel(2); e.Handled = true; }
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
         }
 
@@ -393,7 +481,17 @@ namespace ATCRoom.TwrTrainer
             speedRow.Show(1.0);
             speedRow.Picked += v => speed = v;
             levelRow.Show(1);
-            levelRow.Picked += n => view.ShowLevel(n);
+            levelRow.Picked += GoLevel;
+            foreach (int level in new[] { 1, 2 })
+            {
+                if (levelRow.ButtonOf(level) is not Button button) continue;
+                int n = level;
+                ContextMenu menu = new();
+                menu.Items.Add(Item("Keep this view", () => KeepLevel(n, true)));
+                menu.Items.Add(Item($"Default ({(n == 1 ? 10 : 20)} NM)", () => KeepLevel(n, false)));
+                button.ContextMenu = menu;
+                button.ToolTip = (n == 1 ? "Level 1 (F1)" : "Level 2 (F2)") + ". Right click: keep the view of now on it (for this aerodrome), or the default one.";
+            }
 
             current = newContent;
             Note("From an entry gate (it joins its circuit by itself), the long final, the runway (a take-off) or PTRN (already in the circuit, for tests). Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
@@ -929,9 +1027,8 @@ namespace ATCRoom.TwrTrainer
             view.ElevationFt = airfield.ElevationFt;
             view.SetMap(airfield.Map, airfield.Plane);
             RebuildFrom();
-            view.ShowLevel(1);
-            levelRow.Show(1);
             ShowAerodrome();
+            GoLevel(1);
         }
 
         private void ShowAerodrome()
@@ -959,6 +1056,7 @@ namespace ATCRoom.TwrTrainer
             // The long final and the IP of this aerodrome (the user, 4 Nov).
             engine.LongFinalNM = airfield.Circuits.LongFinalNM ?? 10;
             engine.InitialPointNM = airfield.Circuits.InitialPointNM ?? 3;
+            view.LongFinalNM = engine.LongFinalNM;
             longFinalBox.Text = engine.LongFinalNM.ToString("0.#", CultureInfo.InvariantCulture);
             initialPointBox.Text = engine.InitialPointNM.ToString("0.#", CultureInfo.InvariantCulture);
             if (airfield.Runway != null)
@@ -1115,6 +1213,7 @@ namespace ATCRoom.TwrTrainer
             if (double.TryParse(initialPointBox.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double ip)) engine.InitialPointNM = ip;
             settings.LongFinalNM = engine.LongFinalNM;
             settings.InitialPointNM = engine.InitialPointNM;
+            view.LongFinalNM = engine.LongFinalNM;
             // (Kept with the aerodrome: they depend on the field.)
             if (airfield.Map != null)
             {
@@ -1328,21 +1427,99 @@ namespace ATCRoom.TwrTrainer
             VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
         };
 
-        /// <summary>A thin row: the callsign, its text, its buttons on the right.</summary>
-        private static Grid ThinRow(TextBlock callsign, UIElement text, params Button[] buttons)
+        /// <summary>A thin row: its grip (drag and drop: the order), the callsign, its text, its buttons on the right.</summary>
+        private Border ThinRow(StackPanel list, Action<int, int> move, TextBlock callsign, UIElement text, params Button[] buttons)
         {
             Grid row = new() { Margin = new Thickness(0, 0, 0, 1) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            TextBlock grip = new()
+            {
+                Text = "⋮⋮", Foreground = DimBrush, FontSize = 12, Cursor = Cursors.SizeNS, VerticalAlignment = VerticalAlignment.Center,
+                Background = Brushes.Transparent, ToolTip = "Drag up or down: its place in the list (a list of priorities)."
+            };
+            row.Children.Add(grip);
+            Grid.SetColumn(callsign, 1);
             row.Children.Add(callsign);
-            Grid.SetColumn(text, 1);
+            Grid.SetColumn(text, 2);
             row.Children.Add(text);
             StackPanel right = new() { Orientation = Orientation.Horizontal };
             foreach (Button button in buttons) right.Children.Add(button);
-            Grid.SetColumn(right, 2);
+            Grid.SetColumn(right, 3);
             row.Children.Add(right);
-            return row;
+            Border holder = new() { Child = row, BorderBrush = Brushes.Gold, BorderThickness = new Thickness(0) };
+            // Drag and drop by the grip (the user, 4 Nov): a gold line where it will go.
+            grip.MouseLeftButtonDown += (_, e) =>
+            {
+                dragRow = holder;
+                grip.CaptureMouse();
+                e.Handled = true;
+            };
+            grip.MouseMove += (_, e) =>
+            {
+                if (dragRow != holder) return;
+                MarkDrop(list, DropIndex(list, e.GetPosition(list).Y));
+            };
+            grip.MouseLeftButtonUp += (_, e) =>
+            {
+                if (dragRow != holder) return;
+                dragRow = null;
+                grip.ReleaseMouseCapture();
+                int from = list.Children.IndexOf(holder), to = DropIndex(list, e.GetPosition(list).Y);
+                MarkDrop(list, -1);
+                if (from >= 0 && to != from && to != from + 1) move(from, to);
+                e.Handled = true;
+            };
+            return holder;
+        }
+
+        /// <summary>Where a row dropped at this height of the list goes: before the row under it (the count: at the end).</summary>
+        private static int DropIndex(StackPanel list, double y)
+        {
+            for (int i = 0; i < list.Children.Count; i++)
+            {
+                if (list.Children[i] is not FrameworkElement child) continue;
+                double top = child.TranslatePoint(new Point(0, 0), list).Y;
+                if (y < top + child.ActualHeight / 2) return i;
+            }
+            return list.Children.Count;
+        }
+
+        /// <summary>The gold line where a dragged row will go (−1: none).</summary>
+        private static void MarkDrop(StackPanel list, int at)
+        {
+            for (int i = 0; i < list.Children.Count; i++)
+            {
+                if (list.Children[i] is not Border row) continue;
+                bool last = i == list.Children.Count - 1;
+                row.BorderThickness = new Thickness(0, i == at ? 2 : 0, 0, last && at == list.Children.Count ? 2 : 0);
+            }
+        }
+
+        /// <summary>A plan of WAITING moved to another place of the list (before the one at <paramref name="to"/>).</summary>
+        private void MoveWaiting(int from, int to)
+        {
+            List<TowerPlan> waiting = Waiting();
+            if (from < 0 || from >= waiting.Count) return;
+            TowerPlan moved = waiting[from];
+            TowerPlan? before = to < waiting.Count ? waiting[to] : null;
+            plans.Remove(moved);
+            if (before != null) plans.Insert(plans.IndexOf(before), moved);
+            else plans.Insert(plans.IndexOf(waiting[^1] == moved ? waiting[^2] : waiting[^1]) + 1, moved);
+            ShowPlans();
+        }
+
+        /// <summary>An aircraft of FLYING moved to another place of the list.</summary>
+        private void MoveFlying(int from, int to)
+        {
+            if (from < 0 || from >= flyingOrder.Count) return;
+            string moved = flyingOrder[from];
+            string? before = to < flyingOrder.Count ? flyingOrder[to] : null;
+            flyingOrder.RemoveAt(from);
+            flyingOrder.Insert(before != null ? flyingOrder.IndexOf(before) : flyingOrder.Count, moved);
+            ShowFlying(engine.Snapshot());
         }
 
         /// <summary>The callsign of a plan (with its formation) and the rest of its text.</summary>
@@ -1381,7 +1558,7 @@ namespace ATCRoom.TwrTrainer
                     clickable.MouseLeftButtonUp += (_, _) => EditPlan(p);
                 }
                 if (ReferenceEquals(p, editing)) callsign.Foreground = text.Foreground = Brushes.Gold;
-                planList.Children.Add(ThinRow(callsign, text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
+                planList.Children.Add(ThinRow(planList, MoveWaiting, callsign, text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
                     SmallButton("✕", () => { plans.Remove(p); ShowPlans(); })));
                 planRows.Add((p, text, hold));
                 planCallsigns[p] = callsign;
@@ -1397,8 +1574,11 @@ namespace ATCRoom.TwrTrainer
             flyingList.Children.Clear();
             flyingRows.Clear();
             flyingCallsigns.Clear();
-            flyingKey = string.Join(",", traffic.Select(t => t.Callsign));
-            foreach (AircraftState aircraft in traffic)
+            flyingKey = string.Join(",", traffic.Select(t => t.Callsign).Order());
+            // In the instructor's order: the gone ones out, the new ones at the bottom.
+            flyingOrder.RemoveAll(cs => !traffic.Any(t => t.Callsign == cs));
+            foreach (AircraftState t in traffic) if (!flyingOrder.Contains(t.Callsign)) flyingOrder.Add(t.Callsign);
+            foreach (AircraftState aircraft in traffic.OrderBy(t => flyingOrder.IndexOf(t.Callsign)))
             {
                 string cs = aircraft.Callsign;
                 Button freeze = SmallButton("II", () => engine.SetFrozen(cs, engine.Get(cs)?.Frozen != true));
@@ -1414,7 +1594,7 @@ namespace ATCRoom.TwrTrainer
                     clickable.Cursor = Cursors.Hand;
                     clickable.MouseLeftButtonUp += (_, _) => view.Select(cs);
                 }
-                flyingList.Children.Add(ThinRow(callsign, text, freeze, again, remove));
+                flyingList.Children.Add(ThinRow(flyingList, MoveFlying, callsign, text, freeze, again, remove));
                 flyingRows.Add((cs, text, freeze));
                 flyingCallsigns[cs] = callsign;
             }
@@ -1475,7 +1655,7 @@ namespace ATCRoom.TwrTrainer
                 hold.Content = plan.Now == TowerPlan.State.Held ? "⏵" : "⏸";
             }
             IReadOnlyList<AircraftState> traffic = engine.Snapshot();
-            if (string.Join(",", traffic.Select(t => t.Callsign)) != flyingKey) ShowFlying(traffic);
+            if (string.Join(",", traffic.Select(t => t.Callsign).Order()) != flyingKey && dragRow == null) ShowFlying(traffic);
             foreach ((string cs, TextBlock text, Button freeze) in flyingRows)
             {
                 AircraftState? a = traffic.FirstOrDefault(t => t.Callsign == cs);

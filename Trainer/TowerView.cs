@@ -219,13 +219,27 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>Level 1: the aerodrome and its circuits (about 7 NM across). Level 2: the area around it (about 40 NM).</summary>
+        /// <summary>The distance of the long final (NM): L2 is centred halfway to it.</summary>
+        public double LongFinalNM { get; set; } = 10;
+
+        /// <summary>The default views (the user, 4 Nov): L1 10 NM across the aerodrome, L2 20 NM, halfway to the long final.</summary>
         public void ShowLevel(int level)
         {
-            double across = level == 1 ? 7 : 40;
-            (centreX, centreY) = double.IsNaN(Course) ? (0, 0) : Along(level == 1 ? LengthNM / 2 - 0.5 : -3, 0);
-            scale = Math.Max(ActualWidth > 0 ? Math.Min(ActualWidth, ActualHeight) : 700, 100) / across;
+            double across = level == 1 ? 10 : 20;
+            (double x, double y) = double.IsNaN(Course) ? (0, 0) : Along(level == 1 ? LengthNM / 2 - 0.5 : -LongFinalNM / 2 + 1, 0);
+            ShowView(x, y, across);
+        }
+
+        /// <summary>A view: its centre (the plane, NM) and how many NM across the shorter side of the map.</summary>
+        public void ShowView(double x, double y, double acrossNM)
+        {
+            (centreX, centreY) = (x, y);
+            scale = Math.Max(ActualWidth > 0 ? Math.Min(ActualWidth, ActualHeight) : 700, 100) / Math.Clamp(acrossNM, 0.2, 400);
             InvalidateVisual();
         }
+
+        /// <summary>The view now: its centre (the plane, NM) and how many NM across the shorter side.</summary>
+        public (double X, double Y, double AcrossNM) CurrentView => (centreX, centreY, Math.Max(ActualWidth > 0 ? Math.Min(ActualWidth, ActualHeight) : 700, 100) / scale);
 
         /// <summary>A place of the plane at this distance along the runway (NM from the threshold) and to its right.</summary>
         private (double X, double Y) Along(double along, double right)

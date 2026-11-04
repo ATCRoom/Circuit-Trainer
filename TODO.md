@@ -616,14 +616,17 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   The controls of the lesson (Run / Pause, speed x1 x2 x4, Level 1 / Level 2) in a small bar at the top of the map,
   always visible; Remove all aircraft only in the Traffic List (REMOVE ALL). Parts: Settings, New aircraft, Traffic
   List, Selected aircraft (their places of the old two parts: Settings takes Aerodrome's).
-- **The bar on the map movable (the user, 4 Nov; to do):** "non mi piace lì" (top middle of the map): a grip ⋮⋮ on its
+- **The bar on the map movable (the user, 4 Nov; done):** "non mi piace lì" (top middle of the map): a grip ⋮⋮ on its
   left to drag it anywhere over the map (always inside it), its place remembered; a double click on the grip: back to
   the top middle. (The user had thought of it on the frame of the program, the title bar: movable is better.)
-- **L1 / L2 (the user, 4 Nov; to do):** by default L1 10 NM, L2 20 NM across the map (now 7 and 40). Programmable
+- **L1 / L2 (the user, 4 Nov; done):** by default L1 10 NM, L2 20 NM across the map (now 7 and 40). Programmable
   (proposed): a right click on L1 or L2 keeps the view of now (centre and zoom) in that button, saved with the
   aerodrome (each field its own); a click (or F1 / F2) goes back to it; in the right click a "Default" item gives the
   10 / 20 NM back.
-- **Order of the Traffic List by drag and drop (the user, 4 Nov; to do):** the rows moved above or below the others,
+- **Order of the Traffic List by drag and drop (the user, 4 Nov; done, FLYING too):** the rows moved above or below the others,
   as a list of priorities: a grip ⋮⋮ at the start of each row (FLYING and WAITING) dragged up or down, a line showing
   where it goes. WAITING: the order of the plans (saved in the scenario; START ALL with the same delay: in this order).
   FLYING: an order of the instructor's (new aircraft at the bottom, the gone ones out), kept while the program runs.
+- **TURN BASE before the threshold (the user, 4 Nov, a bug; done):** it flew straight at a point 0.3 NM before the
+  threshold, across the field. Now: on along the downwind (onto it, if still on the way) to 0.3 NM past the threshold,
+  a short base; past it, the base from where it is; the jet circuits the same for their 180° turn to the final.
