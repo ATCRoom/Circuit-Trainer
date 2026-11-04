@@ -89,7 +89,7 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<int> formationRow = new([(1, "1"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
             ? "Alone." : $"A formation of {n}: one label until it splits (its wingmen: the numbers after the leader's: VIPER01, 02...).");
         private readonly ToggleRow landRow = new(i => i == 0 ? "The leader: lands (yellow) or goes around." : $"Wingman {i + 1}: lands (yellow) or goes around (alone, close pattern).");
-        private readonly ChoiceRow<double> splitRow = new([(0.0, "0"), (3.0, "3"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
+        private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
         private readonly List<TowerPlan> plans = [];
@@ -338,7 +338,7 @@ namespace ATCRoom.TwrTrainer
             Row("Class", classHolder, null, 62);
             Row("Formation", formationRow, null, 62);
             Row("Land", landRow, null, 62);
-            Row("Split s", splitRow, null, 62);
+            Row("Interval s", splitRow, null, 62);
             formationRow.Show(1);
             splitRow.Show(3.0);
             landRow.Set(["LEAD"]);
@@ -1028,8 +1028,7 @@ namespace ATCRoom.TwrTrainer
             Say(error, Area.New);
             if (error != null) return;
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
-            plan.Now = TowerPlan.State.Flying;
-            plan.Flying = added;
+            Started(plan, added);
             plans.Add(plan);
             ShowPlans();
             callsignBox.Text = "";
@@ -1115,10 +1114,16 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The rows of the plans, built again (after a change).</summary>
+        /// <summary>The aircraft of each plan shown (the list built again when they change: a formation split, one removed).</summary>
+        private string plansKey = "";
+
+        private string PlansKey() => string.Join(";", plans.Select(p => string.Join(",", MembersFlying(p))));
+
         private void ShowPlans()
         {
             planList.Children.Clear();
             planRows.Clear();
+            plansKey = PlansKey();
             foreach (TowerPlan plan in plans)
             {
                 TowerPlan p = plan;
@@ -1133,7 +1138,13 @@ namespace ATCRoom.TwrTrainer
                 // ⏸: before the start it holds the row; flying, it freezes the aircraft (again: on).
                 Button hold = SmallButton("⏸", () =>
                 {
-                    if (p.Now == TowerPlan.State.Flying) engine.SetFrozen(p.Flying, engine.Get(p.Flying)?.Frozen != true);
+                    if (p.Now == TowerPlan.State.Flying)
+                    {
+                        // All its aircraft: frozen if one of them is not, else on.
+                        List<string> flying = MembersFlying(p);
+                        bool freeze = flying.Any(m => engine.Get(m)?.Frozen != true);
+                        foreach (string m in flying) engine.SetFrozen(m, freeze);
+                    }
                     else p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : TowerPlan.State.Held;
                     UpdatePlans();
                 });
@@ -1147,7 +1158,7 @@ namespace ATCRoom.TwrTrainer
                 // ✕: the row, and its aircraft if it flies (the user, 3 Nov).
                 buttons.Children.Add(SmallButton("✕", () =>
                 {
-                    if (p.Now == TowerPlan.State.Flying) commands.Remove(p.Flying);
+                    foreach (string m in MembersFlying(p)) commands.Remove(m);
                     plans.Remove(p);
                     ShowPlans();
                 }));
@@ -1155,6 +1166,31 @@ namespace ATCRoom.TwrTrainer
                 row.Children.Add(buttons);
                 planList.Children.Add(row);
                 planRows.Add((p, status, hold));
+                // A formation split (the user, 4 Nov): each of its aircraft in a row of its own, to freeze or remove it.
+                List<string> members = MembersFlying(p);
+                bool together = members.Count == 1 && engine.Get(members[0])?.Formation is { Count: > 1 };
+                if (p.Formation > 1 && !together)
+                {
+                    foreach (string member in members)
+                    {
+                        string m = member;
+                        Grid sub = new() { Margin = new Thickness(12, 0, 0, 1) };
+                        sub.ColumnDefinitions.Add(new ColumnDefinition());
+                        sub.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        AircraftState? state = engine.Get(m);
+                        sub.Children.Add(new TextBlock
+                        {
+                            Text = $"↳ {m}{(state?.Formation is { Count: > 1 } f ? $" F{f.Count}" : "")}{(state?.Frozen == true ? "  frozen" : "")}",
+                            Foreground = TextBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center
+                        });
+                        StackPanel subButtons = new() { Orientation = Orientation.Horizontal };
+                        subButtons.Children.Add(SmallButton(state?.Frozen == true ? "⏵" : "⏸", () => { engine.SetFrozen(m, engine.Get(m)?.Frozen != true); ShowPlans(); }));
+                        subButtons.Children.Add(SmallButton("✕", () => { commands.Remove(m); ShowPlans(); }));
+                        Grid.SetColumn(subButtons, 1);
+                        sub.Children.Add(subButtons);
+                        planList.Children.Add(sub);
+                    }
+                }
             }
             if (plans.Count == 0) planList.Children.Add(new TextBlock { Text = "Empty: choose in New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
             UpdatePlans();
@@ -1175,8 +1211,13 @@ namespace ATCRoom.TwrTrainer
             double time = engine.Time;
             foreach (TowerPlan plan in plans)
             {
-                if (plan.Now == TowerPlan.State.Flying && engine.Get(plan.Flying) == null) { plan.Now = TowerPlan.State.Waiting; plan.Due = 0; }
+                if (plan.Now == TowerPlan.State.Flying && MembersFlying(plan).Count == 0) { plan.Now = TowerPlan.State.Waiting; plan.Due = 0; }
                 if (plan.Now == TowerPlan.State.Counting && time >= plan.Due) StartPlan(plan);
+            }
+            if (PlansKey() != plansKey)
+            {
+                ShowPlans();
+                return;
             }
             foreach ((TowerPlan plan, TextBlock status, Button hold) in planRows)
             {
@@ -1184,7 +1225,7 @@ namespace ATCRoom.TwrTrainer
                 {
                     TowerPlan.State.Counting => $"starts in {(int)(Math.Max(0, plan.Due - time) / 60)}:{(int)(Math.Max(0, plan.Due - time) % 60):00}",
                     TowerPlan.State.Held => "held (⏸ again to go on)",
-                    TowerPlan.State.Flying => $"flying: {plan.Flying}",
+                    TowerPlan.State.Flying => $"flying: {string.Join(", ", MembersFlying(plan))}",
                     _ => "waiting"
                 };
                 bool frozen = plan.Now == TowerPlan.State.Flying && engine.Get(plan.Flying)?.Frozen == true;
@@ -1204,11 +1245,22 @@ namespace ATCRoom.TwrTrainer
             }
             else
             {
-                plan.Now = TowerPlan.State.Flying;
-                plan.Flying = added;
+                Started(plan, added);
             }
             UpdatePlans();
         }
+
+        /// <summary>A plan flying: its aircraft (a formation: the leader and its wingmen, each one in the list once split).</summary>
+        private static void Started(TowerPlan plan, string added)
+        {
+            plan.Now = TowerPlan.State.Flying;
+            plan.Flying = added;
+            plan.Members = plan.Formation > 1 ? [added, .. SimEngine.FormationNames(added, plan.Formation) ?? []] : [added];
+        }
+
+        /// <summary>The aircraft of a plan in the simulation now (each one split off a formation as well).</summary>
+        private List<string> MembersFlying(TowerPlan plan) =>
+            plan.Now != TowerPlan.State.Flying ? [] : (plan.Members.Count > 0 ? plan.Members : [plan.Flying]).Where(m => engine.Get(m) != null).ToList();
 
         /// <summary>START ALL: every plan waiting starts after its delay (held ones stay held).</summary>
         private void StartAllPlans()

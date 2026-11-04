@@ -54,6 +54,8 @@ namespace ATCRoom.TwrTrainer
         [JsonIgnore] public double Due { get; set; }
         /// <summary>The aircraft flying it.</summary>
         [JsonIgnore] public string Flying { get; set; } = "";
+        /// <summary>All its aircraft (a formation: the leader and its wingmen, flying together or split).</summary>
+        [JsonIgnore] public List<string> Members { get; set; } = [];
         /// <summary>Ticked in the list (for GROUP).</summary>
         [JsonIgnore] public bool Picked { get; set; }
 

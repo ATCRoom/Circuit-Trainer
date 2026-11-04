@@ -513,6 +513,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   aircraft already flying into a formation).
 - **The empty column (the user, 4 Nov; to do):** all the parts floating: the column on the right hidden, the map on the
   whole width of the window; a part docked again (⇲, double click on its bar): the column back.
-- **Split s renamed (the user, 4 Nov; to do):** the row "Split s" of New aircraft becomes "Interval s" (the seconds
+- **Split s renamed (the user, 4 Nov; done 4 Nov, values 3, 4, 5, 10: "with 3 seconds they are already close", no 2):** the row "Split s" of New aircraft becomes "Interval s" (the seconds
   between one aircraft and the next when the formation splits), with the values 2, 3, 4, 5, 10 (no 0: they would turn
   on top of each other); 3 by default.
+- **Split aircraft in the Traffic List (the user, 4 Nov; done):** a formation's plan shows each of its aircraft once
+  split, in a row of its own under it (⏸ freeze, ✕ remove that one); the plan's ✕ removes all of them; it waits again
+  only when all of them are gone.
+- **Traffic List as in the PAR trainer (proposed 4 Nov; next step, after the test of the split rows):** two lists,
+  FLYING (a row per aircraft: callsign, height, speed, leg; II/▶, ↺ its plan again, ✕) and WAITING (the plans not
+  started: ☐ ▶ ⏸ ⧉ ✕); thin one-line rows (11 pt, monospace), each list up to about 8 rows then it scrolls; ADD NOW only
+  in FLYING (a plan only with TO LIST).
