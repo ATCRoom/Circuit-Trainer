@@ -1531,7 +1531,7 @@ namespace ATCRoom.Sim
                 plane.SpeedKt = Math.Max(plane.SpeedKt, liftOff);
                 plane.AltitudeFt = runwayElevation + 1;
                 // (The first take-off: the conventional or the wide, the user 5 Nov; another circuit ordered stays for later.)
-                if (circuit.LapTouched || circuit.NextType is null or CircuitType.Conventional or CircuitType.Wide) NextCircuit(circuit);
+                if (circuit.LapTouched || circuit.NextType is not (CircuitType.Overhead or CircuitType.Sfo)) NextCircuit(circuit);
                 // (A circuit of its plan flown: the next one's end; the end of this one decides what it does now.)
                 EndAction flown = circuit.End;
                 // (Its last circuit flown, the plan ends away: it leaves, the user 5 Nov.)
