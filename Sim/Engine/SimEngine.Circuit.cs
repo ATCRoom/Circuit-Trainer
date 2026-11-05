@@ -1789,7 +1789,7 @@ namespace ATCRoom.Sim
         private void DepartureStep(SimAircraft plane, CircuitState circuit)
         {
             // To its exit gate: gone there (as a crossing).
-            if (double.IsFinite(circuit.ExitX) && plane.Route is { } way && plane.RouteNext >= way.Count && circuit.DepartPhase == 0) circuit.TransitDone = true;
+            if (double.IsFinite(circuit.ExitX) && plane.Route is { } exitWay && plane.RouteNext >= exitWay.Count && circuit.DepartPhase == 0) circuit.TransitDone = true;
             if (!double.IsFinite(circuit.DepartRadial) || circuit.DepartPhase >= 2) return;
             double course = circuit.DepartRadial * Math.PI / 180;
             double dx = plane.X - circuit.DepartFromX, dy = plane.Y - circuit.DepartFromY;
