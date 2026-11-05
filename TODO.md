@@ -709,3 +709,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   pads + "Point on the map...". New aircraft: On Final HPAD for helicopter arrivals / locals, the row Helipad (the
   registered ones, POINT). Test 51.
 
+## Next group (to do)
+- **HPAD without a pad (the user, 5 Nov):** New aircraft with On Final HPAD and no pad (none registered, or POINT not
+  clicked): it starts anyway (no error), its plan "on a pad to be chosen"; the label shows HPAD? until the pad is given in
+  flight (HPAD on END or DCT TO); on the final with no pad yet: a full stop on the runway. A note instead of the error:
+  "no pad: choose it in flight with HPAD, else it lands on the runway".
+
