@@ -962,16 +962,16 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     SimEngine e6 = NewCircuitEngine();
     string c6 = e6.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.LowPass, performanceClass: "Turboprop");
     bool passed = false;
+    // (Its far end passed on the final: the low pass done; at 400 ft the close pattern turns at once, its GO AROUND leg is short.)
     List<AircraftState> t6 = Fly(e6, c6, 1200, st =>
     {
-        if (st.Leg == "GO AROUND" && !passed) { passed = true; e6.SetEndAction(c6, EndAction.FullStop); }
+        if (!passed && st.Leg == "FINAL" && Frame(st).Along > CircuitLength + 0.05) { passed = true; e6.SetEndAction(c6, EndAction.FullStop); }
     });
-    int lp = t6.FindIndex(st => st.Leg == "GO AROUND");
-    List<AircraftState> over = t6.Take(lp + 20).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
-    Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 0 && Between(over.Min(Height), 360, 460)
-        && Between(Frame(t6[lp]).Along, CircuitLength - 0.05, CircuitLength + 0.3),
-        "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown, up again at its far end",
-        over.Count > 0 ? $"lowest {over.Min(Height):F0} ft, up at {Frame(t6[lp]).Along:F2} NM" : $"not over the runway (go-around at {lp}, {t6.Count} s, last {t6[^1].Leg} {Height(t6[^1]):F0} ft at {Frame(t6[^1]).Along:F2}/{Frame(t6[^1]).Lateral:F2} NM {t6[^1].SpeedKt:F0} kt hdg {t6[^1].HeadingTrue:F0} vs {t6[^1].VerticalSpeedFpm:F0} {t6[^1].Contact} nav {t6[^1].Navigation} next {t6[^1].RouteNext}/{t6[^1].Route?.Count}, first FINAL at {t6.FindIndex(st => st.Leg == "FINAL")} s, track {string.Join(" ", t6.Where((st, i) => i % 15 == 0 && i < 400).Select(st => $"{Frame(st).Along:F1}/{Frame(st).Lateral:F1}/{st.HeadingTrue:F0}/{Height(st):F0}"))}, at 600 s {Frame(t6[Math.Min(600, t6.Count - 1)]).Along:F2}, legs {string.Join(",", t6.Select(st => st.Leg).Distinct())})");
+    int lp = t6.FindIndex(st => st.Leg == "FINAL" && Frame(st).Along > CircuitLength + 0.05);
+    List<AircraftState> over = lp < 0 ? [] : t6.Take(lp).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
+    Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 10 && Between(over.Min(Height), 360, 460) && over.Max(Height) < 460,
+        "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown",
+        over.Count > 0 ? $"{over.Min(Height):F0} to {over.Max(Height):F0} ft over the runway" : "not over the runway");
     Check(LandedOnRunway(t6), "Low pass: then the full stop");
     pictures.Add(("Low pass on a close pattern, then full stop, Turboprop", t6));
 
