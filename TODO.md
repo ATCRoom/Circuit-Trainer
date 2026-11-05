@@ -691,7 +691,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   rewritten for the four types of flight.
 - **Pattern entry in flight (the user, 5 Nov: "the WIDE is not a circuit, a way outside them: back in at any moment, as
   the controller clears it"):** New aircraft: Pattern entry hidden for LOCAL / DEPARTURE. In flight, on the label and in
-  Selected aircraft, a row ENTRY: DW (join the conventional downwind now), BASE (straight to the start of the conventional
+  Selected aircraft, a row DCT TO (the user, 5 Nov: not "ENTRY", it goes there at once): DW (join the conventional downwind now), BASE (straight to the start of the conventional
   base, then the final), IP (straight to the initial point, the overhead), HK (straight to the High Key, the SFO); lit on
   the WIDE and for an aircraft out of a circuit (flown by the instructor), at once (not the next circuit).
 
