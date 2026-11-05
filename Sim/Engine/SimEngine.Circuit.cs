@@ -1744,7 +1744,8 @@ namespace ATCRoom.Sim
             double along = dx * Math.Sin(course) + dy * Math.Cos(course);
             if (circuit.DepartPhase == 0)
             {
-                if (plane.Navigation != NavigationMode.Route) { circuit.DepartPhase = 3; return; }
+                // (A heading or another route of the instructor's before the turn: his.)
+                if (plane.Navigation != NavigationMode.Route || plane.Route is not { Count: 2 } way || way[1].Name != "DEPARTURE") { InstructorsDeparture(plane, circuit); return; }
                 if (plane.AltitudeFt - runwayElevation <= WaveoffTurnHeight) return;
                 circuit.DepartIntercept = Math.Abs(right) < 0.2 ? circuit.DepartRadial : Normalize(circuit.DepartRadial + (right > 0 ? -45 : 45));
                 plane.Navigation = NavigationMode.Manual;
@@ -1761,7 +1762,7 @@ namespace ATCRoom.Sim
                 return;
             }
             // Turning to the intercept heading, then on it to the radial.
-            if (Math.Abs(Wrap(plane.TargetHeading - circuit.DepartIntercept)) > 0.5 || plane.Navigation != NavigationMode.Manual) { circuit.DepartPhase = 3; return; }
+            if (Math.Abs(Wrap(plane.TargetHeading - circuit.DepartIntercept)) > 0.5 || plane.Navigation != NavigationMode.Manual) { InstructorsDeparture(plane, circuit); return; }
             if (Math.Abs(Wrap(plane.HeadingTrue - circuit.DepartIntercept)) > 15) return;
             double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
             double radius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
@@ -1780,11 +1781,34 @@ namespace ATCRoom.Sim
             // On the radial: along it, out of the zone.
             double ahead = Math.Max(along, 0) + DepartureGoneNM + 5;
             double height = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : plane.TargetAltitudeFt;
+            // (An altitude or a speed of the instructor's kept.)
+            bool altitudeGiven = plane.AltitudeGiven, speedGiven = plane.SpeedGiven;
+            double altitude = plane.TargetAltitudeFt, speed = plane.TargetSpeedKt;
+            VerticalMode vertical = plane.VerticalMode;
             GiveRoute(plane,
             [
                 new RoutePoint(circuit.DepartFromX + ahead * Math.Sin(course), circuit.DepartFromY + ahead * Math.Cos(course), height, plane.Class.CircuitSpeedKt, "DEPARTURE")
             ]);
+            if (altitudeGiven)
+            {
+                plane.AltitudeGiven = true;
+                plane.TargetAltitudeFt = altitude;
+                plane.VerticalMode = vertical;
+            }
+            if (speedGiven)
+            {
+                plane.SpeedGiven = true;
+                plane.TargetSpeedKt = speed;
+            }
             circuit.DepartPhase = 2;
+        }
+
+        /// <summary>The instructor took a departure (a heading, a route): his from now on, turning as any aircraft he flies.</summary>
+        private static void InstructorsDeparture(SimAircraft plane, CircuitState circuit)
+        {
+            circuit.DepartPhase = 3;
+            plane.CircuitBankDegrees = 0;
+            plane.SelectedTurnRateDps = plane.TurnRateMode == TurnRateMode.Half ? HalfTurnRate : StandardTurnRate;
         }
 
         /// <summary>Where the overhead pattern breaks, and the close pattern turns to its downwind (NM along the runway; standby: never).</summary>

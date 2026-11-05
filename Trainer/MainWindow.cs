@@ -98,6 +98,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox radialBox = new() { Width = 45 };
         private readonly TextBlock radialFromText = new() { Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Text = "from the middle of the runway" };
         private (double X, double Y)? radialFrom;
+        private bool turnChosen;
         private Grid departLine = null!, radialLine = null!;
         private readonly TextBox variationBox = new() { Width = 45 };
         private ChoiceRow<string> toRow = new([]);
@@ -543,7 +544,9 @@ namespace ATCRoom.TwrTrainer
             departRow.Show(false);
             departTurnRow.Show(true);
             departRow.Picked += _ => ShowEntries();
-            radialBox.LostFocus += (_, _) => ShortTurnToRadial();
+            // (The shorter turn as the radial is written; L / R clicked: the instructor's, kept.)
+            radialBox.TextChanged += (_, _) => ShortTurnToRadial();
+            departTurnRow.Picked += _ => turnChosen = true;
             Row("Formation", formationRow, null, 62);
             intervalLine = Row("Interval s", splitRow, null, 62);
             formationRow.Show(1);
@@ -589,7 +592,7 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
             Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure with no circuit; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
-            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit.";
+            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure with no circuit: the height it climbs to (empty: 3000 ft).";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
             toListButton = ActionButton("TO LIST", AddPlan);
             cancelEditButton = ActionButton("CANCEL", CancelEdit);
@@ -1277,7 +1280,7 @@ namespace ATCRoom.TwrTrainer
                 variationBox.Text = VariationText(airfield.Circuits.MagneticVariation ?? 0);
                 return;
             }
-            if (airfield.Map != null && airfield.Circuits.MagneticVariation != variation)
+            if (airfield.Map != null && (airfield.Circuits.MagneticVariation ?? 0) != variation)
             {
                 airfield.Circuits.MagneticVariation = variation == 0 ? null : variation;
                 Say(airfield.Save());
@@ -1300,7 +1303,7 @@ namespace ATCRoom.TwrTrainer
         private void ShortTurnToRadial()
         {
             double radial = RadialWritten();
-            if (double.IsNaN(radial) || double.IsNaN(airfield.Course)) return;
+            if (turnChosen || double.IsNaN(radial) || double.IsNaN(airfield.Course)) return;
             double toward = radial + (airfield.Circuits.MagneticVariation ?? 0) - airfield.Course;
             departTurnRow.Show(SimEngine.Wrap(toward) >= 0);
         }
@@ -1328,7 +1331,7 @@ namespace ATCRoom.TwrTrainer
                 Transit = Type() == Flight.Transit,
                 Departure = Type() == Flight.Departure,
                 Radial = Type() == Flight.Departure && Laps() == TowerPlan.NoCircuit && departRow.HasValue && departRow.Value ? RadialWritten() : null,
-                TurnRight = departTurnRow.HasValue ? departTurnRow.Value : null,
+                TurnRight = Type() == Flight.Departure && departTurnRow.HasValue ? departTurnRow.Value : null,
                 RadialFromX = radialFrom?.X,
                 RadialFromY = radialFrom?.Y,
                 To = toRow.HasValue ? toRow.Value ?? "" : "",
@@ -1444,6 +1447,7 @@ namespace ATCRoom.TwrTrainer
             else plans.Add(plan);
             EndEdit();
             callsignBox.Text = "";
+            turnChosen = false;
             ShowPlans();
         }
 
@@ -1456,6 +1460,7 @@ namespace ATCRoom.TwrTrainer
             departRow.Show(p.Radial != null);
             radialBox.Text = p.Radial is double r && !double.IsNaN(r) ? r.ToString("0", CultureInfo.InvariantCulture) : "";
             if (p.TurnRight is bool right) departTurnRow.Show(right);
+            turnChosen = p.TurnRight != null;
             radialFrom = p.RadialFromX is double fx && p.RadialFromY is double fy ? (fx, fy) : null;
             radialFromText.Text = radialFrom != null ? "from the point clicked" : "from the middle of the runway";
             if (p.To.Length > 0) toRow.Show(p.To);

@@ -233,6 +233,23 @@ namespace ATCRoom.Sim
                 plane.RouteApproached = false;
                 circuit.LegIndex = -1;
             }
+            else if (circuit.Departed && !circuit.Suspended && circuit.DepartPhase < 3)
+            {
+                // A departure (a wingman after the split): on along its way again (to the radial, or along it).
+                if (circuit.DepartPhase == 1)
+                {
+                    plane.Navigation = NavigationMode.Manual;
+                    plane.TargetHeading = circuit.DepartIntercept;
+                    plane.TurnDirection = TurnDirection.Shortest;
+                }
+                else if (plane.Route != null)
+                {
+                    plane.Navigation = NavigationMode.Route;
+                    plane.LegStartX = plane.X;
+                    plane.LegStartY = plane.Y;
+                    plane.RouteApproached = false;
+                }
+            }
             return false;
         }
 
