@@ -689,6 +689,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Rows that do not apply hidden (the user, 5 Nov):** in New aircraft a row that is off for the type of flight is hidden,
   not shown grey (Pattern entry for LOCAL / DEPARTURE, Exit to and Via for the non crossings, ...). The note at the top
   rewritten for the four types of flight.
-- **LOCAL / DEPARTURE with WIDE: Pattern entry lit (the user, 5 Nov: "with WIDE I must be able to come back into a
-  circuit")** — how exactly: to be decided (see the question of 5 Nov).
+- **Pattern entry in flight (the user, 5 Nov: "the WIDE is not a circuit, a way outside them: back in at any moment, as
+  the controller clears it"):** New aircraft: Pattern entry hidden for LOCAL / DEPARTURE. In flight, on the label and in
+  Selected aircraft, a row ENTRY: DW (join the conventional downwind now), BASE (straight to the start of the conventional
+  base, then the final), IP (straight to the initial point, the overhead), HK (straight to the High Key, the SFO); lit on
+  the WIDE and for an aircraft out of a circuit (flown by the instructor), at once (not the next circuit).
 
