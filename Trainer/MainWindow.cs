@@ -125,6 +125,7 @@ namespace ATCRoom.TwrTrainer
         private Panel current = null!;
         // The order buttons of the selected aircraft (grey when they do not apply).
         private Button splitButton = null!, expTaxiButton = null!;
+        private Grid selBreakGrid = null!, selBreakPointGrid = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
             orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
@@ -594,9 +595,10 @@ namespace ATCRoom.TwrTrainer
             selSideRow.Picked += side => WithSelected(cs => commands.NextCircuit(cs, selCircuitRow.HasValue ? selCircuitRow.Value : CircuitType.Conventional, side));
             Row("At the end", selEndRow, next, 62);
             selEndRow.Picked += end => WithSelected(cs => commands.SetEnd(cs, end));
-            Row("Break", selBreakRow, next, 62);
+            // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
+            selBreakGrid = Row("Break", selBreakRow, next, 62);
             selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
-            Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
+            selBreakPointGrid = Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
                 view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
 
             StackPanel now = Group("3 · Now, in the circuit", "Standard orders at once, in the order of the circuit (grey: not where it is now).", selectedPanel);
@@ -784,10 +786,10 @@ namespace ATCRoom.TwrTrainer
             "G/A" => "Go-around at about 200 ft, then the circuit again.",
             "LOW" => "Low pass at about 100 ft, then the circuit again.",
             "DEP" => "Touch and go (or take-off), then it leaves straight out.",
-            "break MID" => "Overhead: the break over the middle of the runway.",
-            "break BEG" => "Overhead: the break over the beginning of the runway.",
-            "break END" => "Overhead: the break over the end of the runway.",
-            "break STBY" => "Overhead: standby for break: on along the initial until BREAK NOW.",
+            "break MID" => "Overhead: the break over the middle of the runway. Close: the turn to the downwind there (above 400 ft).",
+            "break BEG" => "Overhead: the break over the beginning of the runway. Close: the turn to the downwind there (above 400 ft).",
+            "break END" => "Overhead: the break over the end of the runway. Close: the turn to the downwind there (above 400 ft).",
+            "break STBY" => "Standby for break: overhead on along the initial, close on along the runway track, until BREAK NOW.",
             _ => ""
         };
 
@@ -824,11 +826,11 @@ namespace ATCRoom.TwrTrainer
             ["⧉"] = "Duplicate: the next callsign, one minute later.",
             ["✕"] = "Remove this plan.",
             ["BREAK AT A POINT"] = "Overhead: click on the map where it breaks (along the runway).",
-            ["BREAK NOW"] = "Overhead, on the initial: it breaks now.",
+            ["BREAK NOW"] = "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft).",
             ["HOLD HK"] = "SFO: it waits circling over the High Key (until START SFO).",
             ["START SFO"] = "SFO: at the next pass over the High Key it starts the flame out pattern.",
             ["EXTEND DWN"] = "On the downwind: straight on beyond the base turn, until TURN BASE.",
-            ["TURN BASE"] = "On the downwind: turn base now (also during an orbit).",
+            ["TURN BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
             ["ORBIT"] = "One orbit (360°) away from the runway, then on. Shift+click: orbits until CONTINUE.",
             ["ORBIT ∞"] = "Orbits until CONTINUE (this button while it orbits).",
             ["CONTINUE"] = "The orbits end: on along its circuit from here.",
@@ -2179,7 +2181,7 @@ namespace ATCRoom.TwrTrainer
             MenuItem end = new() { Header = "At the end" };
             foreach (MenuItem item in EndItems(callsign, a.EndAction)) end.Items.Add(item);
             List<MenuItem> items = [circuit, side, end];
-            if (type == CircuitType.Overhead)
+            if (type is CircuitType.Overhead or CircuitType.Close)
             {
                 MenuItem where = new() { Header = "Break" };
                 foreach (MenuItem item in BreakItems(callsign, a.Break)) where.Items.Add(item);
@@ -2239,15 +2241,18 @@ namespace ATCRoom.TwrTrainer
                 selEndRow.Refresh(a.EndAction);
                 selBreakRow.Refresh(a.Break);
             }
+            CircuitType? planned = selCircuitRow.HasValue ? selCircuitRow.Value : a?.NextCircuit ?? a?.Circuit;
+            if (selBreakGrid != null) selBreakGrid.Visibility = selBreakPointGrid.Visibility = planned is CircuitType.Overhead or CircuitType.Close ? Visibility.Visible : Visibility.Collapsed;
             if (a != null)
             {
                 string leg = a.Leg;
                 bool sfo = a.Circuit == CircuitType.Sfo, inCircuit = a.Circuit != null && a.Contact == GroundContact.Airborne && leg is not ("MANUAL" or "GO AROUND" or "DEPARTURE");
-                breakNowButton.IsEnabled = a.Circuit == CircuitType.Overhead && leg == "INITIAL";
+                breakNowButton.IsEnabled = (a.Circuit == CircuitType.Overhead && leg == "INITIAL") || (a.Circuit == CircuitType.Close && leg is "UPWIND" or "GO AROUND");
                 holdButton.IsEnabled = sfo && !a.SfoHold && leg is "CLIMB" or "HIGH KEY";
                 startSfoButton.IsEnabled = sfo && a.SfoHold;
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
-                baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS";
+                baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS"
+                    || (leg == "JOIN" && a.Circuit is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close);
                 orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
                 orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
                 // (Orbiting on and on: a thick border, the user 4 Nov; a click: out of the orbit.)

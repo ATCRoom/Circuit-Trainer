@@ -374,12 +374,45 @@ namespace ATCRoom.Sim
             Instruct(callsign, Kind.Heading, a =>
             {
                 EndOrbit(a);
-                if (a.Circuit is not { Suspended: false, Departed: false, Turning: false, Spiral: false } circuit || a.Contact != GroundContact.Airborne
-                    || a.Route == null || a.RouteNext >= a.Route.Count || !IsDownwind(a.Route[a.RouteNext]) || double.IsNaN(glidePathCourse)) return;
-                (double along, _) = RunwayFrame(a.X, a.Y, circuit.Side);
+                if (a.Circuit is not { Suspended: false, Departed: false, Turning: false, Spiral: false, StraightIn: false } circuit || a.Contact != GroundContact.Airborne
+                    || a.Route == null || a.RouteNext >= a.Route.Count || double.IsNaN(glidePathCourse)) return;
+                RoutePoint now = a.Route[a.RouteNext];
+                bool joining = now.Name == "JOIN" && circuit.Type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close;
+                if (!joining && !IsDownwind(now)) return;
+                (double along, double lateral) = RunwayFrame(a.X, a.Y, circuit.Side);
                 circuit.Extended = false;
                 PerformanceClass kind = a.Class;
                 RoutePoint final = Point(0, 0, circuit.Side, double.NaN, kind.FinalSpeedKt, "FINAL");
+                double downwindWidth = Width(circuit.Type, kind, circuit.Side);
+                if (joining || (Math.Abs(lateral - downwindWidth) > 0.3 && along > BaseAlong(circuit.Type, kind) + 0.3))
+                {
+                    // Still joining the circuit (the user, 4 Nov, with a drawing): straight to the start of the base at its
+                    // place, then the base and the final, as the gate entry BASE. The close pattern: onto the downwind line
+                    // just before its 180° turn to the final, then that turn.
+                    double baseAlong = BaseAlong(circuit.Type, kind);
+                    double joinHeight = runwayElevation + CircuitHeight(circuit.Type, kind);
+                    if (IsJetShape(circuit.Type))
+                    {
+                        GiveRoute(a,
+                        [
+                            Point(baseAlong + 0.8, downwindWidth, circuit.Side, joinHeight, kind.CircuitSpeedKt, "JOIN"),
+                            Point(baseAlong, downwindWidth, circuit.Side, joinHeight, kind.CircuitSpeedKt, "DOWNWIND"),
+                            Point(baseAlong, 0, circuit.Side, runwayElevation + kind.RollOutHeightFt, kind.FinalSpeedKt, "FINAL", turn180: true),
+                            final
+                        ]);
+                    }
+                    else
+                    {
+                        double cornerHeight = Math.Min(joinHeight, runwayElevation + (downwindWidth - baseAlong) * GlideFeetPerNM());
+                        GiveRoute(a,
+                        [
+                            Point(baseAlong, downwindWidth, circuit.Side, cornerHeight, kind.CircuitSpeedKt, "JOIN"),
+                            Point(baseAlong, 0, circuit.Side, runwayElevation + -baseAlong * GlideFeetPerNM(), kind.FinalSpeedKt, "BASE"),
+                            final
+                        ]);
+                    }
+                    return;
+                }
                 // (The user, 4 Nov: BASE before the threshold cut across to it. Now: on along the downwind — or onto it,
                 // if still on the way — to 0.3 NM past the threshold, then a short base; past it: the base from here.)
                 double turnAlong = Math.Min(along, ShortBaseAlong);
@@ -604,7 +637,9 @@ namespace ATCRoom.Sim
             Instruct(callsign, Kind.Heading, a =>
             {
                 // Only on the initial (else it would break at once on the next initial).
-                if (a.Circuit != null && a.Route != null && a.RouteNext < a.Route.Count && a.Route[a.RouteNext].Name == "INITIAL") a.Circuit.BreakNow = true;
+                // (The close pattern: on its upwind, the user 5 Nov.)
+                if (a.Circuit != null && a.Route != null && a.RouteNext < a.Route.Count
+                    && (a.Route[a.RouteNext].Name == "INITIAL" || (a.Circuit.Type == CircuitType.Close && a.Route[a.RouteNext].Name is "UPWIND" or "GO AROUND"))) a.Circuit.BreakNow = true;
             });
 
         /// <summary>
@@ -965,14 +1000,7 @@ namespace ATCRoom.Sim
                 if (circuit.Type == CircuitType.Overhead && target.Name == "INITIAL")
                 {
                     // The break: over its point along the runway (not on standby), or at once on "break now".
-                    double breakAt = circuit.Break switch
-                    {
-                        BreakPoint.Beginning => 0.05,
-                        BreakPoint.End => Math.Max(runwayLength, 0.3),
-                        BreakPoint.Point => circuit.BreakAlong,
-                        BreakPoint.Standby => double.PositiveInfinity,
-                        _ => Math.Max(runwayLength, 0.3) / 2
-                    };
+                    double breakAt = BreakAlongOf(circuit);
                     if (circuit.BreakNow || alongNow >= breakAt)
                     {
                         circuit.BreakNow = false;
@@ -994,8 +1022,20 @@ namespace ATCRoom.Sim
                 }
                 else if (circuit.Type == CircuitType.Close && target.Name is "UPWIND" or "GO AROUND")
                 {
-                    // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind at once, climbing.
-                    if (plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
+                    // Waveoff, take-off: above 400 ft over the runway track it turns to the downwind, climbing, at its break
+                    // point (the user, 5 Nov: the close pattern is an overhead without the initial): past it already, at once;
+                    // on standby, on along the runway track until "break now".
+                    double breakAt = BreakAlongOf(circuit);
+                    bool breaks = circuit.BreakNow || alongNow >= breakAt;
+                    if (!breaks && Math.Abs(lateralNow) < 0.3 && AlongOf(target, circuit.Side) < alongNow + 1)
+                    {
+                        // Its break still ahead: the point it flies to moves on ahead of it, along the runway track.
+                        (double tx, double ty) = FromRunway(alongNow + 1.5, 0, circuit.Side);
+                        List<RoutePoint> moved = plane.Route.ToList();
+                        moved[plane.RouteNext] = target with { X = tx, Y = ty };
+                        plane.Route = moved;
+                    }
+                    if (breaks && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && Math.Abs(lateralNow) < 0.3)
                     {
                         if (circuit.TurnWaitSeconds > 0)
                         {
@@ -1004,6 +1044,7 @@ namespace ATCRoom.Sim
                             circuit.TurnWaitSeconds = 0;
                             return;
                         }
+                        circuit.BreakNow = false;
                         PassPoint(plane, fromHere: true);
                     }
                 }
@@ -1638,6 +1679,16 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
+        /// <summary>Where the overhead pattern breaks, and the close pattern turns to its downwind (NM along the runway; standby: never).</summary>
+        private double BreakAlongOf(CircuitState circuit) => circuit.Break switch
+        {
+            BreakPoint.Beginning => 0.05,
+            BreakPoint.End => Math.Max(runwayLength, 0.3),
+            BreakPoint.Point => circuit.BreakAlong,
+            BreakPoint.Standby => double.PositiveInfinity,
+            _ => Math.Max(runwayLength, 0.3) / 2
+        };
+
         private static bool IsDownwind(RoutePoint point) => point.Name == "DOWNWIND" && !point.Turn180;
 
         /// <summary>Where the downwind starts along the runway (NM from the threshold): the close pattern abeam the runway end.</summary>

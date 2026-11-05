@@ -630,11 +630,18 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **TURN BASE before the threshold (the user, 4 Nov, a bug; done):** it flew straight at a point 0.3 NM before the
   threshold, across the field. Now: on along the downwind (onto it, if still on the way) to 0.3 NM past the threshold,
   a short base; past it, the base from where it is; the jet circuits the same for their 180° turn to the final.
-- **BASE while still joining (the user, 4 Nov, after a test; to do):** the short base is right only for an aircraft
+- **BASE while still joining (the user, 4 Nov, after a test; done 5 Nov, test 45):** the short base is right only for an aircraft
   already on the downwind. One still to join the circuit (from a gate, on the 45° entry, heading to the downwind:
   off the downwind line by more than 0.3 NM, or its target JOIN) goes straight to the start of the base at its normal
   place (the end of the downwind, BaseAlong), then the base and the final, as the gate entry BASE decided at the moment
   (the user's drawing: an arrow from the aircraft straight to the corner of the base). Jet circuits: straight to the
   point of their 180° turn to the final. BASE usable on JOIN too (now grey there). On the downwind before the threshold:
   the short base 0.3 NM past it (as now); past it: the base at once. Self-test: from a gate, BASE before the downwind,
-  never on the runway side of the downwind before the base, lands.
+  never on the runway side of the downwind before the base, lands. (Done: the jet circuits onto the downwind line
+  0.8 NM before their 180° turn, then the turn.)
+- **The break of the close pattern (the user, 5 Nov: "the close is like an OVH without the initial"; done, test 44):** the
+  180° turn to the downwind after a touch and go or a go-around at the break point of the aircraft: MID (default),
+  BEG, END, a point on the map, above 400 ft as before (past the point at 400 ft: at once); STBY on along the runway
+  track until BREAK NOW (on the label and in the panel for the close pattern on its upwind too). The Break row of
+  Selected aircraft (and BREAK AT A POINT) only with OVH and CLS; with CONV, WIDE, SFO hidden (they have no break).
+  Note: a waveoff of the close pattern now turns over the middle of the runway (before: just above 400 ft).

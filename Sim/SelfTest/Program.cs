@@ -1027,7 +1027,7 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         "Departure: take-off, straight out at circuit height", $"{end9.Leg} at {Frame(end9).Along:F1} NM, {Height(end9):F0} ft");
     pictures.Add(("Departure, Turboprop", t9));
 
-    // 11. Waveoff of the jet circuit: above 400 ft it turns to the downwind at once.
+    // 11. Waveoff of the jet circuit: above 400 ft it turns to the downwind at its break point (the middle of the runway).
     SimEngine e11 = NewCircuitEngine();
     string c11 = e11.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.GoAround, performanceClass: "Jet");
     bool waved = false;
@@ -1037,8 +1037,8 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     });
     int wo = t11.FindIndex(st => st.Leg == "GO AROUND");
     int turnDownwind = wo < 0 ? -1 : t11.FindIndex(wo, st => st.Leg == "DOWNWIND");
-    Check(turnDownwind > 0 && Between(Height(t11[turnDownwind]), 380, 700) && Frame(t11[turnDownwind]).Along < CircuitLength && LandedOnRunway(t11),
-        "Waveoff (Jet, close pattern): turns to the downwind just above 400 ft, over the runway, then lands", turnDownwind > 0 ? $"{Height(t11[turnDownwind]):F0} ft at {Frame(t11[turnDownwind]).Along:F2} NM" : "no turn");
+    Check(turnDownwind > 0 && Height(t11[turnDownwind]) > 380 && Between(Frame(t11[turnDownwind]).Along, CircuitLength / 2 - 0.05, CircuitLength) && LandedOnRunway(t11),
+        "Waveoff (Jet, close pattern): turns to the downwind above 400 ft over the middle of the runway (its break), then lands", turnDownwind > 0 ? $"{Height(t11[turnDownwind]):F0} ft at {Frame(t11[turnDownwind]).Along:F2} NM" : "no turn");
     List<double> s11 = StraightDownwind(t11);
     Check(Parallel(s11, 1.2), "Waveoff: the downwind parallel to the runway at 1.2 NM", Describe(s11));
     pictures.Add(("Waveoff in the close pattern, then full stop, Jet", t11));
@@ -1773,6 +1773,57 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(conventional == "landed" && close == "landed" && convClosest > 0.6 && closeClosest > 0.6 && convTurned < -0.1,
             "TURN BASE before the threshold: on along the downwind, a short base past the threshold, lands (conventional and close)",
             $"conventional {conventional}, nearest the runway before the threshold {convClosest:F2} NM, base at {convTurned:F2}; close {close}, nearest {closeClosest:F2} NM");
+    }
+
+    // 44. The break of the close pattern (the user, 5 Nov: an overhead without the initial): END turns over the runway end;
+    // standby on along the runway track (past where the upwind used to end) until BREAK NOW.
+    {
+        (List<AircraftState> Track, double TurnAlong, bool Straight) CloseBreak(BreakPoint where)
+        {
+            SimEngine sim = NewCircuitEngine();
+            string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.GoAround, performanceClass: "Jet");
+            sim.SetBreak(cs, where);
+            bool around = false, breakOrdered = false, straight = true;
+            List<AircraftState> flown = Fly(sim, cs, 1500, st =>
+            {
+                if (st.Leg == "GO AROUND" && !around) { around = true; sim.SetEndAction(cs, EndAction.FullStop); }
+                if (where == BreakPoint.Standby && around && !breakOrdered && st.Leg == "GO AROUND")
+                {
+                    if (Math.Abs(Frame(st).Lateral) > 0.3) straight = false;
+                    if (Frame(st).Along > CircuitLength + 3) { breakOrdered = true; sim.BreakNow(cs); }
+                }
+            });
+            int goneAround = flown.FindIndex(st => st.Leg == "GO AROUND");
+            int turn = goneAround < 0 ? -1 : flown.FindIndex(goneAround, st => st.Leg == "DOWNWIND");
+            return (flown, turn > 0 ? Frame(flown[turn]).Along : double.NaN, straight && (where != BreakPoint.Standby || breakOrdered));
+        }
+        (List<AircraftState> endTrack, double endTurn, _) = CloseBreak(BreakPoint.End);
+        (List<AircraftState> stbyTrack, double stbyTurn, bool stbyStraight) = CloseBreak(BreakPoint.Standby);
+        Check(Between(endTurn, CircuitLength - 0.05, CircuitLength + 0.3) && LandedOnRunway(endTrack),
+            "Close pattern, break END: turns to the downwind over the runway end, then lands", $"turn at {endTurn:F2} NM");
+        Check(stbyStraight && stbyTurn > CircuitLength + 3 && LandedOnRunway(stbyTrack),
+            "Close pattern, standby for break: on along the runway track until BREAK NOW, then the downwind, lands", $"turn at {stbyTurn:F2} NM, straight {stbyStraight}");
+        pictures.Add(("Close pattern, standby for break until BREAK NOW (Jet)", stbyTrack));
+    }
+
+    // 45. TURN BASE while still joining (the user, 4 Nov, with a drawing): straight to the start of the base, never up to
+    // the downwind start; then the base and the final, lands.
+    {
+        SimEngine sim = NewCircuitEngine();
+        (double jx, double jy) = Place(-3, 4, CircuitSide.Left);
+        string cs = sim.Add(jx, jy, CircuitElevation + 1000, CircuitCourse, 100, performanceClass: "Light");
+        sim.SetCircuit(cs, CircuitType.Conventional, CircuitSide.Left);
+        sim.RunFor(2);
+        string legBefore = sim.Get(cs)?.Leg ?? "";
+        sim.TurnBase(cs);
+        List<AircraftState> flown = Fly(sim, cs, 1200);
+        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        double farthest = flown.Max(st => Frame(st).Along);
+        double closestBefore = onBase > 0 ? flown.Take(onBase).Min(st => Frame(st).Lateral) : double.NaN;
+        Check(legBefore == "JOIN" && onBase > 0 && farthest < 0.2 && closestBefore > 0.6 && LandedOnRunway(flown),
+            "TURN BASE while joining: straight to the start of the base (not the downwind), then the base, lands",
+            $"leg before {legBefore}, farthest along {farthest:F2} NM, closestBefore the runway before the base {closestBefore:F2} NM");
+        pictures.Add(("TURN BASE while joining: straight to the base (Light)", flown));
     }
 
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside

@@ -422,8 +422,9 @@ namespace ATCRoom.TwrTrainer
                         (double x, double y) = (point.X, point.Y);
                         if (!double.IsNaN(Course) && chosen.Circuit is CircuitType type)
                         {
-                            if (point.Name == "INITIAL" && type == CircuitType.Overhead)
+                            if ((point.Name == "INITIAL" && type == CircuitType.Overhead) || (point.Name is "UPWIND" or "GO AROUND" && type == CircuitType.Close))
                             {
+                                // (The close pattern turns to its downwind at its break point too, the user 5 Nov.)
                                 double length = Math.Max(LengthNM, 0.3);
                                 double breakAt = chosen.Break switch
                                 {
@@ -566,7 +567,7 @@ namespace ATCRoom.TwrTrainer
                     CircuitType shown = PendingCircuit ?? a.NextCircuit ?? type;
                     rows.Add([("", "PATTERN", Look.Tag), .. Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c) + (PendingCircuit == c ? "?" : ""), c == shown ? Look.On : Look.Option))]);
                     Choices("SIDE", "SIDE", new[] { CircuitSide.Left, CircuitSide.Right }, a.NextCircuit != null ? a.NextSide : a.CircuitSide, s => s == CircuitSide.Left ? "L" : "R");
-                    if (shown == CircuitType.Overhead) Choices("BREAK", "BRK", Enum.GetValues<BreakPoint>(), a.Break, BreakShort);
+                    if (shown is CircuitType.Overhead or CircuitType.Close) Choices("BREAK", "BRK", Enum.GetValues<BreakPoint>(), a.Break, BreakShort);
                     if (a.Formation is { Count: > 1 } crew)
                     {
                         // Yellow: they land together; the others go around (any of them; from a circuit at most 2 land).
@@ -575,11 +576,11 @@ namespace ATCRoom.TwrTrainer
                     rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction ? Look.On : Look.Option)),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // The orders of where it is now.
-                    if (shown == CircuitType.Overhead && a.Leg == "INITIAL") now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
+                    if ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")) now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
                     if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Command) : ("HOLD", "HOLD", Look.Command));
                     if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
                     now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Command : Look.Off));
-                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" ? Look.Command : Look.Off));
+                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Command : Look.Off));
                     bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
                     now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Command : Look.Off));
                     now.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Command : Look.Off));
