@@ -769,6 +769,13 @@ namespace ATCRoom.Sim
             aircraft.RemoveAll(a => a.Contact == GroundContact.Landed && (a.RollActive ? a.RollOver : steps - a.LandedStep >= (long)Math.Round(LandedRemoveAfter / Step)));
             // Crossing aircraft at their exit gate: gone.
             aircraft.RemoveAll(a => a.Circuit is { TransitDone: true });
+            // Departures far enough out (the user, 5 Nov: 10 NM): gone.
+            if (!double.IsNaN(glidePathCourse))
+            {
+                (double fieldX, double fieldY) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
+                aircraft.RemoveAll(a => a.Circuit is { Departed: true } && a.Contact == GroundContact.Airborne
+                    && Math.Sqrt((a.X - fieldX) * (a.X - fieldX) + (a.Y - fieldY) * (a.Y - fieldY)) > DepartureGoneNM);
+            }
         }
 
         /// <summary>The aircraft reached the ground: on the runway it has landed, elsewhere it stops there.</summary>

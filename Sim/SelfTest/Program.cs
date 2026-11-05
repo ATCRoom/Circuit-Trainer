@@ -1827,6 +1827,53 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("TURN BASE while joining: straight to the base (Light)", flown));
     }
 
+    // 46. Departures with no circuit (the user, 5 Nov): along the runway heading, or onto a radial (from the middle of the
+    // runway) turning right or left above 400 ft; gone 10 NM out.
+    {
+        (double midX, double midY) = Place(CircuitLength / 2, 0, CircuitSide.Left);
+        (List<AircraftState> Track, bool Gone) Depart(double radial, bool? turnRight)
+        {
+            SimEngine sim = NewCircuitEngine();
+            string cs = sim.AddDeparture(radial, turnRight, null, null, null, performanceClass: "Turboprop");
+            List<AircraftState> flown = Fly(sim, cs, 1500);
+            return (flown, sim.Get(cs) == null);
+        }
+        double FromField(AircraftState st) => Math.Sqrt((st.X - midX) * (st.X - midX) + (st.Y - midY) * (st.Y - midY));
+        double OffRadial(AircraftState st, double radial) =>
+            (st.X - midX) * Math.Cos(radial * Math.PI / 180) - (st.Y - midY) * Math.Sin(radial * Math.PI / 180);
+        // (The first turn: its side and its height.)
+        (int Side, double Height) FirstTurn(List<AircraftState> track)
+        {
+            for (int i = 1; i < track.Count; i++)
+            {
+                double change = SimEngine.Wrap(track[i].HeadingTrue - track[0].HeadingTrue);
+                if (track[i].Contact == GroundContact.Airborne && Math.Abs(change) > 3) return (Math.Sign(change), Height(track[i]));
+            }
+            return (0, double.NaN);
+        }
+        (List<AircraftState> straight, bool straightGone) = Depart(double.NaN, null);
+        Check(straightGone && straight.Count > 10 && straight.All(st => Math.Abs(Frame(st).Lateral) < 0.3) && Between(FromField(straight[^1]), 9, 10.5)
+            && straight.Max(st => Height(st)) > 2800,
+            "Departure RWY HDG: along the runway heading, up to 3000 ft, gone 10 NM out",
+            $"gone {straightGone}, last {FromField(straight[^1]):F1} NM, highest {straight.Max(st => Height(st)):F0} ft");
+        double radialRight = SimEngine.Normalize(CircuitCourse + 90);
+        (List<AircraftState> right, bool rightGone) = Depart(radialRight, true);
+        (int rightSide, double rightHeight) = FirstTurn(right);
+        AircraftState rightOut = right[^1];
+        Check(rightGone && rightSide > 0 && rightHeight > 380 && Math.Abs(OffRadial(rightOut, radialRight)) < 0.3
+            && Math.Abs(SimEngine.Wrap(rightOut.HeadingTrue - radialRight)) < 15,
+            "Departure onto a radial, turning right above 400 ft: along the radial, gone 10 NM out",
+            $"turn {rightSide} at {rightHeight:F0} ft, off the radial {OffRadial(rightOut, radialRight):F2} NM, heading {rightOut.HeadingTrue:F0}");
+        (List<AircraftState> left, bool leftGone) = Depart(radialRight, false);
+        (int leftSide, _) = FirstTurn(left);
+        AircraftState leftOut = left[^1];
+        Check(leftGone && leftSide < 0 && Math.Abs(OffRadial(leftOut, radialRight)) < 0.3 && Math.Abs(SimEngine.Wrap(leftOut.HeadingTrue - radialRight)) < 15,
+            "Departure onto the same radial turning left (the long way): along the radial, gone",
+            $"turn {leftSide}, off the radial {OffRadial(leftOut, radialRight):F2} NM, heading {leftOut.HeadingTrue:F0}");
+        pictures.Add(("Departure onto a radial, turning right (Turboprop)", right));
+        pictures.Add(("Departure onto the same radial, turning left (Turboprop)", left));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

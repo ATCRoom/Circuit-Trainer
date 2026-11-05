@@ -46,6 +46,17 @@ namespace ATCRoom.TwrTrainer
         public double SplitSeconds { get; set; } = 3;
         /// <summary>A formation made with GROUP: the plans it was made of (UNGROUP gives them back).</summary>
         public List<TowerPlan>? GroupedFrom { get; set; }
+        /// <summary>
+        /// A departure (the user, 5 Nov): from the runway; with circuits (<see cref="Laps"/> 1 or more) or none (<see cref="Laps"/>
+        /// <see cref="NoCircuit"/>): on along the runway heading, or onto the radial (magnetic) from a point (null: the middle of
+        /// the runway), turning left or right (null: the shorter way).
+        /// </summary>
+        public bool Departure { get; set; }
+        public double? Radial { get; set; }
+        public bool? TurnRight { get; set; }
+        public double? RadialFromX { get; set; }
+        public double? RadialFromY { get; set; }
+        public const int NoCircuit = -1;
         /// <summary>Minutes after START ALL.</summary>
         public double DelayMinutes { get; set; }
 
@@ -70,6 +81,7 @@ namespace ATCRoom.TwrTrainer
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
+            Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

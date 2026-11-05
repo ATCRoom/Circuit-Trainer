@@ -645,3 +645,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   track until BREAK NOW (on the label and in the panel for the close pattern on its upwind too). The Break row of
   Selected aircraft (and BREAK AT A POINT) only with OVH and CLS; with CONV, WIDE, SFO hidden (they have no break).
   Note: a waveoff of the close pattern now turns over the middle of the runway (before: just above 400 ft).
+
+## Build of 5 Nov afternoon (the user: "vai") — WRITTEN
+- **Departures (the user, 5 Nov):** New aircraft: Type first, ARRIVAL / DEPARTURE / TRANSIT. RWY only for DEPARTURE (lit
+  by itself), off for the others. A departure starts with the conventional or the wide only (the others once it flies,
+  as for every aircraft). Circuits 0 (only for a departure): no circuit, the row Departure: RWY HDG (on along the runway
+  heading) or RADIAL (magnetic, outbound; turn L / R, by default the shorter way from the runway heading; from the middle
+  of the runway or FROM A POINT clicked on the map, MIDDLE back). Above 400 ft the turn to 45° onto the radial, then
+  along it. Up to the height of More… (empty: 3000 ft). Gone 10 NM from the aerodrome (every departure, DEP at the end of
+  the circuits too). Test 46.
+- **Magnetic variation (first part of "magnetic headings"):** Settings > Circuits > Variation (3E, 2W), kept in the
+  aerodrome file; used for the radials of the departures only for now (headings and runways still true).
+

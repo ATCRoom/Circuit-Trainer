@@ -108,8 +108,17 @@ namespace ATCRoom.Sim
         public bool Suspended;
         /// <summary>Flying the final: the descent is steered to the touchdown point (or to the low pass height).</summary>
         public bool OnFinal;
-        /// <summary>Left the circuit (end action Departure): the circuit does nothing more.</summary>
+        /// <summary>Left the circuit (end action Departure): the circuit does nothing more (gone at <see cref="SimEngine.DepartureGoneNM"/>).</summary>
         public bool Departed;
+        /// <summary>
+        /// A departure with no circuit (the user, 5 Nov): the radial it intercepts after the take-off (degrees true; NaN: on
+        /// along the runway heading), from this point (the plane, NM), its first turn to it (left or right), its height
+        /// (ft, altitude). Phase: 0 along the runway, 1 turning to the intercept heading, 2 on the radial, 3 the instructor's.
+        /// </summary>
+        public double DepartRadial = double.NaN;
+        public double DepartFromX, DepartFromY, DepartHeight = double.NaN, DepartIntercept;
+        public TurnDirection DepartTurn = TurnDirection.Shortest;
+        public int DepartPhase;
         /// <summary>On the runway: seconds since the touchdown (or since the start of the take-off roll).</summary>
         public double RollTime;
         /// <summary>The point of the route the last leg change was seen for (to set the vertical rate of each leg once).</summary>
@@ -185,6 +194,9 @@ namespace ATCRoom.Sim
         private const double GoAroundShortFinal = 0.7;
         /// <summary>The waveoff of the jet circuits: above this height (ft above the threshold) it turns to the downwind at once, climbing.</summary>
         private const double WaveoffTurnHeight = 400;
+        /// <summary>A departure is gone this far from the aerodrome (NM, the user 5 Nov), and climbs to this height (ft) when none is given.</summary>
+        public const double DepartureGoneNM = 10;
+        private const double DepartureHeight = 3000;
         /// <summary>Seconds of the roll after a touchdown before the aircraft accelerates again.</summary>
         private const double TouchAndGoRoll = 3;
 
@@ -311,6 +323,38 @@ namespace ATCRoom.Sim
                         plane.Contact = GroundContact.Rolling;
                         plane.Circuit.RollTime = TouchAndGoRoll;
                         break;
+                }
+                return name;
+            }
+        }
+
+        /// <summary>
+        /// A departure with no circuit (the user, 5 Nov): the take-off, then on along the runway heading (<paramref name="radialTrue"/>
+        /// NaN) or, above 400 ft, a turn (left or right: <paramref name="turnRight"/>; null: the shorter) to intercept the radial
+        /// (degrees true, outbound) from the point (the plane, NM; null: the middle of the runway), then along it. Climbs to
+        /// <paramref name="heightFt"/> above the runway (null: 3000 ft); gone <see cref="DepartureGoneNM"/> from the aerodrome.
+        /// </summary>
+        public string AddDeparture(double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt, string? callsign = null,
+            string? performanceClass = null, Func<string, bool>? takenElsewhere = null)
+        {
+            lock (sync)
+            {
+                string name = AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, null, EndAction.Departure, callsign, performanceClass, takenElsewhere);
+                SimAircraft plane = Find(name)!;
+                CircuitState circuit = plane.Circuit!;
+                circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : DepartureHeight);
+                if (double.IsFinite(radialTrue))
+                {
+                    circuit.DepartRadial = Normalize(radialTrue);
+                    (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
+                    circuit.DepartFromX = fromX is double x && double.IsFinite(x) ? x : mx;
+                    circuit.DepartFromY = fromY is double y && double.IsFinite(y) ? y : my;
+                    circuit.DepartTurn = turnRight switch
+                    {
+                        true => TurnDirection.Right,
+                        false => TurnDirection.Left,
+                        _ => Wrap(circuit.DepartRadial - glidePathCourse) >= 0 ? TurnDirection.Right : TurnDirection.Left
+                    };
                 }
                 return name;
             }
@@ -948,7 +992,12 @@ namespace ATCRoom.Sim
             CircuitState? circuit = plane.Circuit;
             if (circuit == null || plane.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
             if (Delayed(plane, circuit)) return;
-            if (circuit.Departed || circuit.Waiting) return;
+            if (circuit.Departed)
+            {
+                DepartureStep(plane, circuit);
+                return;
+            }
+            if (circuit.Waiting) return;
             bool routeOver = plane.Route != null && plane.RouteNext >= plane.Route.Count;
             if (circuit.Turning && !circuit.Suspended)
             {
@@ -1411,7 +1460,9 @@ namespace ATCRoom.Sim
                 if (flown == EndAction.Departure)
                 {
                     circuit.Departed = true;
-                    GiveRoute(plane, [Point(upwind, 0, circuit.Side, height, kind.CircuitSpeedKt, "UPWIND"), Point(upwind + 10, 0, circuit.Side, height, kind.CircuitSpeedKt, "DEPARTURE")]);
+                    circuit.DepartPhase = 0;
+                    double away = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : height;
+                    GiveRoute(plane, [Point(upwind, 0, circuit.Side, away, kind.CircuitSpeedKt, "UPWIND"), Point(upwind + 20, 0, circuit.Side, away, kind.CircuitSpeedKt, "DEPARTURE")]);
                 }
                 else if (circuit.Type == CircuitType.Overhead)
                 {
@@ -1679,6 +1730,63 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
+        /// <summary>
+        /// A departure with a radial (see <see cref="AddDeparture"/>): above 400 ft the turn (on its side) to a heading 45° onto
+        /// the radial (onto it: its course), then along it. A heading of the instructor: his from then on.
+        /// </summary>
+        private void DepartureStep(SimAircraft plane, CircuitState circuit)
+        {
+            if (!double.IsFinite(circuit.DepartRadial) || circuit.DepartPhase >= 2) return;
+            double course = circuit.DepartRadial * Math.PI / 180;
+            double dx = plane.X - circuit.DepartFromX, dy = plane.Y - circuit.DepartFromY;
+            // Right of the radial (outbound): positive; along it from its point.
+            double right = dx * Math.Cos(course) - dy * Math.Sin(course);
+            double along = dx * Math.Sin(course) + dy * Math.Cos(course);
+            if (circuit.DepartPhase == 0)
+            {
+                if (plane.Navigation != NavigationMode.Route) { circuit.DepartPhase = 3; return; }
+                if (plane.AltitudeFt - runwayElevation <= WaveoffTurnHeight) return;
+                circuit.DepartIntercept = Math.Abs(right) < 0.2 ? circuit.DepartRadial : Normalize(circuit.DepartRadial + (right > 0 ? -45 : 45));
+                plane.Navigation = NavigationMode.Manual;
+                plane.TargetHeading = circuit.DepartIntercept;
+                plane.TurnDirection = Math.Abs(Wrap(circuit.DepartIntercept - plane.HeadingTrue)) < 5 ? TurnDirection.Shortest : circuit.DepartTurn;
+                plane.SelectedTurnRateDps = MaxTurnRate;
+                plane.CircuitBankDegrees = plane.Class.CircuitBankDegrees;
+                if (!plane.AltitudeGiven)
+                {
+                    plane.VerticalMode = VerticalMode.Altitude;
+                    plane.TargetAltitudeFt = circuit.DepartHeight;
+                }
+                circuit.DepartPhase = 1;
+                return;
+            }
+            // Turning to the intercept heading, then on it to the radial.
+            if (Math.Abs(Wrap(plane.TargetHeading - circuit.DepartIntercept)) > 0.5 || plane.Navigation != NavigationMode.Manual) { circuit.DepartPhase = 3; return; }
+            if (Math.Abs(Wrap(plane.HeadingTrue - circuit.DepartIntercept)) > 15) return;
+            double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
+            double radius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
+            double lead = Math.Max(0.05, radius * Math.Tan(22.5 * Math.PI / 180));
+            if (Math.Abs(right) > lead)
+            {
+                // (After a long turn it may be on the other side of the radial now: 45° onto it from there.)
+                double onto = Normalize(circuit.DepartRadial + (right > 0 ? -45 : 45));
+                if (Math.Abs(Wrap(onto - circuit.DepartIntercept)) > 1)
+                {
+                    circuit.DepartIntercept = plane.TargetHeading = onto;
+                    plane.TurnDirection = TurnDirection.Shortest;
+                }
+                return;
+            }
+            // On the radial: along it, out of the zone.
+            double ahead = Math.Max(along, 0) + DepartureGoneNM + 5;
+            double height = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : plane.TargetAltitudeFt;
+            GiveRoute(plane,
+            [
+                new RoutePoint(circuit.DepartFromX + ahead * Math.Sin(course), circuit.DepartFromY + ahead * Math.Cos(course), height, plane.Class.CircuitSpeedKt, "DEPARTURE")
+            ]);
+            circuit.DepartPhase = 2;
+        }
+
         /// <summary>Where the overhead pattern breaks, and the close pattern turns to its downwind (NM along the runway; standby: never).</summary>
         private double BreakAlongOf(CircuitState circuit) => circuit.Break switch
         {
