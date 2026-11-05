@@ -986,7 +986,7 @@ namespace ATCRoom.Sim
             if (!plane.AltitudeGiven && double.IsFinite(point.AltitudeFt))
             {
                 plane.VerticalMode = VerticalMode.Altitude;
-                plane.TargetAltitudeFt = Math.Clamp(point.AltitudeFt, runwayElevation, MaxAltitude);
+                plane.TargetAltitudeFt = Math.Clamp(LowPassFloor(plane, point.AltitudeFt), runwayElevation, MaxAltitude);
             }
             if (!plane.SpeedGiven && double.IsFinite(point.SpeedKt))
             {

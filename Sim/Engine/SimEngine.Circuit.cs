@@ -1131,7 +1131,7 @@ namespace ATCRoom.Sim
                 }
                 if (double.IsFinite(point.AltitudeFt))
                 {
-                    double climb = point.AltitudeFt - plane.AltitudeFt;
+                    double climb = LowPassFloor(plane, point.AltitudeFt) - plane.AltitudeFt;
                     double minutes = Math.Sqrt((point.X - plane.X) * (point.X - plane.X) + (point.Y - plane.Y) * (point.Y - plane.Y)) / Math.Max(30, plane.GroundSpeedKt) * 60;
                     plane.SelectedVerticalRateFpm = climb > 0 ? Math.Max(MinVerticalRate, plane.Class.MaxClimbFpm * 0.8)
                         : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
@@ -1146,7 +1146,8 @@ namespace ATCRoom.Sim
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             double height = plane.AltitudeFt - runwayElevation;
             // A formation on the short final: the members chosen land, the others go around (the user, 4 Nov).
-            if (plane.Wingmen.Count > 0 && height <= GoAroundHeight && along >= -GoAroundShortFinal && LandingSplit(plane, circuit)) return;
+            // (Not on a low approach or a low pass: nobody lands, the formation stays one.)
+            if (plane.Wingmen.Count > 0 && circuit.End is not (EndAction.GoAround or EndAction.LowPass) && height <= GoAroundHeight && along >= -GoAroundShortFinal && LandingSplit(plane, circuit)) return;
             // The end of the final: low pass over the threshold, go-around at its height, past the runway without landing.
             // (The low pass, the user 5 Nov: at 400 ft all along the runway, then its next circuit from its far end.)
             if ((circuit.End == EndAction.LowPass && along >= Math.Max(runwayLength, 0.3)) || (circuit.End == EndAction.GoAround && height <= GoAroundHeight && along >= -GoAroundShortFinal)
@@ -1163,7 +1164,7 @@ namespace ATCRoom.Sim
             double distance = TouchdownAim - along;
             double wanted = distance > 0.05
                 ? -(height - floor) / (distance / Math.Max(30, plane.GroundSpeedKt) * 60)
-                : floor > 0 ? 0 : -400;
+                : floor > 0 ? Math.Clamp((floor - height) * 2, -300, 300) : -400;
             plane.VerticalMode = VerticalMode.Rate;
             plane.CommandedVerticalSpeedFpm = Math.Clamp(wanted, -DescentLimit(plane), 300);
         }
@@ -1321,9 +1322,9 @@ namespace ATCRoom.Sim
             {
                 // Down to the start of the final during the half circle (π r).
                 double minutes = Math.PI * radius / Math.Max(30, plane.GroundSpeedKt) * 60;
-                double change = after.AltitudeFt - plane.AltitudeFt;
+                double change = LowPassFloor(plane, after.AltitudeFt) - plane.AltitudeFt;
                 plane.VerticalMode = VerticalMode.Altitude;
-                plane.TargetAltitudeFt = Math.Clamp(after.AltitudeFt, runwayElevation, MaxAltitude);
+                plane.TargetAltitudeFt = Math.Clamp(LowPassFloor(plane, after.AltitudeFt), runwayElevation, MaxAltitude);
                 // (A margin: it slows down in the turn, which then lasts less, and the level-off takes its time.)
                 if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
             }
@@ -1824,6 +1825,11 @@ namespace ATCRoom.Sim
             BreakPoint.Standby => double.PositiveInfinity,
             _ => Math.Max(runwayLength, 0.3) / 2
         };
+
+        /// <summary>A low pass (the user, 5 Nov): never below its 400 ft before the runway (the base, the turn to the final).</summary>
+        private double LowPassFloor(SimAircraft plane, double altitudeFt) =>
+            plane.Circuit is { End: EndAction.LowPass, Departed: false } && double.IsFinite(altitudeFt)
+                ? Math.Max(altitudeFt, runwayElevation + LowPassHeight) : altitudeFt;
 
         /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
         private static bool IsDownwind(RoutePoint point) => point.Name == "DOWNWIND" && !point.Turn180;
