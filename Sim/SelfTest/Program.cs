@@ -2007,6 +2007,23 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO HPAD from the downwind (Helicopter)", flown));
     }
 
+    // 52. DCT TO BASE on the way to the final, out on the circuit side (the user, 5 Nov: it went far up and back): straight
+    // to the start of the base, never past the threshold before the base, lands.
+    {
+        SimEngine sim = NewCircuitEngine();
+        (double sx, double sy) = Place(-3.5, 1.5, CircuitSide.Left);
+        string cs = sim.Add(sx, sy, CircuitElevation + 1000, CircuitCourse, 100, performanceClass: "Light");
+        sim.SetCircuit(cs, CircuitType.Conventional, CircuitSide.Left);
+        sim.RunFor(2);
+        sim.DirectTo(cs, DirectPoint.Base, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        double farthest = onBase > 0 ? flown.Take(onBase).Max(st => Frame(st).Along) : double.NaN;
+        Check(onBase > 0 && farthest < 0 && LandedOnRunway(flown), "DCT TO BASE on the way in: straight to the start of the base, then lands",
+            $"base at {onBase} s, farthest along before it {farthest:F2} NM");
+        pictures.Add(("DCT TO BASE on the way in (Light)", flown));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

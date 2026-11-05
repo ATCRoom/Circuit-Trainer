@@ -86,7 +86,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The four types (the user, 5 Nov), each with its end: arrivals and locals land, departures leave, crossings leave at their gate.</summary>
         private readonly ChoiceRow<Flight> typeRow = new([(Flight.Arrival, "ARRIVAL"), (Flight.Local, "LOCAL"), (Flight.Departure, "DEPARTURE"), (Flight.Transit, "TRANSIT")], (type, _) => type switch
         {
-            Flight.Transit => "Crossing the zone from the gate From to the gate To: straight, over the field, or with circuits; gone at the gate To.",
+            Flight.Transit => "Crossing the zone from Start from to Exit to: straight, over the field, or with circuits; gone at the exit gate.",
             Flight.Departure => "Departing from the runway: away at once (OUT) or after its circuits, along the runway heading or a radial; gone 10 NM out.",
             Flight.Local => "A local flight: it takes off, flies its circuits and lands.",
             _ => "Arriving from a gate or the long final: its circuits, then it lands."
@@ -107,8 +107,8 @@ namespace ATCRoom.TwrTrainer
         private readonly StackPanel toHolder = new();
         private readonly ChoiceRow<Via> viaRow = new([(Via.Direct, "DIRECT"), (Via.Overhead, "OVERHEAD"), (Via.Circuits, "CIRCUITS")], (via, _) => via switch
         {
-            Via.Overhead => "Crossing over the field (the middle of the runway), then to the gate To.",
-            Via.Circuits => "Into the circuit from the gate From (Entry), its circuits (On Final), then out to the gate To.",
+            Via.Overhead => "Crossing over the field (the middle of the runway), then to the exit gate.",
+            Via.Circuits => "Into the circuit from Start from (Pattern entry), its circuits (On Final), then out to the exit gate.",
             _ => "Crossing straight from gate to gate."
         });
         private readonly TextBox arrivalBox = new() { Width = 55 };
@@ -120,7 +120,7 @@ namespace ATCRoom.TwrTrainer
         /// Final is not F/S), departures and crossings the circuits before they leave (a departure OUT: away at once).
         /// </summary>
         private readonly ChoiceRow<int> lapsRow = new([(0, "OUT"), (1, "1"), (2, "2"), (3, "3"), (4, "4"), (TowerPlan.Forever, "∞")], (n, _) => n == 0
-            ? "A departure away at once after the take-off (Exit: the runway heading or a radial)." : n == TowerPlan.Forever
+            ? "A departure away at once after the take-off (Exit via: the runway heading or a radial)." : n == TowerPlan.Forever
             ? "Circuits on and on, each final as in On Final (until you change it)." : $"{n} circuit(s) (arrivals and locals: more than the first one; departures and crossings: before they leave).");
         private Grid toLine = null!, viaLine = null!, intervalLine = null!;
         /// <summary>The rows of New aircraft hidden when they do not apply (the user, 5 Nov: not grey, hidden).</summary>
@@ -178,7 +178,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
-        private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => "From the next circuit: " + ChoiceTip(t));
+        private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => "From the next circuit (on the ground: CONV or WIDE only): " + ChoiceTip(t));
         private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "From the next circuit: " + ChoiceTip(t));
         private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)), (_, t) => "At the end of this final: " + ChoiceTip(t));
         private readonly ChoiceRow<BreakPoint> selBreakRow = new(TowerCommands.Breaks.Select(b => (b.Break, b.Short)), (_, t) => ChoiceTip("break " + t));
@@ -314,7 +314,7 @@ namespace ATCRoom.TwrTrainer
             (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
             engine.SetPerformanceClasses(classes);
             foreach (PerformanceClass kind in engine.Classes) heightClassBox.Items.Add(kind.Name);
-            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its values in performance.json; its heights at this aerodrome above).");
+            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its values in performance.json; its heights at this aerodrome: Settings › Circuits).");
             // (The user, 4 Nov: the jet by default, the most used.)
             classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
                 ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
@@ -545,7 +545,7 @@ namespace ATCRoom.TwrTrainer
             }
 
             current = newContent;
-            Note("ARRIVAL: from a gate or the long final, it lands. LOCAL: from the runway, its circuits, it lands. DEPARTURE: from the runway, away (at once or after its circuits). TRANSIT: from gate to gate. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
+            Note("ARRIVAL: from a gate or the long final, it lands. LOCAL: from the runway, its circuits, it lands. DEPARTURE: from the runway, away (at once or after its circuits). TRANSIT: from gate to gate. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side (Settings › Circuits).");
             // (The user, 5 Nov: the class, the formation, then the type.)
             // (The user, 5 Nov: clearer names, a wider column for them.)
             Row("Type of AC", classHolder, null, LabelWidth);
@@ -633,8 +633,8 @@ namespace ATCRoom.TwrTrainer
             StackPanel more = new();
             current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
-            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure with no circuit; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
-            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure with no circuit: the height it climbs to (empty: 3000 ft).";
+            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
+            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure: the height it climbs to when it leaves (empty: 3000 ft).";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
             toListButton = ActionButton("TO LIST", AddPlan);
             cancelEditButton = ActionButton("CANCEL", CancelEdit);
@@ -675,7 +675,7 @@ namespace ATCRoom.TwrTrainer
             Row("At the end", selEndRow, next, 62);
             selEndRow.Picked += end => WithSelected(cs =>
             {
-                if (engine.Get(cs) is { CanHover: true, HasPad: true }) commands.Helipad(cs, double.NaN, double.NaN);
+                if (engine.Get(cs) is { CanHover: true } heli && (heli.HasPad || heli.WantsPad)) commands.Helipad(cs, double.NaN, double.NaN);
                 commands.SetEnd(cs, end);
             });
             // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
@@ -871,18 +871,17 @@ namespace ATCRoom.TwrTrainer
             "entry CIRCLING" => "Only from LONG FIN: the approach to the opposite runway, then aside onto the downwind at circuit height and the conventional circuit of the runway in use.",
             "CONV" => "Conventional circuit: upwind, crosswind, downwind, base, final.",
             "CLS" => "Close pattern: the jet circuit without the initial (180° turns to the downwind and to the final).",
-            "WIDE" => "Wide circuit (outside downwind).",
+            "WIDE" => "Wide circuit (outside downwind/normal pattern).",
             "OVH" => "Overhead pattern (run and break): from the initial point.",
             "SFO" => "Simulated flame out: from the High Key.",
-            "AD" => "The aerodrome's side for this circuit (Aerodrome, above).",
+            "AD" => "The aerodrome's side for this circuit (Settings › Circuits), taken when it starts.",
             "L" => "Left-hand circuit.",
             "R" => "Right-hand circuit.",
             "T/G" => "Touch and go, then the circuit again.",
             "F/S" => "Full stop: it lands and is removed.",
             "L/A" => "Low approach: down to the short final (about 200 ft), then up to the circuit height and the circuit again.",
             "L/P" => "Low pass: down to 400 ft, on at 400 ft all along the runway, then the circuit again.",
-            "T&G" => "Touch and go, then the circuit again.",
-            "DEP" => "Touch and go (or take-off), then it leaves straight out.",
+            "DEP" => "Touch and go (or take-off), then it leaves straight out; gone 10 NM out.",
             "break MID" => "Overhead: the break over the middle of the runway. Close: the turn to the downwind there (above 400 ft).",
             "break BEG" => "Overhead: the break over the beginning of the runway. Close: the turn to the downwind there (above 400 ft).",
             "break END" => "Overhead: the break over the end of the runway. Close: the turn to the downwind there (above 400 ft).",
@@ -905,11 +904,11 @@ namespace ATCRoom.TwrTrainer
             ["REMOVE EXIT"] = "Remove the exit whose name is written.",
             ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
             ["Get METAR"] = "The newest METAR of this aerodrome from the internet (aviationweather.gov, by its ICAO code): into the box, its wind applied.",
-            ["Level 1 (F1)"] = "The aerodrome and its circuits (about 7 NM).",
-            ["Level 2 (F2)"] = "The area around the aerodrome (about 40 NM): gates, initial point, long final.",
+            ["Level 1 (F1)"] = "The aerodrome and its circuits (10 NM, or the view saved on it).",
+            ["Level 2 (F2)"] = "The area around the aerodrome (20 NM, or the view saved on it): gates, initial point, long final.",
             ["Remove all aircraft"] = "Remove all the aircraft flying (the flight plans stay).",
             ["ADD GATE"] = "Click the entry gate on the map: a VRP gives its name (or the name written). At least 5 NM out.",
-            ["REMOVE GATE"] = "Remove the gate written (or the one chosen in From).",
+            ["REMOVE GATE"] = "Remove the gate written (or the one chosen in Start from).",
             ["ADD NOW"] = "Start this aircraft now.",
             ["CANCEL"] = "The plan being changed stays as it was.",
             ["TO LIST"] = "Put it in the Traffic List: started by ▶ or by START ALL after its delay.",
@@ -922,7 +921,7 @@ namespace ATCRoom.TwrTrainer
             ["⏵"] = "Go on (it starts at its time).",
             ["⧉"] = "Duplicate: the next callsign, one minute later.",
             ["✕"] = "Remove this plan.",
-            ["BREAK AT A POINT"] = "Overhead: click on the map where it breaks (along the runway).",
+            ["BREAK AT A POINT"] = "Overhead and close: click on the map where it breaks (along the runway).",
             ["BREAK NOW"] = "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft).",
             ["HOLD HK"] = "SFO: it waits circling over the High Key (until START SFO).",
             ["START SFO"] = "SFO: at the next pass over the High Key it starts the flame out pattern.",
@@ -938,7 +937,6 @@ namespace ATCRoom.TwrTrainer
             ["GO"] = "Give it: the aircraft leaves its circuit (MANUAL); REJOIN brings it back.",
             ["REJOIN"] = "Back into its circuit from where it is.",
             ["BREAKUP"] = "Out of the circuits: on the downwind a turn away from the runway, on the base on turning past the final. Then MANUAL.",
-            ["HELIPAD"] = "Helicopter: click its landing pad on the map.",
             ["REMOVE"] = "Remove this aircraft."
         };
 
@@ -1133,8 +1131,8 @@ namespace ATCRoom.TwrTrainer
         private void ShowAerodrome()
         {
             view.Hint = airfield.Map == null
-                ? "Open a map (panel on the right: Open map...).\nNo map yet? Make one with ATCRoomMapCreator.exe, beside this program."
-                : airfield.Runway == null ? "Place the runway in use: in the panel on the right write its name and elevation, then Place on the map." : "";
+                ? "Open a map (Settings › Map: Open map...).\nNo map yet? Make one with ATCRoomMapCreator.exe, beside this program."
+                : airfield.Runway == null ? "Place the runway in use: in Settings › Map write its name and elevation, then Place on the map." : "";
             view.InvalidateVisual();
             updating = true;
             mapText.Text = airfield.Map == null ? "No map: open one made with ATCRoom Map Creator."
@@ -1413,7 +1411,7 @@ namespace ATCRoom.TwrTrainer
         {
             TowerPlan plan = PlanOfRows();
             string? error = Launch(plan, out string added);
-            Say(error, Area.New);
+            Say(error ?? (plan.ToPad && PadOf(plan) == null ? "No helipad yet: choose it in flight with HPAD, else it lands on the runway." : null), Area.New);
             if (error != null) return;
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
             Started(plan, added);
@@ -1434,6 +1432,8 @@ namespace ATCRoom.TwrTrainer
             if (error != null) return error;
             PlanOfCircuits(plan, added);
             if (plan.ToPad && PadOf(plan) is { } pad) commands.Helipad(added, pad.X, pad.Y);
+            // (No pad yet, the user 5 Nov: it starts anyway, HPAD? on its label; none given by the final: the runway.)
+            else if (plan.ToPad) commands.WantPad(added);
             if (plan.Formation <= 1) return null;
             // A formation: the aircraft added leads it (its wingmen after its number).
             error = commands.MakeFormation(added, plan.Formation, plan.Lands, plan.SplitSeconds);
@@ -1508,7 +1508,6 @@ namespace ATCRoom.TwrTrainer
             string? callsign = plan.Callsign.Length > 0 ? plan.Callsign : null;
             string? kind = plan.Class.Length > 0 ? plan.Class : null;
             if (plan.Radial is double r && double.IsNaN(r)) return "Write the radial (0 to 360, magnetic) in Radial °M.";
-            if (plan.ToPad && PadOf(plan) == null) return "Choose a helipad, or POINT and then click it on the map.";
             if (plan.Departure && (plan.Circuits ?? 0) <= 0)
             {
                 // A departure away at once (the user, 5 Nov: OUT): the runway heading, or the radial (magnetic: to true here).
@@ -1557,11 +1556,6 @@ namespace ATCRoom.TwrTrainer
         private void AddPlan()
         {
             TowerPlan plan = PlanOfRows();
-            if (plan.ToPad && PadOf(plan) == null)
-            {
-                Say("Choose a helipad, or POINT and then click it on the map.", Area.New);
-                return;
-            }
             if (plan.Radial is double radial && double.IsNaN(radial))
             {
                 Say("Write the radial (0 to 360, magnetic) in Radial °M.", Area.New);
@@ -2309,7 +2303,7 @@ namespace ATCRoom.TwrTrainer
             string name = newGateName.Text.Trim().Length > 0 ? newGateName.Text.Trim() : fromRow.Value ?? "";
             if (!airfield.Circuits.Gates.Any(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase)))
             {
-                Say("Write the name of the gate to remove (or choose it in From).");
+                Say("Write the name of the gate to remove (or choose it in Start from).");
                 return;
             }
             if (MessageBox.Show(this, $"Remove the gate {name}?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
@@ -2361,7 +2355,7 @@ namespace ATCRoom.TwrTrainer
                 else if (name == "NEXT" && Enum.TryParse(value, out EndAction end))
                 {
                     // (Another end for a helicopter going to its pad: the pad dropped, the user 5 Nov.)
-                    if (a.CanHover && a.HasPad) commands.Helipad(callsign, double.NaN, double.NaN);
+                    if (a.CanHover && (a.HasPad || a.WantsPad)) commands.Helipad(callsign, double.NaN, double.NaN);
                     commands.SetEnd(callsign, end);
                 }
                 else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))

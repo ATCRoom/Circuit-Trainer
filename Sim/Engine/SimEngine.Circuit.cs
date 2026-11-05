@@ -172,6 +172,8 @@ namespace ATCRoom.Sim
         public double TransitX, TransitY, TransitHeight, TransitSpeed;
         /// <summary>A helicopter's landing point (the plane, NM): its final goes there, hovering down to the ground.</summary>
         public bool HasPad;
+        /// <summary>A pad wanted but not given yet (the user, 5 Nov: it starts anyway; none given by the final: the runway).</summary>
+        public bool WantsPad;
         public double PadX, PadY;
         /// <summary>A wingman just split off: straight on with this heading until this step, then its circuit.</summary>
         public long DelayUntilStep;
@@ -503,8 +505,11 @@ namespace ATCRoom.Sim
                 {
                     // Joining it: straight to the start of the base (see TurnBase); on the circuit side already past it: the
                     // base from here (not back to it).
+                    // (Only on the downwind itself, flying it: elsewhere, the user 5 Nov, straight to the start of the base.)
                     (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
-                    bool past = lateral > 0.3 && along <= BaseAlong(CircuitType.Conventional, a.Class) + 0.3;
+                    bool onDownwind = Math.Abs(lateral - Width(CircuitType.Conventional, a.Class, side)) < 0.3
+                        && Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 45;
+                    bool past = onDownwind && along <= BaseAlong(CircuitType.Conventional, a.Class) + 0.3;
                     a.Route = [a.Route[a.RouteNext] with { Name = past ? "DOWNWIND" : "JOIN" }, .. a.Route.Skip(a.RouteNext + 1)];
                     a.RouteNext = 0;
                     TurnBaseOf(a);
@@ -1043,9 +1048,16 @@ namespace ATCRoom.Sim
             // (Helicopters only, the user 5 Nov.)
             if (a.Circuit == null || (!a.Class.CanHover && double.IsFinite(x))) return;
             a.Circuit.HasPad = double.IsFinite(x) && double.IsFinite(y);
+            a.Circuit.WantsPad = false;
             a.Circuit.PadX = a.Circuit.HasPad ? x : 0;
             a.Circuit.PadY = a.Circuit.HasPad ? y : 0;
             ApplyPad(a);
+        });
+
+        /// <summary>A helicopter's plan to land on a pad not given yet (shown HPAD?; given later with HPAD; none: the runway).</summary>
+        public void WantPad(string callsign) => Change(callsign, a =>
+        {
+            if (a.Circuit != null && a.Class.CanHover && !a.Circuit.HasPad) a.Circuit.WantsPad = true;
         });
 
         /// <summary>
@@ -1066,6 +1078,7 @@ namespace ATCRoom.Sim
                 circuit.LapsLeft = 0;
                 circuit.End = circuit.FinalEnd = EndAction.FullStop;
                 circuit.HasPad = true;
+                circuit.WantsPad = false;
                 circuit.PadX = x;
                 circuit.PadY = y;
                 GiveRoute(a, [new RoutePoint(x, y, double.NaN, a.Class.ApproachSpeedKt, "FINAL")]);

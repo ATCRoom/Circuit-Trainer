@@ -589,9 +589,9 @@ namespace ATCRoom.TwrTrainer
                         // Yellow: they land together; the others go around (any of them; from a circuit at most 2 land).
                         rows.Add([("", "LAND", Look.Tag), .. crew.Select((m, i) => ($"LAND={i}", Number(m), a.Lands == null || i >= a.Lands.Count || a.Lands[i] ? Look.On : Look.Option))]);
                     }
-                    rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction && !a.HasPad ? Look.On : Look.Option)),
+                    rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction && !a.HasPad && !a.WantsPad ? Look.On : Look.Option)),
                         // (A helicopter, the user 5 Nov: its final on a helipad.)
-                        .. (a.CanHover ? [("PAD=END", "HPAD", a.HasPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
+                        .. (a.CanHover ? [("PAD=END", a.WantsPad && !a.HasPad ? "HPAD?" : "HPAD", a.HasPad || a.WantsPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
                     if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE", Look.Command),

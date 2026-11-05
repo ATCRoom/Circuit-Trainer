@@ -709,7 +709,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   pads + "Point on the map...". New aircraft: On Final HPAD for helicopter arrivals / locals, the row Helipad (the
   registered ones, POINT). Test 51.
 
-## Next group (to do)
+## Group of 5 Nov late night — WRITTEN (the user: "si vai")
+- **DCT TO BASE fixed (the user, 5 Nov, a crossing on the way to the final: it went far up and back):** the base from where
+  it is only on the downwind itself (near its line, flying it); elsewhere straight to the start of the base. Test 52.
+- **Tooltips made coherent (the user, 5 Nov):** Settings › Circuits for AD and the class heights, Start from / Exit to,
+  Pattern entry, Exit via, Settings › Map, levels 10 / 20 NM, WIDE "outside downwind/normal pattern", DEP gone 10 NM out,
+  BREAK AT A POINT overhead and close, PATTERN on the ground CONV or WIDE; HELIPAD and T&G tips gone.
 - **HPAD without a pad (the user, 5 Nov):** New aircraft with On Final HPAD and no pad (none registered, or POINT not
   clicked): it starts anyway (no error), its plan "on a pad to be chosen"; the label shows HPAD? until the pad is given in
   flight (HPAD on END or DCT TO); on the final with no pad yet: a full stop on the runway. A note instead of the error:
