@@ -27,10 +27,10 @@ namespace ATCRoom.Sim
         Sfo
     }
 
-    /// <summary>Where the overhead pattern breaks.</summary>
     /// <summary>Where DCT TO sends an aircraft in flight at once (the user, 5 Nov): the conventional downwind, its base, the initial point, the High Key.</summary>
     public enum DirectPoint { Downwind, Base, InitialPoint, HighKey }
 
+    /// <summary>Where the overhead pattern breaks.</summary>
     public enum BreakPoint
     {
         /// <summary>Over the middle of the runway (default).</summary>
@@ -473,6 +473,14 @@ namespace ATCRoom.Sim
                 EndOrbit(a);
                 if (a.Circuit is CircuitState was)
                 {
+                    // (Its ordered circuit replaced; a departure back in the circuits: it lands at the end.)
+                    was.NextType = null;
+                    if (was.Departed || was.End == EndAction.Departure)
+                    {
+                        was.End = was.FinalEnd == EndAction.Departure ? EndAction.FullStop : was.FinalEnd;
+                        was.LeaveAfterLast = false;
+                        was.DepartPhase = 0;
+                    }
                     was.Turning = false;
                     was.Spiral = false;
                     was.StraightIn = false;
@@ -488,8 +496,11 @@ namespace ATCRoom.Sim
                 FlyCircuitNow(a, type, side, now: true);
                 if (point == DirectPoint.Base && a.Circuit != null && a.Route is { Count: > 0 })
                 {
-                    // Joining it: straight to the start of the base (see TurnBase).
-                    if (a.Route[a.RouteNext].Name != "JOIN") a.Route = [a.Route[a.RouteNext] with { Name = "JOIN" }, .. a.Route.Skip(a.RouteNext + 1)];
+                    // Joining it: straight to the start of the base (see TurnBase); on the circuit side already past it: the
+                    // base from here (not back to it).
+                    (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
+                    bool past = lateral > 0.3 && along <= BaseAlong(CircuitType.Conventional, a.Class) + 0.3;
+                    a.Route = [a.Route[a.RouteNext] with { Name = past ? "DOWNWIND" : "JOIN" }, .. a.Route.Skip(a.RouteNext + 1)];
                     a.RouteNext = 0;
                     TurnBaseOf(a);
                 }
@@ -572,7 +583,8 @@ namespace ATCRoom.Sim
                 (double alongNow, double lateralNow) = RunwayFrame(a.X, a.Y, side);
                 bool onFinal = a.Circuit is { OnFinal: true } && Math.Abs(lateralNow) < 0.3 && alongNow < runwayLength;
                 // The same circuit on the other side, in flight: an S over the aerodrome to the new downwind (on the final: a go-around).
-                if (inCircuit && a.Contact == GroundContact.Airborne && type == a.Circuit!.Type && side != a.Circuit.Side && ChangeSide(a, side, onFinal)) return;
+                // (Not for DCT TO: it goes there at once, on the new side.)
+                if (inCircuit && !now && a.Contact == GroundContact.Airborne && type == a.Circuit!.Type && side != a.Circuit.Side && ChangeSide(a, side, onFinal)) return;
                 if (inCircuit && !now && (a.Contact == GroundContact.Rolling || onFinal
                     || (type == CircuitType.Close && a.Circuit!.Type != CircuitType.Close && !a.Circuit.Spiral)))
                 {

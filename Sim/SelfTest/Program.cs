@@ -1937,13 +1937,14 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     {
         SimEngine sim = NewCircuitEngine();
         string cs = sim.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
-        sim.RunFor(3);
+        sim.RunFor(1);
+        bool rolling = sim.Get(cs)?.Contact == GroundContact.Rolling;
         sim.SetNextCircuit(cs, CircuitType.Overhead, CircuitSide.Left);
         List<AircraftState> flown = Fly(sim, cs, 600);
         int firstDownwind = flown.FindIndex(st => st.Leg == "DOWNWIND");
         bool conventionalFirst = firstDownwind > 0 && flown.Take(firstDownwind).All(st => st.Circuit == CircuitType.Conventional);
         bool overheadLater = flown.Any(st => st.Circuit == CircuitType.Overhead);
-        Check(conventionalFirst && overheadLater, "Take-off with OVH chosen: the first circuit conventional, the overhead after the touch and go",
+        Check(rolling && conventionalFirst && overheadLater, "Take-off with OVH chosen: the first circuit conventional, the overhead after the touch and go",
             $"first downwind at {firstDownwind} s, conventional {conventionalFirst}, overhead later {overheadLater}");
     }
 
