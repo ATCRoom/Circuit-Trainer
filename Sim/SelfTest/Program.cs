@@ -970,7 +970,8 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     List<AircraftState> over = t6.Take(lp + 20).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
     Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 0 && Between(over.Min(Height), 360, 460)
         && Between(Frame(t6[lp]).Along, CircuitLength - 0.05, CircuitLength + 0.3),
-        "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown, up again at its far end", over.Count > 0 ? $"lowest {over.Min(Height):F0} ft" : "not over the runway");
+        "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown, up again at its far end",
+        over.Count > 0 ? $"lowest {over.Min(Height):F0} ft, up at {Frame(t6[lp]).Along:F2} NM" : $"not over the runway (go-around at {lp}, {t6.Count} s, last {t6[^1].Leg} {Height(t6[^1]):F0} ft at {Frame(t6[^1]).Along:F2}/{Frame(t6[^1]).Lateral:F2} NM, legs {string.Join(",", t6.Select(st => st.Leg).Distinct())})");
     Check(LandedOnRunway(t6), "Low pass: then the full stop");
     pictures.Add(("Low pass on a close pattern, then full stop, Turboprop", t6));
 
