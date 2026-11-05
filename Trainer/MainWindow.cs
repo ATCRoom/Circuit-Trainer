@@ -126,7 +126,9 @@ namespace ATCRoom.TwrTrainer
         /// <summary>What every final does (the user, 5 Nov): F/S lands at the first one (arrivals and locals); T/G, L/A, L/P then the next circuit.</summary>
         private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P")],
             (_, t) => "On each final: " + ChoiceTip(t));
-        private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
+        /// <summary>The width of the names of the rows of New aircraft (the user, 5 Nov: longer, clearer names).</summary>
+        private const double LabelWidth = 112;
+        private readonly ChoiceRow<double> splitRow = new([(3.0, "3s"), (4.0, "4s"), (5.0, "5s"), (10.0, "10s")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         private readonly TextBox newExitName = new() { Width = 70 };
         /// <summary>A formation landing, both full stop (the user, 4 Nov; it depends on the country, kept in the aerodrome file).</summary>
@@ -527,13 +529,14 @@ namespace ATCRoom.TwrTrainer
             current = newContent;
             Note("Arrival: from an entry gate (it joins its circuit by itself) or the long final. Departure: from the runway. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
             // (The user, 5 Nov: the class, the formation, then the type.)
-            Row("Class", classHolder, null, 62);
-            Row("Formation", formationRow, null, 62);
-            intervalLine = Row("Interval s", splitRow, null, 62);
-            Row("Type", typeRow, null, 62);
-            Row("From", fromHolder, null, 62);
-            toLine = Row("To", toHolder, null, 62);
-            viaLine = Row("Via", viaRow, null, 62);
+            // (The user, 5 Nov: clearer names, a wider column for them.)
+            Row("Type of AC", classHolder, null, LabelWidth);
+            Row("Formation", formationRow, null, LabelWidth);
+            intervalLine = Row("Break interval", splitRow, null, LabelWidth);
+            Row("Type of flight", typeRow, null, LabelWidth);
+            Row("Start from", fromHolder, null, LabelWidth);
+            toLine = Row("Exit to", toHolder, null, LabelWidth);
+            viaLine = Row("Via", viaRow, null, LabelWidth);
             typeRow.Show(Flight.Arrival);
             viaRow.Show(Via.Overhead);
             typeRow.Picked += type =>
@@ -545,16 +548,16 @@ namespace ATCRoom.TwrTrainer
                 ShowEntries();
             };
             viaRow.Picked += _ => ShowEntries();
-            Row("Entry", entryRow, null, 62);
-            // (The user, 5 Nov: Pattern, as on the label, not to be mixed up with Circuits.)
-            Row("Pattern", circuitRow, null, 62);
-            Row("Side", sideRow, null, 62);
+            // (The user, 5 Nov: the pattern type first, then its entry, then its side.)
+            Row("Pattern type", circuitRow, null, LabelWidth);
+            Row("Pattern entry", entryRow, null, LabelWidth);
+            Row("Pattern side", sideRow, null, LabelWidth);
             // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
-            Row("On Final", onFinalRow, null, 62);
+            Row("On Final", onFinalRow, null, LabelWidth);
             onFinalRow.Show(EndAction.FullStop);
             onFinalRow.Picked += _ => ShowEntries();
-            Row("Circuits", lapsRow, null, 62);
-            departLine = Row("Exit", departRow, null, 62);
+            Row("Numb. of Circuits", lapsRow, null, LabelWidth);
+            departLine = Row("Exit", departRow, null, LabelWidth);
             RadialTip(radialBox);
             radialLine = Row("Radial °M", Wrap(radialBox, departTurnRow,
                 ActionButton("FROM A POINT", () => view.AskPoint("Departure: click the point the radial starts from  -  Esc: cancel", (x, y) =>
@@ -563,7 +566,7 @@ namespace ATCRoom.TwrTrainer
                     radialFromText.Text = "from the point clicked";
                 })),
                 ActionButton("MIDDLE", () => { radialFrom = null; radialFromText.Text = "from the middle of the runway"; }),
-                radialFromText), null, 62);
+                radialFromText), null, LabelWidth);
             departRow.Show(false);
             departTurnRow.Show(true);
             departRow.Picked += _ => ShowEntries();
@@ -610,10 +613,10 @@ namespace ATCRoom.TwrTrainer
             // The rest when wanted (the user, 4 Nov): closed.
             StackPanel more = new();
             current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
-            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
-            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure with no circuit; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
+            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
+            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure with no circuit; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure with no circuit: the height it climbs to (empty: 3000 ft).";
-            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, 62);
+            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
             toListButton = ActionButton("TO LIST", AddPlan);
             cancelEditButton = ActionButton("CANCEL", CancelEdit);
             cancelEditButton.Visibility = Visibility.Collapsed;
@@ -1453,11 +1456,11 @@ namespace ATCRoom.TwrTrainer
             {
                 var start = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.From, StringComparison.OrdinalIgnoreCase));
                 var exit = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.To, StringComparison.OrdinalIgnoreCase));
-                if (start.Name == null) return "A crossing starts at a gate: choose it in From.";
-                if (exit.Name == null) return "A crossing ends at a gate: choose it in To.";
+                if (start.Name == null) return "A crossing starts at a gate: choose it in Start from.";
+                if (exit.Name == null) return "A crossing ends at a gate: choose it in Exit to.";
                 // (With circuits, the user 5 Nov: into the circuit from the gate From, out to the gate To later.)
                 if (plan.TransitCircuits) return commands.AddAtGate(start.X, start.Y, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, plan.HeightFt, out added);
-                if (string.Equals(start.Name, exit.Name, StringComparison.OrdinalIgnoreCase)) return "A crossing goes to another gate (To).";
+                if (string.Equals(start.Name, exit.Name, StringComparison.OrdinalIgnoreCase)) return "A crossing goes to another gate (Exit to).";
                 return commands.AddTransit(start.X, start.Y, exit.X, exit.Y, plan.Overhead, plan.HeightFt, kind, callsign, out added);
             }
             if (plan.From == From.LongFinal)

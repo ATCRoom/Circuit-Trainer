@@ -680,4 +680,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   follows the runway in use).
 - Older scenarios converted when read (TowerPlan.Upgrade): the same flights (an arrival with DEP at the end: F/S).
 - Engine: CircuitState.LeaveAfterLast, ExitX/ExitY; LeaveAfterCircuits; after the last final it leaves (DepartNow). Test 47.
+- **Clearer names in New aircraft (the user, 5 Nov evening):** Type of AC, Formation, Break interval (3s 4s 5s 10s), Type
+  of flight, Start from, Exit to, Via, Pattern type, Pattern entry, Pattern side (in this order), On Final, Numb. of
+  Circuits; a wider column for them.
 
