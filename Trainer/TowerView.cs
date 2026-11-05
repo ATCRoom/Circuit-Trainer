@@ -77,6 +77,8 @@ namespace ATCRoom.TwrTrainer
         public IReadOnlyList<(string Name, double X, double Y)> Gates { get; set; } = [];
         /// <summary>The runway exits (the plane, NM).</summary>
         public IReadOnlyList<(string Name, double X, double Y)> Exits { get; set; } = [];
+        /// <summary>The helipads registered at the aerodrome (the user, 5 Nov), drawn as a small circle with its name.</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Helipads { get; set; } = [];
         /// <summary>The map categories drawn.</summary>
         public HashSet<string> CategoriesOn { get; } = new(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<AircraftState> Traffic { get; private set; } = [];
@@ -262,6 +264,7 @@ namespace ATCRoom.TwrTrainer
             DrawRunway(dc);
             DrawGates(dc, dip);
             DrawExits(dc, dip);
+            DrawHelipads(dc, dip);
             DrawTraffic(dc, dip);
             if (Hint.Length > 0)
             {
@@ -384,6 +387,17 @@ namespace ATCRoom.TwrTrainer
                 Point at = ToScreen(x, y);
                 dc.DrawLine(pen, at - across, at + across);
                 dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, PromptBrush, dip), new Point(at.X + 6, at.Y + 2));
+            }
+        }
+
+        private void DrawHelipads(DrawingContext dc, double dip)
+        {
+            Pen pen = new(PromptBrush, 1.5);
+            foreach ((string name, double x, double y) in Helipads)
+            {
+                Point at = ToScreen(x, y);
+                dc.DrawEllipse(null, pen, at, 6, 6);
+                dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, PromptBrush, dip), new Point(at.X + 8, at.Y - 6));
             }
         }
 
@@ -575,11 +589,14 @@ namespace ATCRoom.TwrTrainer
                         // Yellow: they land together; the others go around (any of them; from a circuit at most 2 land).
                         rows.Add([("", "LAND", Look.Tag), .. crew.Select((m, i) => ($"LAND={i}", Number(m), a.Lands == null || i >= a.Lands.Count || a.Lands[i] ? Look.On : Look.Option))]);
                     }
-                    rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction ? Look.On : Look.Option)),
+                    rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction && !a.HasPad ? Look.On : Look.Option)),
+                        // (A helicopter, the user 5 Nov: its final on a helipad.)
+                        .. (a.CanHover ? [("PAD=END", "HPAD", a.HasPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
                     if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE", Look.Command),
-                        ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command)]);
+                        ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command),
+                        .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())]);
                     // The orders of where it is now.
                     if ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")) now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
                     if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Command) : ("HOLD", "HOLD", Look.Command));

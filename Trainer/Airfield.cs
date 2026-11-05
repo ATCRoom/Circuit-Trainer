@@ -143,6 +143,23 @@ namespace ATCRoom.TwrTrainer
             Circuits.Exits.Add(new EntryGate { Name = name, Latitude = lat, Longitude = lon });
         }
 
+        /// <summary>The helipads registered at this aerodrome, in the plane (the user, 5 Nov).</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Helipads => (Circuits.Helipads ?? []).Select(g =>
+        {
+            (double x, double y) = Plane.FromGeo(g.Latitude, g.Longitude);
+            return (g.Name, x, y);
+        }).ToList();
+
+        public void AddHelipad(string name, double x, double y)
+        {
+            (double lat, double lon) = Plane.ToGeo(x, y);
+            Circuits.Helipads ??= [];
+            Circuits.Helipads.RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
+            Circuits.Helipads.Add(new EntryGate { Name = name, Latitude = lat, Longitude = lon });
+        }
+
+        public void RemoveHelipad(string name) => (Circuits.Helipads ?? []).RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
+
         public void RemoveExit(string name) => (Circuits.Exits ?? []).RemoveAll(g => string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>Distance (NM) of a point of the plane from the middle of the runway in use (else from the origin).</summary>

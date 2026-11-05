@@ -701,3 +701,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the label and in Selected aircraft lights CONV and WIDE only (that choice is its first circuit); once airborne all (the
   next circuit, as now). The way to another circuit at once in flight: DCT TO. Test: OVH not taken at the lift-off.
 
+## Build of 5 Nov night (the user: "vai") — WRITTEN
+- **Helipads (the user, 5 Nov):** registered at the aerodrome (Settings: Helipad name, ADD / REMOVE HELIPAD; H1, H2...; in
+  the aerodrome file; drawn on the map) and any point clicked. Helicopters only: label END + HPAD and DCT TO + HPAD
+  (straight to the pad from wherever, down and slower, hover, down: a full stop); Selected aircraft: Helipad (HPAD) in
+  "2 · Next circuit", HPAD in DCT TO; HELIPAD gone from "4 · Out of the circuit". The choice: a menu of the registered
+  pads + "Point on the map...". New aircraft: On Final HPAD for helicopter arrivals / locals, the row Helipad (the
+  registered ones, POINT). Test 51.
+

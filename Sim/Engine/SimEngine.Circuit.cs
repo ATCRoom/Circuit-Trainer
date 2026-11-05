@@ -1048,6 +1048,29 @@ namespace ATCRoom.Sim
         });
 
         /// <summary>
+        /// Instruction DCT TO HPAD (the user, 5 Nov): a helicopter in flight goes straight to the pad (the plane, NM) from
+        /// wherever it is, down and slower on the way, a hover over it, then down to it (a full stop there).
+        /// </summary>
+        public void DirectToPad(string callsign, double x, double y) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (!a.Class.CanHover || a.Contact != GroundContact.Airborne || !double.IsFinite(x) || !double.IsFinite(y)) return;
+                EndOrbit(a);
+                if (a.Circuit == null && aerodrome != null) a.Class = aerodrome.Apply(a.Class);
+                CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
+                circuit.NextType = null;
+                circuit.Turning = circuit.Spiral = circuit.StraightIn = circuit.Extended = circuit.Hold = false;
+                circuit.Suspended = circuit.Departed = circuit.Waiting = circuit.Transit = false;
+                circuit.LeaveAfterLast = false;
+                circuit.LapsLeft = 0;
+                circuit.End = circuit.FinalEnd = EndAction.FullStop;
+                circuit.HasPad = true;
+                circuit.PadX = x;
+                circuit.PadY = y;
+                GiveRoute(a, [new RoutePoint(x, y, double.NaN, a.Class.ApproachSpeedKt, "FINAL")]);
+            });
+
+        /// <summary>
         /// Instruction (SFO): hold at the High Key: circling over the field on the circle of the High Key, at its height, until
         /// released (false: "start SFO": at the next pass over the High Key it starts). Given before the High Key: it goes to
         /// that circle at once.

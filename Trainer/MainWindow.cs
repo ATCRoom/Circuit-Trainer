@@ -126,13 +126,21 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The rows of New aircraft hidden when they do not apply (the user, 5 Nov: not grey, hidden).</summary>
         private Grid patternLine = null!, entryLine = null!, sideLine = null!, onFinalLine = null!, circuitsLine = null!;
         /// <summary>What every final does (the user, 5 Nov): F/S lands at the first one (arrivals and locals); T/G, L/A, L/P then the next circuit.</summary>
-        private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P")],
-            (_, t) => "On each final: " + ChoiceTip(t));
+        private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P"), (PadEnd, "HPAD")],
+            (_, t) => t == "HPAD" ? "Helicopter: it lands on a helipad (Helipad, below)." : "On each final: " + ChoiceTip(t));
+        /// <summary>On Final HPAD (the user, 5 Nov; helicopters): a full stop on a helipad; a value of the row only, not of the engine.</summary>
+        private const EndAction PadEnd = (EndAction)100;
+        /// <summary>The helipad of New aircraft: a registered one, or POINT (clicked on the map).</summary>
+        private ChoiceRow<string> padRow = new([]);
+        private readonly StackPanel padHolder = new();
+        private (double X, double Y)? padPoint;
+        private Grid padLine = null!;
         /// <summary>The width of the names of the rows of New aircraft (the user, 5 Nov: longer, clearer names).</summary>
         private const double LabelWidth = 112;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3s"), (4.0, "4s"), (5.0, "5s"), (10.0, "10s")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         private readonly TextBox newExitName = new() { Width = 70 };
+        private readonly TextBox newPadName = new() { Width = 70 };
         /// <summary>A formation landing, both full stop (the user, 4 Nov; it depends on the country, kept in the aerodrome file).</summary>
         private readonly ChoiceRow<bool> separationRow = new([(false, "REDUCED RWY SEP"), (true, "FULL RWY SEP")], (full, _) => full
             ? "Full rwy separation: the next one of a formation lands once the one ahead has left the runway."
@@ -158,6 +166,8 @@ namespace ATCRoom.TwrTrainer
         private Button splitButton = null!, expTaxiButton = null!;
         private Grid selBreakGrid = null!, selBreakPointGrid = null!;
         private Button[] dctButtons = [];
+        private Button padEndButton = null!, padNowButton = null!;
+        private Grid padEndLine = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
             orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
@@ -309,6 +319,7 @@ namespace ATCRoom.TwrTrainer
             classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
                 ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
             classHolder.Children.Add(classRow);
+            classRow.Picked += _ => ShowEntries();
             heightClassBox.SelectedIndex = heightClassBox.Items.Count > 0 ? 0 : -1;
             if (note != null) Say(note);
             engine.LongFinalNM = settings.LongFinalNM;
@@ -363,7 +374,7 @@ namespace ATCRoom.TwrTrainer
                 settingsPart.SummaryText = airfield.Map == null ? "no map" : $"{airfield.Code} · {airfield.Runway?.Runway ?? "no runway"} · " + (sp < 0.5 ? "calm" : $"{f:000}/{sp:0}" + (g > 0 ? $"G{sp + g:0}" : ""));
                 mapSummary.Text = airfield.Map == null ? "no map" : $"{airfield.Code} · {airfield.Runway?.Runway ?? "no runway"}";
                 circuitsSummary.Text = $"LF {engine.LongFinalNM:0.#} · IP {engine.InitialPointNM:0.#} NM";
-                gatesSummary.Text = $"{airfield.Gates.Count} gates · {airfield.Exits.Count} exits";
+                gatesSummary.Text = $"{airfield.Gates.Count} gates · {airfield.Exits.Count} exits · {airfield.Helipads.Count} helipads";
                 weatherSummary.Text = settings.Metar.Length > 0 ? MetarWind.WindAndQnh(settings.Metar) : "no METAR";
                 int waitingCount = plans.Count(p => p.Now != TowerPlan.State.Flying && !p.Quick);
                 trafficPart.SummaryText = $"{engine.Count} flying" + (waitingCount > 0 ? $" · {waitingCount} waiting" : "");
@@ -508,6 +519,10 @@ namespace ATCRoom.TwrTrainer
             Note("Runway exits (where the landing aircraft leave the runway: each one the first it reaches slow enough): a name, then click on the runway edge.");
             Row("Exit name", newExitName);
             current.Children.Add(ActionRow(("ADD EXIT", AddExit), ("REMOVE EXIT", RemoveExit)));
+            // (The user, 5 Nov: helipads registered at the aerodrome; any other point clicked too.)
+            newPadName.ToolTip = "The name of the new helipad (empty: H1, H2...).";
+            Row("Helipad name", newPadName);
+            current.Children.Add(ActionRow(("ADD HELIPAD", AddHelipad), ("REMOVE HELIPAD", RemoveHelipad)));
 
             current = Section("Map layers", null, false);
             current.Children.Add(layers);
@@ -557,6 +572,7 @@ namespace ATCRoom.TwrTrainer
             sideLine = Row("Pattern side", sideRow, null, LabelWidth);
             // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
             onFinalLine = Row("On Final", onFinalRow, null, LabelWidth);
+            padLine = Row("Helipad", padHolder, null, LabelWidth);
             onFinalRow.Show(EndAction.FullStop);
             onFinalRow.Picked += _ => ShowEntries();
             circuitsLine = Row("Numb. of Circuits", lapsRow, null, LabelWidth);
@@ -661,6 +677,10 @@ namespace ATCRoom.TwrTrainer
             // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
             selBreakGrid = Row("Break", selBreakRow, next, 62);
             selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
+            // (Helicopters, the user 5 Nov: the end of the final on a helipad.)
+            padEndButton = ActionButton("HPAD", () => WithSelected(cs => PadMenu(cs, now: false)));
+            padEndButton.ToolTip = "Helicopter: the final ends on a helipad (a registered one, or a point clicked on the map).";
+            padEndLine = Row("Helipad", Inline(padEndButton), next, 62);
             selBreakPointGrid = Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
                 view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
 
@@ -698,6 +718,9 @@ namespace ATCRoom.TwrTrainer
             dctButtons[1].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final.";
             dctButtons[2].ToolTip = "At once straight to the initial point, then the overhead.";
             dctButtons[3].ToolTip = "At once straight to the High Key, then the SFO.";
+            padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
+            padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
+            dctButtons = [.. dctButtons, padNowButton];
             Row("DCT TO", Wrap(dctButtons), now, 62);
             splitButton = Order("SPLIT", commands.Split);
             Row("Formation", Inline(splitButton), now, 62);
@@ -710,9 +733,7 @@ namespace ATCRoom.TwrTrainer
             Row("Speed kt", Inline(speedKtBox, ActionButton("GO", () => WithSelected(cs => Number(speedKtBox, "a speed in knots", v => commands.Speed(cs, v))))), outside, 62);
             rejoinButton = Order("REJOIN", commands.Rejoin);
             breakupButton = Order("BREAKUP", commands.Breakup);
-            outside.Children.Add(Wrap(rejoinButton, breakupButton,
-                Order("HELIPAD", cs => view.AskPoint($"{cs}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(cs, x, y))),
-                Order("REMOVE", commands.Remove)));
+            outside.Children.Add(Wrap(rejoinButton, breakupButton, Order("REMOVE", commands.Remove)));
             Note("Right click on an aircraft: all its commands. Its label can be dragged.", selectedPanel);
             current = panel;
             // Each part its message line, at its bottom; the folders in the Aerodrome.
@@ -1359,9 +1380,13 @@ namespace ATCRoom.TwrTrainer
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
                 // (The plan of 5 Nov: On Final and Circuits; End and Laps only for the scenarios of before.)
-                End = OnFinal(),
-                OnFinal = OnFinal(),
-                Circuits = OnFinal() == EndAction.FullStop && Type() is Flight.Arrival or Flight.Local ? 0 : Laps(),
+                End = OnFinal() == PadEnd ? EndAction.FullStop : OnFinal(),
+                OnFinal = OnFinal() == PadEnd ? EndAction.FullStop : OnFinal(),
+                ToPad = OnFinal() == PadEnd,
+                PadName = OnFinal() == PadEnd && padRow.HasValue && padRow.Value != PadPointName ? padRow.Value ?? "" : "",
+                PadX = OnFinal() == PadEnd && padRow.Value == PadPointName ? padPoint?.X : null,
+                PadY = OnFinal() == PadEnd && padRow.Value == PadPointName ? padPoint?.Y : null,
+                Circuits = (OnFinal() is EndAction.FullStop or PadEnd) && (Type() is Flight.Arrival or Flight.Local) ? 0 : Laps(),
                 Local = Type() == Flight.Local,
                 TransitCircuits = Type() == Flight.Transit && viaRow.Value == Via.Circuits,
                 Formation = formationRow.HasValue ? formationRow.Value : 1,
@@ -1404,6 +1429,7 @@ namespace ATCRoom.TwrTrainer
             string? error = LaunchOne(plan, out added);
             if (error != null) return error;
             PlanOfCircuits(plan, added);
+            if (plan.ToPad && PadOf(plan) is { } pad) commands.Helipad(added, pad.X, pad.Y);
             if (plan.Formation <= 1) return null;
             // A formation: the aircraft added leads it (its wingmen after its number).
             error = commands.MakeFormation(added, plan.Formation, plan.Lands, plan.SplitSeconds);
@@ -1441,6 +1467,31 @@ namespace ATCRoom.TwrTrainer
             if (plan.OnFinal == EndAction.FullStop) commands.SetLaps(added, 1, EndAction.FullStop, EndAction.TouchAndGo);
             else if (circuits == TowerPlan.Forever) commands.SetLaps(added, 0, EndAction.FullStop, each);
             else commands.SetLaps(added, circuits + 1, EndAction.FullStop, each);
+        }
+
+        private const string PadPointName = "POINT";
+
+        /// <summary>The helipad of a plan: the registered one of its name, or its point (null: none found).</summary>
+        private (double X, double Y)? PadOf(TowerPlan plan)
+        {
+            foreach ((string name, double px, double py) in airfield.Helipads)
+                if (plan.PadName.Length > 0 && string.Equals(name, plan.PadName, StringComparison.OrdinalIgnoreCase)) return (px, py);
+            return plan.PadX is double x && plan.PadY is double y ? (x, y) : null;
+        }
+
+        /// <summary>The row of the helipads of New aircraft built again (the registered ones, then POINT).</summary>
+        private void RebuildPads()
+        {
+            string? was = padRow.HasValue ? padRow.Value : null;
+            padRow = new ChoiceRow<string>([.. airfield.Helipads.Select(h => (h.Name, h.Name)), (PadPointName, "POINT")],
+                (value, _) => value == PadPointName ? "A point clicked on the map (click POINT again for another one)." : $"The helipad {value}.");
+            padRow.Picked += value =>
+            {
+                if (value == PadPointName) view.AskPoint("Helipad: click where the helicopter lands  -  Esc: cancel", (x, y) => padPoint = (x, y));
+            };
+            padRow.Show(was != null && (was == PadPointName || airfield.Helipads.Any(h => h.Name == was)) ? was : airfield.Helipads.Count > 0 ? airfield.Helipads[0].Name : PadPointName);
+            padHolder.Children.Clear();
+            padHolder.Children.Add(padRow);
         }
 
         /// <summary>The radial of a departure in degrees true (magnetic + the variation), or NaN: the runway heading.</summary>
@@ -1539,7 +1590,12 @@ namespace ATCRoom.TwrTrainer
             circuitRow.Show(p.Circuit);
             sideRow.Show(p.Side);
             if (p.Class.Length > 0) classRow.Show(p.Class);
-            onFinalRow.Show(p.OnFinal is EndAction.FullStop or EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.FullStop);
+            onFinalRow.Show(p.ToPad ? PadEnd : p.OnFinal is EndAction.FullStop or EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.FullStop);
+            if (p.ToPad)
+            {
+                padPoint = p.PadX is double px && p.PadY is double py ? (px, py) : padPoint;
+                padRow.Show(p.PadName.Length > 0 ? p.PadName : PadPointName);
+            }
             int circuits = p.Circuits ?? 0;
             lapsRow.Show(circuits == 0 && !p.Departure ? 1 : circuits);
             formationRow.Show(Math.Clamp(p.Formation, 1, SimEngine.MaxFormation));
@@ -1595,7 +1651,7 @@ namespace ATCRoom.TwrTrainer
                 if (circuits <= 0) return $"{who}  DEP{height} OUT {way}  {delay}";
                 return $"{who}  DEP{height} → {circuit}{side} {circuits}× {Short(p.OnFinal)} → OUT {way}  {delay}";
             }
-            string plan = p.OnFinal == EndAction.FullStop ? Short(EndAction.FullStop)
+            string plan = p.ToPad ? $"HPAD {(p.PadName.Length > 0 ? p.PadName : "point")}" : p.OnFinal == EndAction.FullStop ? Short(EndAction.FullStop)
                 : circuits == TowerPlan.Forever ? $"∞ {Short(p.OnFinal)}" : $"{Short(p.OnFinal)} {circuits}× → {Short(EndAction.FullStop)}";
             return $"{who}  {(p.Local ? "LOCAL" : p.From)}{height} → {entry} {circuit}{side} {plan}  {delay}";
         }
@@ -2091,6 +2147,8 @@ namespace ATCRoom.TwrTrainer
             ShowEntries();
             view.Gates = airfield.Gates;
             view.Exits = airfield.Exits;
+            view.Helipads = airfield.Helipads;
+            RebuildPads();
             separationRow.Show(airfield.Circuits.FullRunwaySeparation);
             engine.SetRunwayExits(airfield.Exits);
             view.InvalidateVisual();
@@ -2121,7 +2179,12 @@ namespace ATCRoom.TwrTrainer
             // On Final: F/S only for those that land.
             onFinalRow.SetEnabled(EndAction.FullStop, arrival || local);
             if (!(arrival || local) && onFinalRow.Value == EndAction.FullStop) onFinalRow.Show(EndAction.TouchAndGo);
-            bool landsFirst = (arrival || local) && onFinalRow.Value == EndAction.FullStop;
+            // HPAD: helicopters that land (the user, 5 Nov).
+            bool helicopter = engine.Classes.FirstOrDefault(c => c.Name == classRow.Value)?.CanHover == true;
+            bool padAllowed = helicopter && (arrival || local);
+            onFinalRow.SetEnabled(PadEnd, padAllowed);
+            if (!padAllowed && onFinalRow.Value == PadEnd) onFinalRow.Show(arrival || local ? EndAction.FullStop : EndAction.TouchAndGo);
+            bool landsFirst = (arrival || local) && onFinalRow.Value is EndAction.FullStop or PadEnd;
             // Circuits: OUT for departures, ∞ for arrivals and locals.
             lapsRow.SetEnabled(0, departure);
             lapsRow.SetEnabled(TowerPlan.Forever, arrival || local);
@@ -2133,6 +2196,7 @@ namespace ATCRoom.TwrTrainer
             static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
             patternLine.Visibility = sideLine.Visibility = onFinalLine.Visibility = Shown(inCircuit && !away);
             circuitsLine.Visibility = Shown(departure || withCircuits || ((arrival || local) && !landsFirst));
+            padLine.Visibility = Shown(padAllowed && onFinalRow.Value == PadEnd && inCircuit);
             entryLine.Visibility = Shown(arrival || withCircuits);
             departLine.Visibility = departure ? Visibility.Visible : Visibility.Collapsed;
             radialLine.Visibility = departure && departRow.HasValue && departRow.Value ? Visibility.Visible : Visibility.Collapsed;
@@ -2191,6 +2255,45 @@ namespace ATCRoom.TwrTrainer
             RebuildFrom();
         }
 
+        /// <summary>A helipad for a helicopter (the user, 5 Nov): the registered ones, or a point clicked on the map; now: straight there (DCT TO), else at the end of its final.</summary>
+        private void PadMenu(string callsign, bool now)
+        {
+            void Go(double x, double y)
+            {
+                if (now) commands.DirectToPad(callsign, x, y); else commands.Helipad(callsign, x, y);
+                ShowSelected();
+            }
+            List<MenuItem> items = airfield.Helipads.Select(h => Item(h.Name, () => Go(h.X, h.Y))).ToList();
+            items.Add(Item("Point on the map...", () => view.AskPoint($"{callsign}: click where it lands  -  Esc: cancel", Go)));
+            OpenMenu(items);
+        }
+
+        private void AddHelipad()
+        {
+            if (airfield.Map == null) { Say("Open a map first."); return; }
+            string typed = newPadName.Text.Trim().ToUpperInvariant();
+            view.AskPoint("Helipad: click it on the map  -  Esc: cancel", (x, y) =>
+            {
+                string name = typed.Length > 0 ? typed : Enumerable.Range(1, 99).Select(i => $"H{i}")
+                    .First(n => !airfield.Helipads.Any(h => string.Equals(h.Name, n, StringComparison.OrdinalIgnoreCase)));
+                airfield.AddHelipad(name, x, y);
+                Say(airfield.Save() ?? $"Helipad {name} added.");
+                newPadName.Text = "";
+                RebuildFrom();
+            });
+        }
+
+        private void RemoveHelipad()
+        {
+            string name = newPadName.Text.Trim().ToUpperInvariant();
+            if (name.Length == 0) { Say("Write the name of the helipad to remove."); return; }
+            if (!airfield.Helipads.Any(h => string.Equals(h.Name, name, StringComparison.OrdinalIgnoreCase))) { Say($"There is no helipad {name}."); return; }
+            airfield.RemoveHelipad(name);
+            Say(airfield.Save());
+            newPadName.Text = "";
+            RebuildFrom();
+        }
+
         private void RemoveGate()
         {
             string name = newGateName.Text.Trim().Length > 0 ? newGateName.Text.Trim() : fromRow.Value ?? "";
@@ -2240,6 +2343,11 @@ namespace ATCRoom.TwrTrainer
                 }
                 else if (name == "CIRC" && Enum.TryParse(value, out CircuitType circuit)) commands.NextCircuit(callsign, circuit, engine.SideFor(circuit));
                 else if (name == "DCT" && Enum.TryParse(value, out DirectPoint point)) commands.DirectTo(callsign, point);
+                else if (name == "PAD")
+                {
+                    PadMenu(callsign, now: value == "NOW");
+                    return;
+                }
                 else if (name == "NEXT" && Enum.TryParse(value, out EndAction end)) commands.SetEnd(callsign, end);
                 else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))
                 {
@@ -2468,6 +2576,9 @@ namespace ATCRoom.TwrTrainer
                 string leg = a.Leg;
                 bool sfo = a.Circuit == CircuitType.Sfo, inCircuit = a.Circuit != null && a.Contact == GroundContact.Airborne && leg is not ("MANUAL" or "GO AROUND" or "DEPARTURE");
                 foreach (Button dct in dctButtons) dct.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit;
+                // (The helipad: helicopters only; DCT TO HPAD also out of a circuit.)
+                padNowButton.Visibility = padEndLine.Visibility = a.CanHover ? Visibility.Visible : Visibility.Collapsed;
+                padNowButton.IsEnabled = a.CanHover && a.Contact == GroundContact.Airborne && !a.Transit;
                 // (On the ground and taking off: the conventional or the wide, the user 5 Nov.)
                 foreach (CircuitType pattern in Enum.GetValues<CircuitType>())
                     selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);

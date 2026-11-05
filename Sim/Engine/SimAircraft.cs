@@ -129,7 +129,10 @@ namespace ATCRoom.Sim
         int LapsLeft = 0,
         // Rolling out after the landing: the runway exit it goes to (empty: none).
         string Exit = "",
-        bool ExpediteTaxi = false);
+        bool ExpediteTaxi = false,
+        // A helicopter (it can land on a helipad), and going to its pad (the user, 5 Nov).
+        bool CanHover = false,
+        bool HasPad = false);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -245,6 +248,6 @@ namespace ATCRoom.Sim
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
             Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
             Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
-            Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi);
+            Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi, Class.CanHover, Circuit?.HasPad ?? false);
     }
 }

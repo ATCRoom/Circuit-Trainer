@@ -67,6 +67,11 @@ namespace ATCRoom.TwrTrainer
         /// before they leave (a departure 0: OUT, away at once). Null: a plan of an older scenario (<see cref="Upgrade"/>).
         /// </summary>
         public bool Local { get; set; }
+        /// <summary>A helicopter landing on a helipad (the user, 5 Nov): a registered one by its name, else this point (the plane, NM).</summary>
+        public bool ToPad { get; set; }
+        public string PadName { get; set; } = "";
+        public double? PadX { get; set; }
+        public double? PadY { get; set; }
         public bool TransitCircuits { get; set; }
         public int? Circuits { get; set; }
         public const int Forever = -1;
@@ -125,6 +130,7 @@ namespace ATCRoom.TwrTrainer
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
+            ToPad = ToPad, PadName = PadName, PadX = PadX, PadY = PadY,
             Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)

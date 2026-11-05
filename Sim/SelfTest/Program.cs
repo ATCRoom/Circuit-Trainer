@@ -1990,6 +1990,23 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO IP after a take-off on the right (Jet)", flown));
     }
 
+    // 51. DCT TO HPAD (the user, 5 Nov): a helicopter on the downwind straight to a pad beside the runway, never reaching
+    // the base, down onto it, removed.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Helicopter");
+        sim.RunFor(10);
+        (double hx, double hy) = Place(0.5, -0.3, CircuitSide.Left);
+        sim.DirectToPad(cs, hx, hy);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        AircraftState? landed = flown.FirstOrDefault(st => st.Contact == GroundContact.Landed);
+        bool noBase = flown.All(st => st.Leg != "BASE");
+        double missed = landed != null ? Math.Sqrt(Math.Pow(landed.X - hx, 2) + Math.Pow(landed.Y - hy, 2)) : double.NaN;
+        Check(landed != null && missed < 0.05 && noBase && sim.Get(cs) == null,
+            "DCT TO HPAD: the helicopter straight to its pad (no base), down onto it, removed", landed != null ? $"{missed:F3} NM from the pad" : "never landed");
+        pictures.Add(("DCT TO HPAD from the downwind (Helicopter)", flown));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

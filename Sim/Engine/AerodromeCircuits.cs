@@ -36,6 +36,8 @@ namespace ATCRoom.Sim
         public List<EntryGate> Gates { get; set; } = [];
         /// <summary>The runway exits (the user, 4 Nov: no taxiways, so where it leaves the runway after landing): a name and a point on the runway edge.</summary>
         public List<EntryGate> Exits { get; set; } = [];
+        /// <summary>The helipads registered at this aerodrome (the user, 5 Nov: H1, H2...; any other point clicked on the map too).</summary>
+        public List<EntryGate> Helipads { get; set; } = [];
         /// <summary>
         /// A formation landing, both full stop (the user, 4 Nov; it depends on the country): false, "reduced rwy separation":
         /// the one behind touches down when the one ahead has rolled a third of the runway; true, "full rwy separation":
@@ -119,6 +121,7 @@ namespace ATCRoom.Sim
             file.Classes = (file.Classes ?? []).Where(c => c != null).ToList();
             file.Gates = (file.Gates ?? []).Where(g => g != null).ToList();
             file.Exits = (file.Exits ?? []).Where(g => g != null).ToList();
+            file.Helipads = (file.Helipads ?? []).Where(g => g != null).ToList();
             return file;
         }
 

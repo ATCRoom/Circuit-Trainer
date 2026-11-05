@@ -193,6 +193,9 @@ namespace ATCRoom.TwrTrainer
 
         public void Helipad(string callsign, double x, double y) => engine.SetHelipad(callsign, x, y);
 
+        /// <summary>DCT TO HPAD (the user, 5 Nov): a helicopter straight to the pad now, a full stop there.</summary>
+        public void DirectToPad(string callsign, double x, double y) => engine.DirectToPad(callsign, x, y);
+
         public void Remove(string callsign) => engine.Remove(callsign);
     }
 }
