@@ -962,12 +962,15 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     SimEngine e6 = NewCircuitEngine();
     string c6 = e6.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.LowPass, performanceClass: "Turboprop");
     bool passed = false;
-    // (Its far end passed on the final: the low pass done; at 400 ft the close pattern turns at once, its GO AROUND leg is short.)
+    string legBefore6 = "";
+    // (The final left at the far end of the runway: the low pass done; at 400 ft the close pattern turns at once, its GO
+    // AROUND leg is short.)
     List<AircraftState> t6 = Fly(e6, c6, 1200, st =>
     {
-        if (!passed && st.Leg == "FINAL" && Frame(st).Along > CircuitLength + 0.05) { passed = true; e6.SetEndAction(c6, EndAction.FullStop); }
+        if (!passed && legBefore6 == "FINAL" && st.Leg != "FINAL" && Frame(st).Along > CircuitLength - 0.1) { passed = true; e6.SetEndAction(c6, EndAction.FullStop); }
+        legBefore6 = st.Leg;
     });
-    int lp = t6.FindIndex(st => st.Leg == "FINAL" && Frame(st).Along > CircuitLength + 0.05);
+    int lp = Enumerable.Range(1, Math.Max(0, t6.Count - 1)).FirstOrDefault(i => t6[i - 1].Leg == "FINAL" && t6[i].Leg != "FINAL" && Frame(t6[i]).Along > CircuitLength - 0.1, -1);
     List<AircraftState> over = lp < 0 ? [] : t6.Take(lp).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
     Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 10 && Between(over.Min(Height), 360, 460) && over.Max(Height) < 460,
         "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown",
