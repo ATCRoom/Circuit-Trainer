@@ -1818,11 +1818,12 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         sim.TurnBase(cs);
         List<AircraftState> flown = Fly(sim, cs, 1200);
         int onBase = flown.FindIndex(st => st.Leg == "BASE");
-        double farthest = flown.Max(st => Frame(st).Along);
+        // (Before the base: on the runway it rolls on past the threshold.)
+        double farthest = onBase > 0 ? flown.Take(onBase).Max(st => Frame(st).Along) : double.NaN;
         double closestBefore = onBase > 0 ? flown.Take(onBase).Min(st => Frame(st).Lateral) : double.NaN;
         Check(legBefore == "JOIN" && onBase > 0 && farthest < 0.2 && closestBefore > 0.6 && LandedOnRunway(flown),
             "TURN BASE while joining: straight to the start of the base (not the downwind), then the base, lands",
-            $"leg before {legBefore}, farthest along {farthest:F2} NM, closestBefore the runway before the base {closestBefore:F2} NM");
+            $"leg before {legBefore}, farthest along {farthest:F2} NM, nearest the runway before the base {closestBefore:F2} NM");
         pictures.Add(("TURN BASE while joining: straight to the base (Light)", flown));
     }
 
