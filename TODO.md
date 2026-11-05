@@ -686,4 +686,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 
 ## Next group (to do)
 - **Exit → Exit via (the user, 5 Nov):** in New aircraft, the departure's row Exit (RWY HDG / RADIAL) named "Exit via".
+- **Rows that do not apply hidden (the user, 5 Nov):** in New aircraft a row that is off for the type of flight is hidden,
+  not shown grey (Pattern entry for LOCAL / DEPARTURE, Exit to and Via for the non crossings, ...). The note at the top
+  rewritten for the four types of flight.
+- **LOCAL / DEPARTURE with WIDE: Pattern entry lit (the user, 5 Nov: "with WIDE I must be able to come back into a
+  circuit")** — how exactly: to be decided (see the question of 5 Nov).
 
