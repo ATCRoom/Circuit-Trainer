@@ -30,7 +30,7 @@ namespace ATCRoom.TwrTrainer
         public static readonly (EndAction End, string Text, string Short)[] Ends =
         [
             (EndAction.TouchAndGo, "Touch and go", "T/G"),
-            (EndAction.FullStop, "Full stop", "FS"),
+            (EndAction.FullStop, "Full stop", "F/S"),
             // (The user, 5 Nov: the low approach and the low pass; G/A is only the order of the moment.)
             (EndAction.GoAround, "Low approach", "L/A"),
             (EndAction.LowPass, "Low pass", "L/P"),
@@ -143,6 +143,10 @@ namespace ATCRoom.TwrTrainer
                 return ex.Message;
             }
         }
+
+        /// <summary>After the last circuit of its plan: away along the runway heading or the radial (degrees true), or to the gate (the plane, NM; NaN: none).</summary>
+        public void LeaveAfterCircuits(string callsign, double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt, double gateX, double gateY) =>
+            engine.LeaveAfterCircuits(callsign, radialTrue, turnRight, fromX, fromY, heightFt, gateX, gateY);
 
         /// <summary>A new aircraft crossing the zone from a gate to another one (the plane, NM).</summary>
         public string? AddTransit(double fromX, double fromY, double toX, double toY, bool overhead, double? heightFt, string? performanceClass, string? callsign, out string added)

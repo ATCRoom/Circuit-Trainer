@@ -82,14 +82,16 @@ namespace ATCRoom.TwrTrainer
             (CircuitEntry.HighKey, "HK"), (CircuitEntry.Final, "FINAL"), (CircuitEntry.Circling, "CIRCLING")], (_, t) => ChoiceTip("entry " + t));
         private readonly TextBox delayBox = new() { Width = 45, Text = "0" };
         /// <summary>An arrival or a crossing (to the gate To, straight or over the field).</summary>
-        private enum Flight { Arrival, Departure, Transit }
-        /// <summary>An arrival, a departure (the user, 5 Nov: from the runway only) or a crossing (to the gate To, straight or over the field).</summary>
-        private readonly ChoiceRow<Flight> typeRow = new([(Flight.Arrival, "ARRIVAL"), (Flight.Departure, "DEPARTURE"), (Flight.Transit, "TRANSIT")], (type, _) => type switch
+        private enum Flight { Arrival, Local, Departure, Transit }
+        /// <summary>The four types (the user, 5 Nov), each with its end: arrivals and locals land, departures leave, crossings leave at their gate.</summary>
+        private readonly ChoiceRow<Flight> typeRow = new([(Flight.Arrival, "ARRIVAL"), (Flight.Local, "LOCAL"), (Flight.Departure, "DEPARTURE"), (Flight.Transit, "TRANSIT")], (type, _) => type switch
         {
-            Flight.Transit => "Crossing the zone: from the gate From to the gate To, at its height, not landing; gone at the gate To.",
-            Flight.Departure => "Departing: it takes off (RWY), then its circuits (the conventional or the wide), or none (Circuits 0): away along the runway heading or a radial; gone 10 NM out.",
-            _ => "Arriving: it joins its circuit (Entry) and lands or flies the circuit."
+            Flight.Transit => "Crossing the zone from the gate From to the gate To: straight, over the field, or with circuits; gone at the gate To.",
+            Flight.Departure => "Departing from the runway: away at once (OUT) or after its circuits, along the runway heading or a radial; gone 10 NM out.",
+            Flight.Local => "A local flight: it takes off, flies its circuits and lands.",
+            _ => "Arriving from a gate or the long final: its circuits, then it lands."
         });
+        private enum Via { Direct, Overhead, Circuits }
         /// <summary>A departure with no circuit (the user, 5 Nov): on along the runway heading, or onto a radial (magnetic) turning left or right, from a point (null: the middle of the runway).</summary>
         private readonly ChoiceRow<bool> departRow = new([(false, "RWY HDG"), (true, "RADIAL")], (radial, _) => radial
             ? "Above 400 ft it turns (L or R) to intercept the radial (magnetic, outbound) from the middle of the runway (or from a point), then along it."
@@ -103,22 +105,27 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox variationBox = new() { Width = 45 };
         private ChoiceRow<string> toRow = new([]);
         private readonly StackPanel toHolder = new();
-        private readonly ChoiceRow<bool> viaRow = new([(false, "DIRECT"), (true, "OVERHEAD")], (overhead, _) => overhead
-            ? "Crossing over the field (the middle of the runway), then to the gate To." : "Crossing straight from gate to gate.");
+        private readonly ChoiceRow<Via> viaRow = new([(Via.Direct, "DIRECT"), (Via.Overhead, "OVERHEAD"), (Via.Circuits, "CIRCUITS")], (via, _) => via switch
+        {
+            Via.Overhead => "Crossing over the field (the middle of the runway), then to the gate To.",
+            Via.Circuits => "Into the circuit from the gate From (Entry), its circuits (On Final), then out to the gate To.",
+            _ => "Crossing straight from gate to gate."
+        });
         private readonly TextBox arrivalBox = new() { Width = 55 };
         /// <summary>A formation (the user, 4 Nov): how many, which of them land together, the seconds between them at the split.</summary>
-        private readonly ChoiceRow<int> formationRow = new([(1, "1"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
+        private readonly ChoiceRow<int> formationRow = new([(1, "SINGLE"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
             ? "Alone." : $"A formation of {n}: one label until it splits (its wingmen: the numbers after the leader's: VIPER01, 02...).");
-        /// <summary>The plan of the circuits: how many (0: on and on, touch and go), how the last one ends.</summary>
-        private readonly ChoiceRow<int> lapsRow = new([(TowerPlan.NoCircuit, "0"), (1, "1"), (2, "2"), (3, "3"), (4, "4"), (0, "∞")], (n, _) => n == TowerPlan.NoCircuit
-            ? "A departure with no circuit: away after the take-off (Departure: the runway heading or a radial)." : n == 0
-            ? "Circuits on and on, each with a touch and go (until you change it)." : n == 1 ? "One circuit, ended as in Last." : $"{n} circuits: {n - 1} with a touch and go, the last ended as in Last.");
-        private readonly ChoiceRow<EndAction> lastRow = new([(EndAction.FullStop, "FS"), (EndAction.Departure, "DEP")], (end, _) => end == EndAction.FullStop
-            ? "The last circuit ends with a full stop (landed, then gone)." : "The last circuit ends with a touch and go, then it leaves straight ahead.");
-        private Grid toLine = null!, viaLine = null!, intervalLine = null!, onFinalLine = null!;
-        /// <summary>How the circuits but the last one end (the user, 5 Nov): touch and go, low approach, low pass.</summary>
-        private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.TouchAndGo, "T&G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P")],
-            (_, t) => "Every circuit but the last one: " + ChoiceTip(t));
+        /// <summary>
+        /// The circuits (the user, 5 Nov): arrivals and locals the circuits more than the first one (∞: on and on; lit when On
+        /// Final is not F/S), departures and crossings the circuits before they leave (a departure OUT: away at once).
+        /// </summary>
+        private readonly ChoiceRow<int> lapsRow = new([(0, "OUT"), (1, "1"), (2, "2"), (3, "3"), (4, "4"), (TowerPlan.Forever, "∞")], (n, _) => n == 0
+            ? "A departure away at once after the take-off (Exit: the runway heading or a radial)." : n == TowerPlan.Forever
+            ? "Circuits on and on, each final as in On Final (until you change it)." : $"{n} circuit(s) (arrivals and locals: more than the first one; departures and crossings: before they leave).");
+        private Grid toLine = null!, viaLine = null!, intervalLine = null!;
+        /// <summary>What every final does (the user, 5 Nov): F/S lands at the first one (arrivals and locals); T/G, L/A, L/P then the next circuit.</summary>
+        private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P")],
+            (_, t) => "On each final: " + ChoiceTip(t));
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3"), (4.0, "4"), (5.0, "5"), (10.0, "10")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
         private readonly TextBox newExitName = new() { Width = 70 };
@@ -528,23 +535,24 @@ namespace ATCRoom.TwrTrainer
             toLine = Row("To", toHolder, null, 62);
             viaLine = Row("Via", viaRow, null, 62);
             typeRow.Show(Flight.Arrival);
-            viaRow.Show(true);
+            viaRow.Show(Via.Overhead);
             typeRow.Picked += type =>
             {
-                // (The user, 5 Nov: a departure with no circuit by default.)
-                if (type == Flight.Departure) lapsRow.Show(TowerPlan.NoCircuit);
+                // (The user, 5 Nov: a departure away at once by default.)
+                if (type == Flight.Departure) lapsRow.Show(0);
                 ShowEntries();
             };
+            viaRow.Picked += _ => ShowEntries();
             Row("Entry", entryRow, null, 62);
             // (The user, 5 Nov: Pattern, as on the label, not to be mixed up with Circuits.)
             Row("Pattern", circuitRow, null, 62);
             Row("Side", sideRow, null, 62);
-            // (The user, 4 Nov: a plan is the whole flight: how many circuits, how the last one ends; nothing else to think of.)
+            // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
+            Row("On Final", onFinalRow, null, 62);
+            onFinalRow.Show(EndAction.FullStop);
+            onFinalRow.Picked += _ => ShowEntries();
             Row("Circuits", lapsRow, null, 62);
-            onFinalLine = Row("On Final", onFinalRow, null, 62);
-            onFinalRow.Show(EndAction.TouchAndGo);
-            Row("Last", lastRow, null, 62);
-            departLine = Row("Departure", departRow, null, 62);
+            departLine = Row("Exit", departRow, null, 62);
             RadialTip(radialBox);
             radialLine = Row("Radial °M", Wrap(radialBox, departTurnRow,
                 ActionButton("FROM A POINT", () => view.AskPoint("Departure: click the point the radial starts from  -  Esc: cancel", (x, y) =>
@@ -563,7 +571,6 @@ namespace ATCRoom.TwrTrainer
             formationRow.Show(1);
             splitRow.Show(3.0);
             lapsRow.Show(1);
-            lastRow.Show(EndAction.FullStop);
             formationRow.Picked += n => intervalLine.Visibility = n > 1 ? Visibility.Visible : Visibility.Collapsed;
             intervalLine.Visibility = Visibility.Collapsed;
             lapsRow.Picked += _ => ShowEntries();
@@ -830,7 +837,7 @@ namespace ATCRoom.TwrTrainer
             "L" => "Left-hand circuit.",
             "R" => "Right-hand circuit.",
             "T/G" => "Touch and go, then the circuit again.",
-            "FS" => "Full stop: it lands and is removed.",
+            "F/S" => "Full stop: it lands and is removed.",
             "L/A" => "Low approach: down to the short final (about 200 ft), then up to the circuit height and the circuit again.",
             "L/P" => "Low pass: down to 400 ft, on at 400 ft all along the runway, then the circuit again.",
             "T&G" => "Touch and go, then the circuit again.",
@@ -1325,6 +1332,7 @@ namespace ATCRoom.TwrTrainer
         {
             Flight Type() => typeRow.HasValue ? typeRow.Value : Flight.Arrival;
             int Laps() => lapsRow.HasValue ? lapsRow.Value : 1;
+            EndAction OnFinal() => onFinalRow.HasValue ? onFinalRow.Value : EndAction.FullStop;
             double delay = double.TryParse(delayBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && d >= 0 ? d : 0;
             return new TowerPlan
             {
@@ -1334,21 +1342,23 @@ namespace ATCRoom.TwrTrainer
                 Entry = entryRow.Value,
                 Circuit = circuitRow.Value,
                 Side = sideRow.Value,
-                End = Laps() == TowerPlan.NoCircuit ? EndAction.Departure : Laps() == 1 ? lastRow.Value : onFinalRow.HasValue ? onFinalRow.Value : EndAction.TouchAndGo,
-                Laps = Laps(),
-                Last = lastRow.Value,
-                OnFinal = onFinalRow.HasValue ? onFinalRow.Value : EndAction.TouchAndGo,
+                // (The plan of 5 Nov: On Final and Circuits; End and Laps only for the scenarios of before.)
+                End = OnFinal(),
+                OnFinal = OnFinal(),
+                Circuits = OnFinal() == EndAction.FullStop && Type() is Flight.Arrival or Flight.Local ? 0 : Laps(),
+                Local = Type() == Flight.Local,
+                TransitCircuits = Type() == Flight.Transit && viaRow.Value == Via.Circuits,
                 Formation = formationRow.HasValue ? formationRow.Value : 1,
                 Lands = null,
                 SplitSeconds = splitRow.HasValue ? splitRow.Value : 3,
                 Transit = Type() == Flight.Transit,
                 Departure = Type() == Flight.Departure,
-                Radial = Type() == Flight.Departure && Laps() == TowerPlan.NoCircuit && departRow.HasValue && departRow.Value ? RadialWritten() : null,
+                Radial = Type() == Flight.Departure && departRow.HasValue && departRow.Value ? RadialWritten() : null,
                 TurnRight = Type() == Flight.Departure && departTurnRow.HasValue ? departTurnRow.Value : null,
                 RadialFromX = radialFrom?.X,
                 RadialFromY = radialFrom?.Y,
                 To = toRow.HasValue ? toRow.Value ?? "" : "",
-                Overhead = viaRow.HasValue && viaRow.Value,
+                Overhead = Type() == Flight.Transit && viaRow.Value == Via.Overhead,
                 HeightFt = double.TryParse(arrivalBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && h > 0 ? h : null,
                 DelayMinutes = delay
             };
@@ -1374,10 +1384,10 @@ namespace ATCRoom.TwrTrainer
         /// <summary>An aircraft of a plan, now: from its gate, the runway or already in the circuit. Returns an error, or null.</summary>
         private string? Launch(TowerPlan plan, out string added)
         {
+            plan.Upgrade();
             string? error = LaunchOne(plan, out added);
             if (error != null) return error;
-            // The plan of its circuits (a crossing has none).
-            if (plan.Laps is int laps && laps >= 0 && !plan.Transit) commands.SetLaps(added, laps, plan.Last, plan.OnFinal);
+            PlanOfCircuits(plan, added);
             if (plan.Formation <= 1) return null;
             // A formation: the aircraft added leads it (its wingmen after its number).
             error = commands.MakeFormation(added, plan.Formation, plan.Lands, plan.SplitSeconds);
@@ -1389,21 +1399,48 @@ namespace ATCRoom.TwrTrainer
             return error;
         }
 
+        /// <summary>
+        /// The circuits of the plan of 5 Nov in the engine (finals counted there): arrivals and locals land at the last final
+        /// (F/S: at the first one; Circuits more); departures and crossings with circuits leave after their last final.
+        /// </summary>
+        private void PlanOfCircuits(TowerPlan plan, string added)
+        {
+            int circuits = plan.Circuits ?? 0;
+            EndAction each = plan.OnFinal is EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? plan.OnFinal : EndAction.TouchAndGo;
+            if (plan.Transit)
+            {
+                if (!plan.TransitCircuits) return;
+                var exit = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.To, StringComparison.OrdinalIgnoreCase));
+                commands.SetLaps(added, Math.Max(1, circuits), each, each);
+                commands.LeaveAfterCircuits(added, double.NaN, null, null, null, plan.HeightFt, exit.Name != null ? exit.X : double.NaN, exit.Name != null ? exit.Y : double.NaN);
+                return;
+            }
+            if (plan.Departure)
+            {
+                if (circuits <= 0) return;
+                commands.SetLaps(added, circuits, each, each);
+                commands.LeaveAfterCircuits(added, RadialTrue(plan), plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, double.NaN, double.NaN);
+                return;
+            }
+            if (plan.OnFinal == EndAction.FullStop) commands.SetLaps(added, 1, EndAction.FullStop, EndAction.TouchAndGo);
+            else if (circuits == TowerPlan.Forever) commands.SetLaps(added, 0, EndAction.FullStop, each);
+            else commands.SetLaps(added, circuits + 1, EndAction.FullStop, each);
+        }
+
+        /// <summary>The radial of a departure in degrees true (magnetic + the variation), or NaN: the runway heading.</summary>
+        private double RadialTrue(TowerPlan plan) =>
+            plan.Radial is double written && !double.IsNaN(written) ? written + (airfield.Circuits.MagneticVariation ?? 0) : double.NaN;
+
         private string? LaunchOne(TowerPlan plan, out string added)
         {
             added = "";
             string? callsign = plan.Callsign.Length > 0 ? plan.Callsign : null;
             string? kind = plan.Class.Length > 0 ? plan.Class : null;
-            if (plan.From == From.Runway && plan.Laps == TowerPlan.NoCircuit)
+            if (plan.Radial is double r && double.IsNaN(r)) return "Write the radial (0 to 360, magnetic) in Radial °M.";
+            if (plan.Departure && (plan.Circuits ?? 0) <= 0)
             {
-                // A departure with no circuit (the user, 5 Nov): the runway heading, or the radial (magnetic: to true here).
-                double radial = double.NaN;
-                if (plan.Radial is double written)
-                {
-                    if (double.IsNaN(written)) return "Write the radial (0 to 360, magnetic) in Radial °M.";
-                    radial = written + (airfield.Circuits.MagneticVariation ?? 0);
-                }
-                return commands.AddDeparture(radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, kind, callsign, out added);
+                // A departure away at once (the user, 5 Nov: OUT): the runway heading, or the radial (magnetic: to true here).
+                return commands.AddDeparture(RadialTrue(plan), plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, kind, callsign, out added);
             }
             if (plan.From == From.Runway)
             {
@@ -1416,6 +1453,8 @@ namespace ATCRoom.TwrTrainer
                 var exit = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, plan.To, StringComparison.OrdinalIgnoreCase));
                 if (start.Name == null) return "A crossing starts at a gate: choose it in From.";
                 if (exit.Name == null) return "A crossing ends at a gate: choose it in To.";
+                // (With circuits, the user 5 Nov: into the circuit from the gate From, out to the gate To later.)
+                if (plan.TransitCircuits) return commands.AddAtGate(start.X, start.Y, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, plan.HeightFt, out added);
                 if (string.Equals(start.Name, exit.Name, StringComparison.OrdinalIgnoreCase)) return "A crossing goes to another gate (To).";
                 return commands.AddTransit(start.X, start.Y, exit.X, exit.Y, plan.Overhead, plan.HeightFt, kind, callsign, out added);
             }
@@ -1468,9 +1507,10 @@ namespace ATCRoom.TwrTrainer
         private void EditPlan(TowerPlan p)
         {
             editing = p;
+            p.Upgrade();
             // (PTRN is gone, the user 5 Nov: such an old plan into the first gate.)
             if (p.From.Length > 0) fromRow.Show(From.IsInCircuit(p.From) ? FromItems()[0] : p.From);
-            typeRow.Show(p.Transit ? Flight.Transit : p.Departure || p.From == From.Runway ? Flight.Departure : Flight.Arrival);
+            typeRow.Show(p.Transit ? Flight.Transit : p.Departure ? Flight.Departure : p.Local ? Flight.Local : Flight.Arrival);
             departRow.Show(p.Radial != null);
             radialBox.Text = p.Radial is double r && !double.IsNaN(r) ? r.ToString("0", CultureInfo.InvariantCulture) : "";
             if (p.TurnRight is bool right) departTurnRow.Show(right);
@@ -1478,15 +1518,14 @@ namespace ATCRoom.TwrTrainer
             radialFrom = p.RadialFromX is double fx && p.RadialFromY is double fy ? (fx, fy) : null;
             radialFromText.Text = radialFrom != null ? "from the point clicked" : "from the middle of the runway";
             if (p.To.Length > 0) toRow.Show(p.To);
-            viaRow.Show(p.Overhead);
+            viaRow.Show(p.TransitCircuits ? Via.Circuits : p.Overhead ? Via.Overhead : Via.Direct);
             entryRow.Show(p.Entry);
             circuitRow.Show(p.Circuit);
             sideRow.Show(p.Side);
             if (p.Class.Length > 0) classRow.Show(p.Class);
-            int laps = p.Laps ?? (p.End == EndAction.TouchAndGo ? 0 : 1);
-            lapsRow.Show(laps);
-            lastRow.Show(p.Laps != null ? p.Last : p.End is EndAction.Departure ? EndAction.Departure : EndAction.FullStop);
-            onFinalRow.Show(p.OnFinal is EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.TouchAndGo);
+            onFinalRow.Show(p.OnFinal is EndAction.FullStop or EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.FullStop);
+            int circuits = p.Circuits ?? 0;
+            lapsRow.Show(circuits == 0 && !p.Departure ? 1 : circuits);
             formationRow.Show(Math.Clamp(p.Formation, 1, SimEngine.MaxFormation));
             splitRow.Show(p.SplitSeconds is 3.0 or 4.0 or 5.0 or 10.0 ? p.SplitSeconds : 3.0);
             intervalLine.Visibility = p.Formation > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -1519,22 +1558,30 @@ namespace ATCRoom.TwrTrainer
 
         private static string PlanText(TowerPlan p)
         {
+            p.Upgrade();
             static string Short(EndAction end) => TowerCommands.Ends.FirstOrDefault(e => e.End == end).Short ?? "";
             string side = p.Side is CircuitSide s ? (s == CircuitSide.Left ? " L" : " R") : "";
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
-            string end = p.Laps is int laps
-                ? (laps == 0 ? $"∞ {Short(p.OnFinal)}" : laps == 1 ? Short(p.Last) : $"{laps}× {Short(p.OnFinal)} → {Short(p.Last)}")
-                : TowerCommands.Ends.FirstOrDefault(e => e.End == p.End).Short ?? "";
+            int circuits = p.Circuits ?? 0;
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
-            if (p.Laps == TowerPlan.NoCircuit)
+            string who = $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}";
+            string delay = $"+{p.DelayMinutes:0.#}'";
+            string way = p.Radial is double r ? $"R{r:000}°M {(p.TurnRight == false ? "L" : "R")}{(p.RadialFromX != null ? " (point)" : "")}" : "RWY HDG";
+            if (p.Transit)
             {
-                string way = p.Radial is double r ? $"R{r:000}°M {(p.TurnRight == false ? "L" : "R")}{(p.RadialFromX != null ? " (point)" : "")}" : "RWY HDG";
-                return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}  RWY{height} → DEP {way}  +{p.DelayMinutes:0.#}'";
+                if (p.TransitCircuits) return $"{who}  TRANSIT {p.From}{height} → {entry} {circuit}{side} {circuits}× {Short(p.OnFinal)} → {p.To}  {delay}";
+                return $"{who}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  {delay}";
             }
-            if (p.Transit) return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}  TRANSIT {p.From} → {(p.Overhead ? "OVHD → " : "")}{p.To}{height}  +{p.DelayMinutes:0.#}'";
-            return $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}  {p.From}{height} → {entry} {circuit}{side} {end}  +{p.DelayMinutes:0.#}'";
+            if (p.Departure)
+            {
+                if (circuits <= 0) return $"{who}  DEP{height} OUT {way}  {delay}";
+                return $"{who}  DEP{height} → {circuit}{side} {circuits}× {Short(p.OnFinal)} → OUT {way}  {delay}";
+            }
+            string plan = p.OnFinal == EndAction.FullStop ? Short(EndAction.FullStop)
+                : circuits == TowerPlan.Forever ? $"∞ {Short(p.OnFinal)}" : $"{Short(p.OnFinal)} {circuits}× → {Short(EndAction.FullStop)}";
+            return $"{who}  {(p.Local ? "LOCAL" : p.From)}{height} → {entry} {circuit}{side} {plan}  {delay}";
         }
 
         /// <summary>The rows of the plans, built again (after a change).</summary>
@@ -2039,42 +2086,49 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The entries that apply to where it starts: none from the long final or the runway; in the circuit: DW, IP, HK.</summary>
         private void ShowEntries()
         {
+            // (The user, 5 Nov: four types, each with its end; the rows that apply lit, the others grey.)
             Flight type = typeRow.HasValue ? typeRow.Value : Flight.Arrival;
-            bool transit = type == Flight.Transit, departure = type == Flight.Departure;
-            // (The user, 5 Nov: RWY only for a departure, and a departure only from the runway.)
-            foreach (string item in FromItems()) fromRow.SetEnabled(item, departure ? item == From.Runway : item != From.Runway);
-            if (departure && fromRow.Value != From.Runway) fromRow.Show(From.Runway);
-            if (!departure && fromRow.Value == From.Runway && FromItems().FirstOrDefault(i => i != From.Runway) is string other) fromRow.Show(other);
+            bool transit = type == Flight.Transit, departure = type == Flight.Departure, local = type == Flight.Local, arrival = type == Flight.Arrival;
+            bool runway = departure || local;
+            Via via = viaRow.HasValue ? viaRow.Value : Via.Overhead;
+            bool withCircuits = transit && via == Via.Circuits;
+            // From: the runway for departures and locals; the gates (and the long final, for arrivals) for the others.
+            foreach (string item in FromItems())
+                fromRow.SetEnabled(item, runway ? item == From.Runway : item != From.Runway && !(transit && item == From.LongFinal));
+            if (runway && fromRow.Value != From.Runway) fromRow.Show(From.Runway);
+            if (!runway && (fromRow.Value == From.Runway || (transit && fromRow.Value == From.LongFinal))
+                && FromItems().FirstOrDefault(i => i != From.Runway && !(transit && i == From.LongFinal)) is string other) fromRow.Show(other);
             string from = fromRow.Value ?? "";
-            // (A departure: the conventional or the wide only, the others once it flies; circuits 0 only for it.)
-            foreach (CircuitType circuitType in Enum.GetValues<CircuitType>()) circuitRow.SetEnabled(circuitType, !departure || circuitType is CircuitType.Conventional or CircuitType.Wide);
-            if (departure && circuitRow.Value is not (CircuitType.Conventional or CircuitType.Wide)) circuitRow.Show(CircuitType.Conventional);
-            lapsRow.SetEnabled(TowerPlan.NoCircuit, departure);
-            if (!departure && lapsRow.HasValue && lapsRow.Value == TowerPlan.NoCircuit) lapsRow.Show(1);
-            bool away = departure && lapsRow.HasValue && lapsRow.Value == TowerPlan.NoCircuit;
-            toRow.IsEnabled = viaRow.IsEnabled = transit;
-            circuitRow.IsEnabled = sideRow.IsEnabled = !transit && !away;
-            lapsRow.IsEnabled = !transit;
-            lastRow.IsEnabled = !transit && !away && !(lapsRow.HasValue && lapsRow.Value == 0);
-            if (departLine == null) return;
+            // Pattern: after a take-off the conventional or the wide (the others once it flies).
+            foreach (CircuitType circuitType in Enum.GetValues<CircuitType>()) circuitRow.SetEnabled(circuitType, !runway || circuitType is CircuitType.Conventional or CircuitType.Wide);
+            if (runway && circuitRow.Value is not (CircuitType.Conventional or CircuitType.Wide)) circuitRow.Show(CircuitType.Conventional);
+            // On Final: F/S only for those that land.
+            onFinalRow.SetEnabled(EndAction.FullStop, arrival || local);
+            if (!(arrival || local) && onFinalRow.Value == EndAction.FullStop) onFinalRow.Show(EndAction.TouchAndGo);
+            bool landsFirst = (arrival || local) && onFinalRow.Value == EndAction.FullStop;
+            // Circuits: OUT for departures, ∞ for arrivals and locals.
+            lapsRow.SetEnabled(0, departure);
+            lapsRow.SetEnabled(TowerPlan.Forever, arrival || local);
             int laps = lapsRow.HasValue ? lapsRow.Value : 1;
-            onFinalLine.Visibility = !transit && !away && (laps == 0 || laps >= 2) ? Visibility.Visible : Visibility.Collapsed;
-            departLine.Visibility = away ? Visibility.Visible : Visibility.Collapsed;
-            radialLine.Visibility = away && departRow.HasValue && departRow.Value ? Visibility.Visible : Visibility.Collapsed;
+            if ((!departure && laps == 0) || (!(arrival || local) && laps == TowerPlan.Forever)) lapsRow.Show(1);
+            bool away = departure && lapsRow.Value == 0;
+            bool inCircuit = !transit || withCircuits;
+            circuitRow.IsEnabled = sideRow.IsEnabled = inCircuit && !away;
+            onFinalRow.IsEnabled = inCircuit && !away;
+            lapsRow.IsEnabled = departure || withCircuits || ((arrival || local) && !landsFirst);
+            toRow.IsEnabled = viaRow.IsEnabled = transit;
+            if (departLine == null) return;
+            departLine.Visibility = departure ? Visibility.Visible : Visibility.Collapsed;
+            radialLine.Visibility = departure && departRow.HasValue && departRow.Value ? Visibility.Visible : Visibility.Collapsed;
             // (The crossing's rows only for a crossing.)
             toLine.Visibility = viaLine.Visibility = transit ? Visibility.Visible : Visibility.Collapsed;
-            entryRow.IsEnabled = !transit && !departure && from != From.Runway;
-            bool circuit = from == From.InCircuit;
+            entryRow.IsEnabled = arrival || withCircuits;
             bool longFinal = from == From.LongFinal;
             // (From the long final: straight on (FINAL) or the circling; the circling only from there.)
             foreach (CircuitEntry entry in Enum.GetValues<CircuitEntry>())
-            {
-                entryRow.SetEnabled(entry, longFinal ? entry is CircuitEntry.Final or CircuitEntry.Circling
-                    : entry != CircuitEntry.Circling && !(circuit && entry is CircuitEntry.Base or CircuitEntry.Final));
-            }
+                entryRow.SetEnabled(entry, longFinal ? entry is CircuitEntry.Final or CircuitEntry.Circling : entry != CircuitEntry.Circling);
             if (longFinal && entryRow.Value is not (CircuitEntry.Final or CircuitEntry.Circling)) entryRow.Show(CircuitEntry.Final);
             if (!longFinal && entryRow.Value == CircuitEntry.Circling) entryRow.Show(CircuitEntry.Downwind);
-            if (circuit && entryRow.Value is CircuitEntry.Base or CircuitEntry.Final) entryRow.Show(CircuitEntry.Downwind);
             if (longFinal && entryRow.Value == CircuitEntry.Circling) circuitRow.Show(CircuitType.Conventional);
             if (longFinal && circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
         }

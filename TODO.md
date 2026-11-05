@@ -669,3 +669,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **END on the label:** G/A became L/A (the same low approach), LOW became L/P (now 400 ft, all along the runway, test 6).
   G/A stays in NOW only, the order of the moment.
 
+## Build of 5 Nov late afternoon (the user: "vai") — WRITTEN
+- **Four types, each with its end (the user, 5 Nov):** ARRIVAL (a gate or LONG FIN) and LOCAL (from RWY) land; DEPARTURE
+  (RWY) leaves along its Exit (RWY HDG or RADIAL); TRANSIT leaves at its gate To: Via DIRECT, OVERHEAD or CIRCUITS (into
+  the circuit from the gate From, its circuits, out to the gate To, gone there).
+- **On Final** (after Side): F/S (land at the first final: arrivals and locals only), T/G, L/A, L/P. **Circuits**:
+  arrivals and locals the circuits more than the first one (1-4, ∞; lit when On Final is not F/S); departures OUT (away at
+  once, default) or 1-4 circuits before leaving; crossings with circuits 1-4. Last gone (the type decides the end).
+- Formation SINGLE, 2, 3, 4. FS became F/S everywhere. Side keeps AD (the aerodrome's side when it starts: a scenario
+  follows the runway in use).
+- Older scenarios converted when read (TowerPlan.Upgrade): the same flights (an arrival with DEP at the end: F/S).
+- Engine: CircuitState.LeaveAfterLast, ExitX/ExitY; LeaveAfterCircuits; after the last final it leaves (DepartNow). Test 47.
+

@@ -1897,6 +1897,41 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("Departure onto the same radial, turning left (Turboprop)", left));
     }
 
+    // 47. Away after the circuits (the user, 5 Nov): a departure with 2 circuits, each final a low pass, then onto its radial,
+    // never down, gone 10 NM out; a crossing with a circuit (a touch and go), then to its gate To, gone there.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Left, EndAction.LowPass, performanceClass: "Light");
+        sim.SetLaps(cs, 2, EndAction.LowPass, EndAction.LowPass);
+        double radialOut = SimEngine.Normalize(CircuitCourse + 90);
+        sim.LeaveAfterCircuits(cs, radialOut, true, null, null, null);
+        List<AircraftState> flown = Fly(sim, cs, 2400);
+        int touches = 0, finals = 0;
+        for (int i = 1; i < flown.Count; i++)
+        {
+            if (flown[i].Contact == GroundContact.Rolling && flown[i - 1].Contact == GroundContact.Airborne) touches++;
+            if (flown[i - 1].Leg == "FINAL" && flown[i].Leg != "FINAL" && Frame(flown[i]).Along > CircuitLength - 0.1) finals++;
+        }
+        bool departed = flown.Any(st => st.Leg == "DEPARTURE");
+        Check(touches == 0 && finals == 2 && departed && sim.Get(cs) == null,
+            "Departure with circuits: two low passes, then away on its radial, gone", $"{touches} touch and go, {finals} low passes, departed {departed}, gone {sim.Get(cs) == null}");
+
+        (double gx, double gy) = Place(-3, 5, CircuitSide.Left);
+        (double ex, double ey) = Place(5, -5, CircuitSide.Left);
+        SimEngine crossing = NewCircuitEngine();
+        string cross = crossing.AddAtGate(gx, gy, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        crossing.SetLaps(cross, 1, EndAction.TouchAndGo, EndAction.TouchAndGo);
+        crossing.LeaveAfterCircuits(cross, double.NaN, null, null, null, null, ex, ey);
+        List<AircraftState> crossed = Fly(crossing, cross, 2400);
+        int crossTouches = 0;
+        for (int i = 1; i < crossed.Count; i++) if (crossed[i].Contact == GroundContact.Rolling && crossed[i - 1].Contact == GroundContact.Airborne) crossTouches++;
+        double lastFromGate = crossed.Count > 0 ? Math.Sqrt((crossed[^1].X - ex) * (crossed[^1].X - ex) + (crossed[^1].Y - ey) * (crossed[^1].Y - ey)) : double.NaN;
+        Check(crossTouches == 1 && crossing.Get(cross) == null && lastFromGate < 0.5,
+            "Crossing with a circuit: one touch and go, then out to its gate To, gone there", $"{crossTouches} touch and go, last {lastFromGate:F2} NM from the gate");
+        pictures.Add(("Departure with two low passes, then its radial (Light)", flown));
+        pictures.Add(("Crossing with a circuit, then out to its gate (Light)", crossed));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

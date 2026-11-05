@@ -59,6 +59,47 @@ namespace ATCRoom.TwrTrainer
         public double? RadialFromX { get; set; }
         public double? RadialFromY { get; set; }
         public const int NoCircuit = -1;
+        /// <summary>
+        /// The plan as the user set it on 5 Nov: four types, each with its end. ARRIVAL (a gate, the long final) and LOCAL
+        /// (from the runway) land; DEPARTURE leaves (its runway heading or radial); TRANSIT leaves at its gate To. On Final:
+        /// what each final does (F/S: lands at the first one, arrivals and locals only); <see cref="Circuits"/>: arrivals and
+        /// locals the circuits more than the first one (<see cref="Forever"/>: on and on), departures and crossings the circuits
+        /// before they leave (a departure 0: OUT, away at once). Null: a plan of an older scenario (<see cref="Upgrade"/>).
+        /// </summary>
+        public bool Local { get; set; }
+        public bool TransitCircuits { get; set; }
+        public int? Circuits { get; set; }
+        public const int Forever = -1;
+
+        /// <summary>A plan of an older scenario (circuits counted as finals, Last) as the same flight in the plan of 5 Nov.</summary>
+        public void Upgrade()
+        {
+            if (Circuits != null) return;
+            if (Transit) { Circuits = 0; return; }
+            bool runway = From == global::ATCRoom.TwrTrainer.From.Runway || Departure;
+            int laps = Laps ?? (End is EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? 0 : 1);
+            EndAction last = Laps != null ? Last : End == EndAction.Departure ? EndAction.Departure : EndAction.FullStop;
+            EndAction each = Laps != null ? OnFinal : End;
+            if (each is not (EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass)) each = EndAction.TouchAndGo;
+            Departure = Local = false;
+            if (runway)
+            {
+                From = global::ATCRoom.TwrTrainer.From.Runway;
+                if (laps == NoCircuit) { Departure = true; Circuits = 0; return; }
+                if (last == EndAction.Departure && laps > 0)
+                {
+                    // (Its last final a touch and go, then away.)
+                    Departure = true;
+                    Circuits = laps;
+                    OnFinal = laps > 1 ? each : EndAction.TouchAndGo;
+                    return;
+                }
+                Local = true;
+            }
+            if (laps == 0) { OnFinal = each; Circuits = Forever; }
+            else if (laps == 1) { OnFinal = EndAction.FullStop; Circuits = 0; }
+            else { OnFinal = each; Circuits = laps - 1; }
+        }
         /// <summary>Minutes after START ALL.</summary>
         public double DelayMinutes { get; set; }
 
@@ -83,6 +124,7 @@ namespace ATCRoom.TwrTrainer
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
+            Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
@@ -119,6 +161,12 @@ namespace ATCRoom.TwrTrainer
                 TowerScenario? file = JsonSerializer.Deserialize<TowerScenario>(File.ReadAllText(path), Options);
                 if (file == null) throw new InvalidDataException("Empty scenario.");
                 file.Plans = (file.Plans ?? []).Where(p => p != null).ToList();
+                // (Older scenarios: the same flights in the plan of 5 Nov.)
+                foreach (TowerPlan plan in file.Plans)
+                {
+                    plan.Upgrade();
+                    foreach (TowerPlan part in plan.GroupedFrom ?? []) part.Upgrade();
+                }
                 return file;
             }
             catch (JsonException ex)

@@ -713,7 +713,7 @@ namespace ATCRoom.TwrTrainer
             EndAction.GoAround => "L/A",
             EndAction.LowPass => "L/P",
             EndAction.Departure => "DEP",
-            _ => "FS"
+            _ => "F/S"
         };
 
         private static string BreakShort(BreakPoint where) => where switch
@@ -766,7 +766,7 @@ namespace ATCRoom.TwrTrainer
                 EndAction.GoAround => "L/A",
                 EndAction.LowPass => "L/P",
                 EndAction.Departure => "DEP",
-                _ => "FS"
+                _ => "F/S"
             };
             string next = a.NextCircuit is CircuitType n ? $">{n.ToString().ToUpperInvariant()[..Math.Min(3, n.ToString().Length)]}" : "";
             return $"{a.Leg} {circuit} {(a.CircuitSide == CircuitSide.Left ? "L" : "R")} {end}{next}".Trim();

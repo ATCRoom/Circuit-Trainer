@@ -119,6 +119,13 @@ namespace ATCRoom.Sim
         public double DepartFromX, DepartFromY, DepartHeight = double.NaN, DepartIntercept;
         public TurnDirection DepartTurn = TurnDirection.Shortest;
         public int DepartPhase;
+        /// <summary>
+        /// Away after the last circuit of its plan (the user, 5 Nov: a departure or a crossing with circuits): after that final
+        /// (its touch and go, low approach or low pass) it leaves as a departure (the runway heading or its radial), or to the
+        /// gate (<see cref="ExitX"/>, <see cref="ExitY"/>: the plane, NM; NaN: none), where it is gone.
+        /// </summary>
+        public bool LeaveAfterLast;
+        public double ExitX = double.NaN, ExitY = double.NaN;
         /// <summary>On the runway: seconds since the touchdown (or since the start of the take-off roll).</summary>
         public double RollTime;
         /// <summary>The point of the route the last leg change was seen for (to set the vertical rate of each leg once).</summary>
@@ -342,24 +349,57 @@ namespace ATCRoom.Sim
             lock (sync)
             {
                 string name = AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, null, EndAction.Departure, callsign, performanceClass, takenElsewhere);
-                SimAircraft plane = Find(name)!;
-                CircuitState circuit = plane.Circuit!;
-                circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : DepartureHeight);
-                if (double.IsFinite(radialTrue))
-                {
-                    circuit.DepartRadial = Normalize(radialTrue);
-                    (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
-                    circuit.DepartFromX = fromX is double x && double.IsFinite(x) ? x : mx;
-                    circuit.DepartFromY = fromY is double y && double.IsFinite(y) ? y : my;
-                    circuit.DepartTurn = turnRight switch
-                    {
-                        true => TurnDirection.Right,
-                        false => TurnDirection.Left,
-                        _ => Wrap(circuit.DepartRadial - glidePathCourse) >= 0 ? TurnDirection.Right : TurnDirection.Left
-                    };
-                }
+                DepartureWay(Find(name)!.Circuit!, radialTrue, turnRight, fromX, fromY, heightFt);
                 return name;
             }
+        }
+
+        /// <summary>
+        /// The plan of its circuits ends away (the user, 5 Nov): after its last final it leaves along the runway heading or
+        /// the radial (as <see cref="AddDeparture"/>), or, with a gate (<paramref name="gateX"/>, <paramref name="gateY"/>),
+        /// straight to it, gone there.
+        /// </summary>
+        public void LeaveAfterCircuits(string callsign, double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt,
+            double gateX = double.NaN, double gateY = double.NaN) => Change(callsign, a =>
+        {
+            if (a.Circuit == null) return;
+            a.Circuit.LeaveAfterLast = true;
+            a.Circuit.ExitX = gateX;
+            a.Circuit.ExitY = gateY;
+            DepartureWay(a.Circuit, double.IsFinite(gateX) ? double.NaN : radialTrue, turnRight, fromX, fromY, heightFt);
+        });
+
+        /// <summary>The way out of a departure: its height, its radial (NaN: the runway heading) from its point, its turn.</summary>
+        private void DepartureWay(CircuitState circuit, double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt)
+        {
+            circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : DepartureHeight);
+            if (!double.IsFinite(radialTrue)) return;
+            circuit.DepartRadial = Normalize(radialTrue);
+            (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
+            circuit.DepartFromX = fromX is double x && double.IsFinite(x) ? x : mx;
+            circuit.DepartFromY = fromY is double y && double.IsFinite(y) ? y : my;
+            circuit.DepartTurn = turnRight switch
+            {
+                true => TurnDirection.Right,
+                false => TurnDirection.Left,
+                _ => Wrap(circuit.DepartRadial - glidePathCourse) >= 0 ? TurnDirection.Right : TurnDirection.Left
+            };
+        }
+
+        /// <summary>Away now (from a take-off, a touch and go, a go-around): up along the runway, then its way out (see <see cref="DepartureStep"/>).</summary>
+        private void DepartNow(SimAircraft plane, CircuitState circuit, double along)
+        {
+            PerformanceClass kind = plane.Class;
+            circuit.Departed = true;
+            circuit.DepartPhase = 0;
+            double upwind = Math.Max(UpwindAlong(circuit.Type, kind), along + 0.3);
+            double away = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : runwayElevation + CircuitHeight(circuit.Type, kind);
+            RoutePoint up = Point(upwind, 0, circuit.Side, away, kind.CircuitSpeedKt, "UPWIND");
+            // (To its exit gate: from the end of the upwind straight to it.)
+            GiveRoute(plane, double.IsFinite(circuit.ExitX)
+                ? [up, new RoutePoint(circuit.ExitX, circuit.ExitY, away, kind.CircuitSpeedKt, "DEPARTURE")]
+                : [up, Point(upwind + 20, 0, circuit.Side, away, kind.CircuitSpeedKt, "DEPARTURE")]);
+            plane.SelectedVerticalRateFpm = Math.Max(MinVerticalRate, kind.MaxClimbFpm * 0.8);
         }
 
         /// <summary>
@@ -1455,6 +1495,8 @@ namespace ATCRoom.Sim
                 NextCircuit(circuit);
                 // (A circuit of its plan flown: the next one's end; the end of this one decides what it does now.)
                 EndAction flown = circuit.End;
+                // (Its last circuit flown, the plan ends away: it leaves, the user 5 Nov.)
+                bool leave = circuit.LapTouched && circuit.LeaveAfterLast && circuit.LapsLeft == 1;
                 if (circuit.LapTouched)
                 {
                     circuit.LapTouched = false;
@@ -1462,12 +1504,10 @@ namespace ATCRoom.Sim
                 }
                 double upwind = Math.Max(UpwindAlong(circuit.Type, kind), along + 0.3);
                 double height = runwayElevation + CircuitHeight(circuit.Type, kind);
-                if (flown == EndAction.Departure)
+                if (flown == EndAction.Departure || leave)
                 {
-                    circuit.Departed = true;
-                    circuit.DepartPhase = 0;
-                    double away = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : height;
-                    GiveRoute(plane, [Point(upwind, 0, circuit.Side, away, kind.CircuitSpeedKt, "UPWIND"), Point(upwind + 20, 0, circuit.Side, away, kind.CircuitSpeedKt, "DEPARTURE")]);
+                    DepartNow(plane, circuit, along);
+                    return;
                 }
                 else if (circuit.Type == CircuitType.Overhead)
                 {
@@ -1494,8 +1534,16 @@ namespace ATCRoom.Sim
             circuit.OnFinal = false;
             circuit.Departed = false;
             NextCircuit(circuit);
+            bool leave = circuit.LeaveAfterLast && circuit.LapsLeft == 1;
             LapDone(circuit);
             (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
+            if (leave)
+            {
+                // Its last final (a low approach, a low pass): away now.
+                plane.SpeedGiven = false;
+                DepartNow(plane, circuit, along);
+                return;
+            }
             double upwind = Math.Max(UpwindAlong(circuit.Type, plane.Class), along + 0.5);
             RoutePoint up = Point(upwind, 0, circuit.Side, runwayElevation + CircuitHeight(circuit.Type, plane.Class), plane.Class.CircuitSpeedKt, "UPWIND");
             List<RoutePoint> route = circuit.Type switch
@@ -1740,6 +1788,8 @@ namespace ATCRoom.Sim
         /// </summary>
         private void DepartureStep(SimAircraft plane, CircuitState circuit)
         {
+            // To its exit gate: gone there (as a crossing).
+            if (double.IsFinite(circuit.ExitX) && plane.Route is { } way && plane.RouteNext >= way.Count && circuit.DepartPhase == 0) circuit.TransitDone = true;
             if (!double.IsFinite(circuit.DepartRadial) || circuit.DepartPhase >= 2) return;
             double course = circuit.DepartRadial * Math.PI / 180;
             double dx = plane.X - circuit.DepartFromX, dy = plane.Y - circuit.DepartFromY;
