@@ -565,7 +565,9 @@ namespace ATCRoom.TwrTrainer
                 if (a.Circuit is CircuitType type && !a.Transit)
                 {
                     CircuitType shown = PendingCircuit ?? a.NextCircuit ?? type;
-                    rows.Add([("", "PATTERN", Look.Tag), .. Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c) + (PendingCircuit == c ? "?" : ""), c == shown ? Look.On : Look.Option))]);
+                    // (On the ground and taking off: the conventional or the wide, the user 5 Nov; the others once it flies.)
+                    rows.Add([("", "PATTERN", Look.Tag), .. Enum.GetValues<CircuitType>().Select(c => ($"CIRC={c}", Short(c) + (PendingCircuit == c ? "?" : ""),
+                        c == shown ? Look.On : airborne || c is CircuitType.Conventional or CircuitType.Wide ? Look.Option : Look.Off))]);
                     Choices("SIDE", "SIDE", new[] { CircuitSide.Left, CircuitSide.Right }, a.NextCircuit != null ? a.NextSide : a.CircuitSide, s => s == CircuitSide.Left ? "L" : "R");
                     if (shown is CircuitType.Overhead or CircuitType.Close) Choices("BREAK", "BRK", Enum.GetValues<BreakPoint>(), a.Break, BreakShort);
                     if (a.Formation is { Count: > 1 } crew)
@@ -575,6 +577,9 @@ namespace ATCRoom.TwrTrainer
                     }
                     rows.Add([("", "END", Look.Tag), .. Enum.GetValues<EndAction>().Select(e => ($"NEXT={e}", EndShort(e), e == a.EndAction ? Look.On : Look.Option)),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
+                    // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
+                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE", Look.Command),
+                        ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command)]);
                     // The orders of where it is now.
                     if ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")) now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
                     if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Command) : ("HOLD", "HOLD", Look.Command));

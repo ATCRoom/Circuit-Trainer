@@ -1932,6 +1932,47 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("Crossing with a circuit, then out to its gate (Light)", crossed));
     }
 
+    // 48. The take-off keeps its conventional circuit (the user, 5 Nov: OVH chosen while taking off made it turn to the IP at
+    // the lift-off): its first circuit conventional, the overhead after the touch and go.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        sim.RunFor(3);
+        sim.SetNextCircuit(cs, CircuitType.Overhead, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 600);
+        int firstDownwind = flown.FindIndex(st => st.Leg == "DOWNWIND");
+        bool conventionalFirst = firstDownwind > 0 && flown.Take(firstDownwind).All(st => st.Circuit == CircuitType.Conventional);
+        bool overheadLater = flown.Any(st => st.Circuit == CircuitType.Overhead);
+        Check(conventionalFirst && overheadLater, "Take-off with OVH chosen: the first circuit conventional, the overhead after the touch and go",
+            $"first downwind at {firstDownwind} s, conventional {conventionalFirst}, overhead later {overheadLater}");
+    }
+
+    // 49. DCT TO (the user, 5 Nov): on the WIDE downwind, BASE straight to the start of the conventional base (never farther
+    // than the wide's downwind line again), then lands; IP: to the initial point, then the overhead.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        sim.RunFor(20);
+        double wideLateral = Frame(sim.Get(cs)!).Lateral;
+        sim.DirectTo(cs, DirectPoint.Base, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        bool conventional = flown.Count > 0 && flown[0].Circuit == CircuitType.Conventional;
+        Check(conventional && onBase > 0 && onBase < 300 && LandedOnRunway(flown),
+            "DCT TO BASE from the WIDE: the conventional base at once, then lands", $"conventional {conventional}, base at {onBase} s, wide at {wideLateral:F2} NM");
+
+        SimEngine sim2 = NewCircuitEngine();
+        string cs2 = sim2.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sim2.RunFor(20);
+        sim2.DirectTo(cs2, DirectPoint.InitialPoint, CircuitSide.Left);
+        List<AircraftState> toIp = Fly(sim2, cs2, 900);
+        bool initial = toIp.Any(st => st.Leg == "INITIAL");
+        Check(toIp.Count > 0 && toIp[0].Circuit == CircuitType.Overhead && initial && LandedOnRunway(toIp),
+            "DCT TO IP from the WIDE: to the initial point, the overhead, lands", $"initial {initial}");
+        pictures.Add(("DCT TO BASE from the WIDE (Light)", flown));
+        pictures.Add(("DCT TO IP from the WIDE (Jet)", toIp));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

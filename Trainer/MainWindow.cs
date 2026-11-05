@@ -123,6 +123,8 @@ namespace ATCRoom.TwrTrainer
             ? "A departure away at once after the take-off (Exit: the runway heading or a radial)." : n == TowerPlan.Forever
             ? "Circuits on and on, each final as in On Final (until you change it)." : $"{n} circuit(s) (arrivals and locals: more than the first one; departures and crossings: before they leave).");
         private Grid toLine = null!, viaLine = null!, intervalLine = null!;
+        /// <summary>The rows of New aircraft hidden when they do not apply (the user, 5 Nov: not grey, hidden).</summary>
+        private Grid patternLine = null!, entryLine = null!, sideLine = null!, onFinalLine = null!, circuitsLine = null!;
         /// <summary>What every final does (the user, 5 Nov): F/S lands at the first one (arrivals and locals); T/G, L/A, L/P then the next circuit.</summary>
         private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P")],
             (_, t) => "On each final: " + ChoiceTip(t));
@@ -155,6 +157,7 @@ namespace ATCRoom.TwrTrainer
         // The order buttons of the selected aircraft (grey when they do not apply).
         private Button splitButton = null!, expTaxiButton = null!;
         private Grid selBreakGrid = null!, selBreakPointGrid = null!;
+        private Button[] dctButtons = [];
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
             orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
@@ -527,7 +530,7 @@ namespace ATCRoom.TwrTrainer
             }
 
             current = newContent;
-            Note("Arrival: from an entry gate (it joins its circuit by itself) or the long final. Departure: from the runway. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
+            Note("ARRIVAL: from a gate or the long final, it lands. LOCAL: from the runway, its circuits, it lands. DEPARTURE: from the runway, away (at once or after its circuits). TRANSIT: from gate to gate. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side.");
             // (The user, 5 Nov: the class, the formation, then the type.)
             // (The user, 5 Nov: clearer names, a wider column for them.)
             Row("Type of AC", classHolder, null, LabelWidth);
@@ -549,15 +552,15 @@ namespace ATCRoom.TwrTrainer
             };
             viaRow.Picked += _ => ShowEntries();
             // (The user, 5 Nov: the pattern type first, then its entry, then its side.)
-            Row("Pattern type", circuitRow, null, LabelWidth);
-            Row("Pattern entry", entryRow, null, LabelWidth);
-            Row("Pattern side", sideRow, null, LabelWidth);
+            patternLine = Row("Pattern type", circuitRow, null, LabelWidth);
+            entryLine = Row("Pattern entry", entryRow, null, LabelWidth);
+            sideLine = Row("Pattern side", sideRow, null, LabelWidth);
             // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
-            Row("On Final", onFinalRow, null, LabelWidth);
+            onFinalLine = Row("On Final", onFinalRow, null, LabelWidth);
             onFinalRow.Show(EndAction.FullStop);
             onFinalRow.Picked += _ => ShowEntries();
-            Row("Numb. of Circuits", lapsRow, null, LabelWidth);
-            departLine = Row("Exit", departRow, null, LabelWidth);
+            circuitsLine = Row("Numb. of Circuits", lapsRow, null, LabelWidth);
+            departLine = Row("Exit via", departRow, null, LabelWidth);
             RadialTip(radialBox);
             radialLine = Row("Radial °M", Wrap(radialBox, departTurnRow,
                 ActionButton("FROM A POINT", () => view.AskPoint("Departure: click the point the radial starts from  -  Esc: cancel", (x, y) =>
@@ -688,6 +691,14 @@ namespace ATCRoom.TwrTrainer
             Row("Downwind", Wrap(extendButton, baseButton, orbitButton, orbitForeverButton), now, 62);
             Row("Final", Inline(goAroundButton), now, 62);
             Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
+            // (DCT TO, the user 5 Nov: at once, in flight.)
+            dctButtons = [Order("DW", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Order("BASE", cs => commands.DirectTo(cs, DirectPoint.Base)),
+                Order("IP", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Order("HK", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
+            dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit.";
+            dctButtons[1].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final.";
+            dctButtons[2].ToolTip = "At once straight to the initial point, then the overhead.";
+            dctButtons[3].ToolTip = "At once straight to the High Key, then the SFO.";
+            Row("DCT TO", Wrap(dctButtons), now, 62);
             splitButton = Order("SPLIT", commands.Split);
             Row("Formation", Inline(splitButton), now, 62);
             expTaxiButton = Order("EXP TAXI", commands.ExpediteTaxi);
@@ -2118,16 +2129,15 @@ namespace ATCRoom.TwrTrainer
             if ((!departure && laps == 0) || (!(arrival || local) && laps == TowerPlan.Forever)) lapsRow.Show(1);
             bool away = departure && lapsRow.Value == 0;
             bool inCircuit = !transit || withCircuits;
-            circuitRow.IsEnabled = sideRow.IsEnabled = inCircuit && !away;
-            onFinalRow.IsEnabled = inCircuit && !away;
-            lapsRow.IsEnabled = departure || withCircuits || ((arrival || local) && !landsFirst);
-            toRow.IsEnabled = viaRow.IsEnabled = transit;
             if (departLine == null) return;
+            static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
+            patternLine.Visibility = sideLine.Visibility = onFinalLine.Visibility = Shown(inCircuit && !away);
+            circuitsLine.Visibility = Shown(departure || withCircuits || ((arrival || local) && !landsFirst));
+            entryLine.Visibility = Shown(arrival || withCircuits);
             departLine.Visibility = departure ? Visibility.Visible : Visibility.Collapsed;
             radialLine.Visibility = departure && departRow.HasValue && departRow.Value ? Visibility.Visible : Visibility.Collapsed;
             // (The crossing's rows only for a crossing.)
             toLine.Visibility = viaLine.Visibility = transit ? Visibility.Visible : Visibility.Collapsed;
-            entryRow.IsEnabled = arrival || withCircuits;
             bool longFinal = from == From.LongFinal;
             // (From the long final: straight on (FINAL) or the circling; the circling only from there.)
             foreach (CircuitEntry entry in Enum.GetValues<CircuitEntry>())
@@ -2229,6 +2239,7 @@ namespace ATCRoom.TwrTrainer
                     else if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double knots)) commands.Speed(callsign, knots);
                 }
                 else if (name == "CIRC" && Enum.TryParse(value, out CircuitType circuit)) commands.NextCircuit(callsign, circuit, engine.SideFor(circuit));
+                else if (name == "DCT" && Enum.TryParse(value, out DirectPoint point)) commands.DirectTo(callsign, point);
                 else if (name == "NEXT" && Enum.TryParse(value, out EndAction end)) commands.SetEnd(callsign, end);
                 else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))
                 {
@@ -2456,6 +2467,10 @@ namespace ATCRoom.TwrTrainer
             {
                 string leg = a.Leg;
                 bool sfo = a.Circuit == CircuitType.Sfo, inCircuit = a.Circuit != null && a.Contact == GroundContact.Airborne && leg is not ("MANUAL" or "GO AROUND" or "DEPARTURE");
+                foreach (Button dct in dctButtons) dct.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit;
+                // (On the ground and taking off: the conventional or the wide, the user 5 Nov.)
+                foreach (CircuitType pattern in Enum.GetValues<CircuitType>())
+                    selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);
                 breakNowButton.IsEnabled = (a.Circuit == CircuitType.Overhead && leg == "INITIAL") || (a.Circuit == CircuitType.Close && leg is "UPWIND" or "GO AROUND");
                 holdButton.IsEnabled = sfo && !a.SfoHold && leg is "CLIMB" or "HIGH KEY";
                 startSfoButton.IsEnabled = sfo && a.SfoHold;

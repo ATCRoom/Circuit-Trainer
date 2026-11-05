@@ -89,6 +89,14 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The next circuit (the plan): flown after the next touch and go / go-around; not in a circuit: joined now.</summary>
         public void NextCircuit(string callsign, CircuitType type, CircuitSide side) => engine.SetNextCircuit(callsign, type, side);
 
+        /// <summary>DCT TO (the user, 5 Nov): at once to the conventional downwind, its base, the initial point or the High Key, on the aerodrome's side of that circuit.</summary>
+        public void DirectTo(string callsign, DirectPoint point) => engine.DirectTo(callsign, point, engine.SideFor(point switch
+        {
+            DirectPoint.InitialPoint => CircuitType.Overhead,
+            DirectPoint.HighKey => CircuitType.Sfo,
+            _ => CircuitType.Conventional
+        }));
+
         public void ExtendDownwind(string callsign) => engine.ExtendDownwind(callsign);
 
         public void TurnBase(string callsign) => engine.TurnBase(callsign);

@@ -28,6 +28,9 @@ namespace ATCRoom.Sim
     }
 
     /// <summary>Where the overhead pattern breaks.</summary>
+    /// <summary>Where DCT TO sends an aircraft in flight at once (the user, 5 Nov): the conventional downwind, its base, the initial point, the High Key.</summary>
+    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey }
+
     public enum BreakPoint
     {
         /// <summary>Over the middle of the runway (default).</summary>
@@ -456,8 +459,43 @@ namespace ATCRoom.Sim
         /// Instruction (on the downwind, extended or not): turn base now: the base from here (the jet circuits: the 180° turn to
         /// the final from here), then the final.
         /// </summary>
-        public void TurnBase(string callsign) =>
+        public void TurnBase(string callsign) => Instruct(callsign, Kind.Heading, TurnBaseOf);
+
+        /// <summary>
+        /// Instruction DCT TO (the user, 5 Nov: "the WIDE is a way outside the circuits, back in at any moment"): at once, in
+        /// flight, wherever it is in its circuit (the first one after the take-off too): onto the conventional downwind (DW),
+        /// straight to the start of its base (BASE), to the initial point and the overhead (IP), to the High Key and the SFO (HK).
+        /// </summary>
+        public void DirectTo(string callsign, DirectPoint point, CircuitSide side) =>
             Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
+                EndOrbit(a);
+                if (a.Circuit is CircuitState was)
+                {
+                    was.Turning = false;
+                    was.Spiral = false;
+                    was.StraightIn = false;
+                    was.Extended = false;
+                    was.Hold = false;
+                }
+                CircuitType type = point switch
+                {
+                    DirectPoint.InitialPoint => CircuitType.Overhead,
+                    DirectPoint.HighKey => CircuitType.Sfo,
+                    _ => CircuitType.Conventional
+                };
+                FlyCircuitNow(a, type, side, now: true);
+                if (point == DirectPoint.Base && a.Circuit != null && a.Route is { Count: > 0 })
+                {
+                    // Joining it: straight to the start of the base (see TurnBase).
+                    if (a.Route[a.RouteNext].Name != "JOIN") a.Route = [a.Route[a.RouteNext] with { Name = "JOIN" }, .. a.Route.Skip(a.RouteNext + 1)];
+                    a.RouteNext = 0;
+                    TurnBaseOf(a);
+                }
+            });
+
+        private void TurnBaseOf(SimAircraft a)
             {
                 EndOrbit(a);
                 if (a.Circuit is not { Suspended: false, Departed: false, Turning: false, Spiral: false, StraightIn: false } circuit || a.Contact != GroundContact.Airborne
@@ -523,10 +561,10 @@ namespace ATCRoom.Sim
                 }
                 route.Add(final);
                 GiveRoute(a, route);
-            });
+            }
 
         /// <summary>The circuit from where the aircraft is (see <see cref="SetCircuit"/>).</summary>
-        private void FlyCircuitNow(SimAircraft a, CircuitType type, CircuitSide side)
+        private void FlyCircuitNow(SimAircraft a, CircuitType type, CircuitSide side, bool now = false)
         {
             {
                 if (double.IsNaN(glidePathCourse) || a.Contact is GroundContact.Landed or GroundContact.OnGround) return;
@@ -535,7 +573,7 @@ namespace ATCRoom.Sim
                 bool onFinal = a.Circuit is { OnFinal: true } && Math.Abs(lateralNow) < 0.3 && alongNow < runwayLength;
                 // The same circuit on the other side, in flight: an S over the aerodrome to the new downwind (on the final: a go-around).
                 if (inCircuit && a.Contact == GroundContact.Airborne && type == a.Circuit!.Type && side != a.Circuit.Side && ChangeSide(a, side, onFinal)) return;
-                if (inCircuit && (a.Contact == GroundContact.Rolling || onFinal
+                if (inCircuit && !now && (a.Contact == GroundContact.Rolling || onFinal
                     || (type == CircuitType.Close && a.Circuit!.Type != CircuitType.Close && !a.Circuit.Spiral)))
                 {
                     // Flown after the next go-around or touch and go.
@@ -1492,7 +1530,8 @@ namespace ATCRoom.Sim
                 plane.Contact = GroundContact.Airborne;
                 plane.SpeedKt = Math.Max(plane.SpeedKt, liftOff);
                 plane.AltitudeFt = runwayElevation + 1;
-                NextCircuit(circuit);
+                // (The first take-off: the conventional or the wide, the user 5 Nov; another circuit ordered stays for later.)
+                if (circuit.LapTouched || circuit.NextType is null or CircuitType.Conventional or CircuitType.Wide) NextCircuit(circuit);
                 // (A circuit of its plan flown: the next one's end; the end of this one decides what it does now.)
                 EndAction flown = circuit.End;
                 // (Its last circuit flown, the plan ends away: it leaves, the user 5 Nov.)
