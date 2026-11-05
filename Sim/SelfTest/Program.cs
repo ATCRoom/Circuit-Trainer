@@ -1974,6 +1974,22 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO IP from the WIDE (Jet)", toIp));
     }
 
+    // 50. DCT TO IP after a take-off on the right (the overhead's side the left): out to the IP on its own side, never across
+    // the runway (the user, 5 Nov).
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Runway, CircuitType.Conventional, CircuitSide.Right, EndAction.FullStop, performanceClass: "Jet");
+        for (int i = 0; i < 300 && sim.Get(cs) is { } st && (st.Contact != GroundContact.Airborne || Height(st) < 500); i++) sim.RunFor(1);
+        sim.DirectTo(cs, DirectPoint.InitialPoint, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        int initialAt = flown.FindIndex(st => st.Leg == "INITIAL");
+        double c = CircuitCourse * Math.PI / 180;
+        double leftMost = initialAt > 0 ? flown.Take(initialAt).Min(st => st.X * Math.Cos(c) - st.Y * Math.Sin(c)) : double.NaN;
+        Check(initialAt > 0 && leftMost > -0.3, "DCT TO IP after a take-off on the right: to the IP on its own side, not across the runway",
+            $"initial at {initialAt} s, farthest left {-leftMost:F2} NM");
+        pictures.Add(("DCT TO IP after a take-off on the right (Jet)", flown));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

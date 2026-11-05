@@ -471,6 +471,7 @@ namespace ATCRoom.Sim
             {
                 if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
                 EndOrbit(a);
+                CircuitSide? flownSide = null;
                 if (a.Circuit is CircuitState was)
                 {
                     // (Its ordered circuit replaced; a departure back in the circuits: it lands at the end.)
@@ -481,6 +482,7 @@ namespace ATCRoom.Sim
                         was.LeaveAfterLast = false;
                         was.DepartPhase = 0;
                     }
+                    flownSide = was.Side;
                     was.Turning = false;
                     was.Spiral = false;
                     was.StraightIn = false;
@@ -494,6 +496,9 @@ namespace ATCRoom.Sim
                     _ => CircuitType.Conventional
                 };
                 FlyCircuitNow(a, type, side, now: true);
+                // To the IP from the side it flies, not across the runway (the user, 5 Nov).
+                if (point == DirectPoint.InitialPoint && flownSide is CircuitSide flown && flown != side && a.Circuit?.Type == CircuitType.Overhead)
+                    GiveRoute(a, ToInitialPoint(a, flown));
                 if (point == DirectPoint.Base && a.Circuit != null && a.Route is { Count: > 0 })
                 {
                     // Joining it: straight to the start of the base (see TurnBase); on the circuit side already past it: the
@@ -1740,15 +1745,17 @@ namespace ATCRoom.Sim
         /// abeam a point 1 NM before the initial point, onto the runway track there, then the overhead pattern (the flame
         /// out: at the High Key height, to the High Key).
         /// </summary>
-        private List<RoutePoint> ToInitialPoint(SimAircraft plane)
+        private List<RoutePoint> ToInitialPoint(SimAircraft plane, CircuitSide? outSide = null)
         {
             PerformanceClass kind = plane.Class;
             CircuitSide side = plane.Circuit!.Side;
+            // (Out to the wide downwind on the side it flies, the user 5 Nov: not across the runway to the overhead's side.)
+            CircuitSide outOn = outSide ?? side;
             bool sfo = plane.Circuit.Type == CircuitType.Sfo;
-            double wide = Width(CircuitType.Wide, kind, side);
+            double wide = Width(CircuitType.Wide, kind, outOn);
             double height = runwayElevation + (sfo ? kind.HighKeyFt : kind.OverheadHeightFt);
             double speed = sfo ? kind.BestGlideKt : kind.OverheadSpeedKt;
-            (double along, double lateral) = RunwayFrame(plane.X, plane.Y, side);
+            (double along, double lateral) = RunwayFrame(plane.X, plane.Y, outOn);
             List<RoutePoint> route = [];
             // (The user, 3 Nov: straight to the IP, then the turn towards the aerodrome, anticipated so it rolls out on the
             // initial at the IP. Only from the runway track ahead of the IP (a go-around, a take-off) it first goes out to
@@ -1756,7 +1763,7 @@ namespace ATCRoom.Sim
             (double fromAlong, double fromLateral) = (along, lateral);
             if (Math.Abs(lateral) < wide / 2 && along > -initialPoint)
             {
-                route.Add(Point(Math.Max(along, 0), wide, side, height, kind.CircuitSpeedKt, "JOIN"));
+                route.Add(Point(Math.Max(along, 0), wide, outOn, height, kind.CircuitSpeedKt, "JOIN"));
                 (fromAlong, fromLateral) = (Math.Max(along, 0), wide);
             }
             // The corner on the runway track beyond the IP by what the turn onto the initial needs, so it rolls out at the IP.
