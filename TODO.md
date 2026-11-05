@@ -684,3 +684,6 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   of flight, Start from, Exit to, Via, Pattern type, Pattern entry, Pattern side (in this order), On Final, Numb. of
   Circuits; a wider column for them.
 
+## Next group (to do)
+- **Exit → Exit via (the user, 5 Nov):** in New aircraft, the departure's row Exit (RWY HDG / RADIAL) named "Exit via".
+
