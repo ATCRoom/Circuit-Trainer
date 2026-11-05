@@ -657,3 +657,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Magnetic variation (first part of "magnetic headings"):** Settings > Circuits > Variation (3E, 2W), kept in the
   aerodrome file; used for the radials of the departures only for now (headings and runways still true).
 
+## Build of 5 Nov evening (the user: "vai") — WRITTEN
+- **Departure turn softer (the user, 5 Nov: "too violent"):** the turn to the radial only past the far end of the runway
+  and above 400 ft, as wide as the close pattern's 180° turn (radius half its downwind width), with the circuit bank.
+- **New aircraft:** Class, Formation (Interval s), Type, From, To / Via, Entry, Pattern (was Circuit, as on the label; also
+  in Selected aircraft), Side, Circuits, On Final, Last, Departure / Radial. A departure: Circuits 0 by default. PTRN gone
+  from From (old plans with it still start in the circuit; edited: the first gate).
+- **On Final (circuits 2 or more, ∞):** how every circuit but the last ends: T&G (default), L/A (low approach: to the short
+  final, then up to the circuit height), L/P (low pass: down to 400 ft, at 400 ft all along the runway, then the next
+  circuit from its far end). Saved in the plan (OnFinal). Test 39b.
+- **END on the label:** G/A became L/A (the same low approach), LOW became L/P (now 400 ft, all along the runway, test 6).
+  G/A stays in NOW only, the order of the moment.
+

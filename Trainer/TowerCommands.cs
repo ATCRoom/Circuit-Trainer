@@ -31,8 +31,9 @@ namespace ATCRoom.TwrTrainer
         [
             (EndAction.TouchAndGo, "Touch and go", "T/G"),
             (EndAction.FullStop, "Full stop", "FS"),
-            (EndAction.GoAround, "Go-around", "G/A"),
-            (EndAction.LowPass, "Low pass", "LOW"),
+            // (The user, 5 Nov: the low approach and the low pass; G/A is only the order of the moment.)
+            (EndAction.GoAround, "Low approach", "L/A"),
+            (EndAction.LowPass, "Low pass", "L/P"),
             (EndAction.Departure, "Departure", "DEP")
         ];
 
@@ -109,7 +110,7 @@ namespace ATCRoom.TwrTrainer
         public void ExpediteTaxi(string callsign) => engine.ExpediteTaxi(callsign);
 
         /// <summary>The plan of its circuits: how many (0: on and on), the last one's end.</summary>
-        public void SetLaps(string callsign, int laps, EndAction last) => engine.SetLaps(callsign, laps, last);
+        public void SetLaps(string callsign, int laps, EndAction last, EndAction onFinal) => engine.SetLaps(callsign, laps, last, onFinal);
 
         public void FormationLanding(string callsign, IReadOnlyList<bool> lands) => engine.SetFormationLanding(callsign, lands);
 

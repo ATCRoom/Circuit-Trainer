@@ -177,6 +177,8 @@ namespace ATCRoom.Sim
         /// </summary>
         public int LapsLeft;
         public EndAction FinalEnd = EndAction.FullStop;
+        /// <summary>How the circuits of the plan but the last one end (the user, 5 Nov, "On Final"): touch and go, low approach, low pass.</summary>
+        public EndAction LapEnd = EndAction.TouchAndGo;
         public bool LapTouched;
 
         public CircuitState Copy() => (CircuitState)MemberwiseClone();
@@ -188,7 +190,7 @@ namespace ATCRoom.Sim
         private const double ShortBaseAlong = -0.3;
         /// <summary>Where the descent of the final aims (NM past the threshold), and the low pass height (ft).</summary>
         private const double TouchdownAim = 0.15;
-        private const double LowPassHeight = 100;
+        private const double LowPassHeight = 400;
         /// <summary>The go-around of the end action "go around": at this height (ft above the threshold), on the short final (NM before the threshold at most).</summary>
         private const double GoAroundHeight = 200;
         private const double GoAroundShortFinal = 0.7;
@@ -649,13 +651,14 @@ namespace ATCRoom.Sim
         /// The plan of its circuits (the user, 4 Nov): this many circuits (0: on and on, touch and go), each ending with a
         /// touch and go but the last one, which ends with <paramref name="last"/>. At once.
         /// </summary>
-        public void SetLaps(string callsign, int laps, EndAction last) => Change(callsign, a =>
+        public void SetLaps(string callsign, int laps, EndAction last, EndAction onFinal = EndAction.TouchAndGo) => Change(callsign, a =>
         {
             if (a.Circuit == null) return;
             // (0: on and on: −1, a plan of touch and go; 0 is no plan at all.)
             a.Circuit.LapsLeft = laps <= 0 ? -1 : laps;
             a.Circuit.FinalEnd = last;
-            a.Circuit.End = laps <= 0 ? EndAction.TouchAndGo : laps == 1 ? last : EndAction.TouchAndGo;
+            a.Circuit.LapEnd = onFinal is EndAction.GoAround or EndAction.LowPass ? onFinal : EndAction.TouchAndGo;
+            a.Circuit.End = laps == 1 ? last : a.Circuit.LapEnd;
         });
 
         /// <summary>A circuit of the plan flown (a touch and go, a go-around): one less; the last one ends as planned.</summary>
@@ -664,7 +667,7 @@ namespace ATCRoom.Sim
             if (circuit.LapsLeft == 0) return;
             if (circuit.LapsLeft > 1) circuit.LapsLeft--;
             // The plan again (an end given for one circuit only: the plan's after it).
-            circuit.End = circuit.LapsLeft == 1 ? circuit.FinalEnd : EndAction.TouchAndGo;
+            circuit.End = circuit.LapsLeft == 1 ? circuit.FinalEnd : circuit.LapEnd;
         }
 
         /// <summary>Where the overhead pattern breaks, at once: middle (default), beginning, end, a point along the runway track (NM from the threshold), or standby.</summary>
@@ -1145,7 +1148,8 @@ namespace ATCRoom.Sim
             // A formation on the short final: the members chosen land, the others go around (the user, 4 Nov).
             if (plane.Wingmen.Count > 0 && height <= GoAroundHeight && along >= -GoAroundShortFinal && LandingSplit(plane, circuit)) return;
             // The end of the final: low pass over the threshold, go-around at its height, past the runway without landing.
-            if ((circuit.End == EndAction.LowPass && along >= 0) || (circuit.End == EndAction.GoAround && height <= GoAroundHeight && along >= -GoAroundShortFinal)
+            // (The low pass, the user 5 Nov: at 400 ft all along the runway, then its next circuit from its far end.)
+            if ((circuit.End == EndAction.LowPass && along >= Math.Max(runwayLength, 0.3)) || (circuit.End == EndAction.GoAround && height <= GoAroundHeight && along >= -GoAroundShortFinal)
                 || (routeOver && along > Math.Max(runwayLength, 0.3)))
             {
                 StartGoAround(plane);
@@ -1729,7 +1733,6 @@ namespace ATCRoom.Sim
             return Math.Max(0.3, BaseWidth(type, kind) + 0.01 * towardsRunway);
         }
 
-        /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
         /// <summary>
         /// A departure with a radial (see <see cref="AddDeparture"/>): above 400 ft the turn (on its side) to a heading 45° onto
         /// the radial (onto it: its course), then along it. A heading of the instructor: his from then on.
@@ -1746,12 +1749,15 @@ namespace ATCRoom.Sim
             {
                 // (A heading or another route of the instructor's before the turn: his.)
                 if (plane.Navigation != NavigationMode.Route || plane.Route is not { Count: 2 } way || way[1].Name != "DEPARTURE") { InstructorsDeparture(plane, circuit); return; }
-                if (plane.AltitudeFt - runwayElevation <= WaveoffTurnHeight) return;
+                // (The user, 5 Nov: past the far end of the runway and above 400 ft; a turn as wide as the close pattern's.)
+                (double runwayAlong, _) = RunwayFrame(plane.X, plane.Y, CircuitSide.Left);
+                if (plane.AltitudeFt - runwayElevation <= WaveoffTurnHeight || runwayAlong < Math.Max(runwayLength, 0.3)) return;
+                circuit.Radius = Math.Max(0.15, Width(CircuitType.Close, plane.Class, CircuitSide.Left) / 2);
                 circuit.DepartIntercept = Math.Abs(right) < 0.2 ? circuit.DepartRadial : Normalize(circuit.DepartRadial + (right > 0 ? -45 : 45));
                 plane.Navigation = NavigationMode.Manual;
                 plane.TargetHeading = circuit.DepartIntercept;
                 plane.TurnDirection = Math.Abs(Wrap(circuit.DepartIntercept - plane.HeadingTrue)) < 5 ? TurnDirection.Shortest : circuit.DepartTurn;
-                plane.SelectedTurnRateDps = MaxTurnRate;
+                plane.SelectedTurnRateDps = Math.Clamp(Math.Max(30, plane.GroundSpeedKt) / 3600 / circuit.Radius * 180 / Math.PI, MinTurnRate, MaxTurnRate);
                 plane.CircuitBankDegrees = plane.Class.CircuitBankDegrees;
                 if (!plane.AltitudeGiven)
                 {
@@ -1764,9 +1770,7 @@ namespace ATCRoom.Sim
             // Turning to the intercept heading, then on it to the radial.
             if (Math.Abs(Wrap(plane.TargetHeading - circuit.DepartIntercept)) > 0.5 || plane.Navigation != NavigationMode.Manual) { InstructorsDeparture(plane, circuit); return; }
             if (Math.Abs(Wrap(plane.HeadingTrue - circuit.DepartIntercept)) > 15) return;
-            double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
-            double radius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
-            double lead = Math.Max(0.05, radius * Math.Tan(22.5 * Math.PI / 180));
+            double lead = Math.Max(0.05, Math.Max(0.15, circuit.Radius) * Math.Tan(22.5 * Math.PI / 180));
             if (Math.Abs(right) > lead)
             {
                 // (After a long turn it may be on the other side of the radial now: 45° onto it from there.)
@@ -1821,6 +1825,7 @@ namespace ATCRoom.Sim
             _ => Math.Max(runwayLength, 0.3) / 2
         };
 
+        /// <summary>A point of the downwind itself (not the end of the 180° turn to it).</summary>
         private static bool IsDownwind(RoutePoint point) => point.Name == "DOWNWIND" && !point.Turn180;
 
         /// <summary>Where the downwind starts along the runway (NM from the threshold): the close pattern abeam the runway end.</summary>

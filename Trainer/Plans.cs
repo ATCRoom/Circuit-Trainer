@@ -42,6 +42,8 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The plan of its circuits (the user, 4 Nov): how many (0: on and on), the last one's end. Null (the first scenarios): <see cref="End"/> every time.</summary>
         public int? Laps { get; set; }
         public EndAction Last { get; set; } = EndAction.FullStop;
+        /// <summary>How the circuits but the last one end (the user, 5 Nov, "On Final"): touch and go, low approach, low pass.</summary>
+        public EndAction OnFinal { get; set; } = EndAction.TouchAndGo;
         public List<bool>? Lands { get; set; }
         public double SplitSeconds { get; set; } = 3;
         /// <summary>A formation made with GROUP: the plans it was made of (UNGROUP gives them back).</summary>
@@ -80,7 +82,7 @@ namespace ATCRoom.TwrTrainer
         public TowerPlan Copy() => new()
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
-            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
+            Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };

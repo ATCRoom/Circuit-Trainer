@@ -710,8 +710,8 @@ namespace ATCRoom.TwrTrainer
         private static string EndShort(EndAction end) => end switch
         {
             EndAction.TouchAndGo => "T/G",
-            EndAction.GoAround => "G/A",
-            EndAction.LowPass => "LOW",
+            EndAction.GoAround => "L/A",
+            EndAction.LowPass => "L/P",
             EndAction.Departure => "DEP",
             _ => "FS"
         };
@@ -763,8 +763,8 @@ namespace ATCRoom.TwrTrainer
             string end = a.EndAction switch
             {
                 EndAction.TouchAndGo => "T/G",
-                EndAction.GoAround => "G/A",
-                EndAction.LowPass => "LOW",
+                EndAction.GoAround => "L/A",
+                EndAction.LowPass => "L/P",
                 EndAction.Departure => "DEP",
                 _ => "FS"
             };

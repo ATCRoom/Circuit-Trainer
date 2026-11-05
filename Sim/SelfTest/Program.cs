@@ -968,8 +968,9 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     });
     int lp = t6.FindIndex(st => st.Leg == "GO AROUND");
     List<AircraftState> over = t6.Take(lp + 20).Where(st => Between(Frame(st).Along, 0, CircuitLength) && Math.Abs(Frame(st).Lateral) < 0.2).ToList();
-    Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 0 && Between(over.Min(Height), 60, 160),
-        "Low pass: over the runway at about 100 ft, no touchdown", over.Count > 0 ? $"lowest {over.Min(Height):F0} ft" : "not over the runway");
+    Check(lp > 0 && t6.Take(lp).All(st => st.Contact == GroundContact.Airborne) && over.Count > 0 && Between(over.Min(Height), 360, 460)
+        && Between(Frame(t6[lp]).Along, CircuitLength - 0.05, CircuitLength + 0.3),
+        "Low pass: at about 400 ft all along the runway (the user, 5 Nov), no touchdown, up again at its far end", over.Count > 0 ? $"lowest {over.Min(Height):F0} ft" : "not over the runway");
     Check(LandedOnRunway(t6), "Low pass: then the full stop");
     pictures.Add(("Low pass on a close pattern, then full stop, Turboprop", t6));
 
@@ -1679,6 +1680,23 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             "Circuits of the plan: 3 circuits, two touch and go, then a full stop", $"{touches} touch and go");
     }
 
+    // 39b. On Final (the user, 5 Nov): 3 circuits, the first two with a low approach (L/A), the last a full stop: never a
+    // touch and go, two go-arounds.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        sim.SetLaps(cs, 3, EndAction.FullStop, EndAction.GoAround);
+        List<AircraftState> flown = Fly(sim, cs, 2400);
+        int touches = 0, arounds = 0;
+        for (int i = 1; i < flown.Count; i++)
+        {
+            if (flown[i].Contact == GroundContact.Rolling && flown[i - 1].Contact == GroundContact.Airborne) touches++;
+            if (flown[i].Leg == "GO AROUND" && flown[i - 1].Leg != "GO AROUND") arounds++;
+        }
+        Check(touches == 0 && arounds == 2 && LandedOnRunway(flown) && sim.Get(cs) == null,
+            "On Final L/A: 3 circuits, two low approaches, then a full stop", $"{touches} touch and go, {arounds} go-arounds");
+    }
+
     // 40. The landing roll (the user, 4 Nov): braking with its class to the first runway exit it reaches slow, turning off
     // there, then gone; a Light takes an earlier exit than a Jet; no exits: gone where it is slow.
     {
@@ -1842,14 +1860,14 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double OffRadial(AircraftState st, double radial) =>
             (st.X - midX) * Math.Cos(radial * Math.PI / 180) - (st.Y - midY) * Math.Sin(radial * Math.PI / 180);
         // (The first turn: its side and its height.)
-        (int Side, double Height) FirstTurn(List<AircraftState> track)
+        (int Side, double Height, double Along) FirstTurn(List<AircraftState> track)
         {
             for (int i = 1; i < track.Count; i++)
             {
                 double change = SimEngine.Wrap(track[i].HeadingTrue - track[0].HeadingTrue);
-                if (track[i].Contact == GroundContact.Airborne && Math.Abs(change) > 3) return (Math.Sign(change), Height(track[i]));
+                if (track[i].Contact == GroundContact.Airborne && Math.Abs(change) > 3) return (Math.Sign(change), Height(track[i]), Frame(track[i]).Along);
             }
-            return (0, double.NaN);
+            return (0, double.NaN, double.NaN);
         }
         (List<AircraftState> straight, bool straightGone) = Depart(double.NaN, null);
         Check(straightGone && straight.Count > 10 && straight.All(st => Math.Abs(Frame(st).Lateral) < 0.3) && Between(FromField(straight[^1]), 9, 10.5)
@@ -1858,14 +1876,15 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             $"gone {straightGone}, last {FromField(straight[^1]):F1} NM, highest {straight.Max(st => Height(st)):F0} ft");
         double radialRight = SimEngine.Normalize(CircuitCourse + 90);
         (List<AircraftState> right, bool rightGone) = Depart(radialRight, true);
-        (int rightSide, double rightHeight) = FirstTurn(right);
+        (int rightSide, double rightHeight, double rightAlong) = FirstTurn(right);
         AircraftState rightOut = right[^1];
-        Check(rightGone && rightSide > 0 && rightHeight > 380 && Math.Abs(OffRadial(rightOut, radialRight)) < 0.3
+        // (The user, 5 Nov: past the far end of the runway.)
+        Check(rightGone && rightSide > 0 && rightHeight > 380 && rightAlong > CircuitLength - 0.02 && Math.Abs(OffRadial(rightOut, radialRight)) < 0.3
             && Math.Abs(SimEngine.Wrap(rightOut.HeadingTrue - radialRight)) < 15,
             "Departure onto a radial, turning right above 400 ft: along the radial, gone 10 NM out",
-            $"turn {rightSide} at {rightHeight:F0} ft, off the radial {OffRadial(rightOut, radialRight):F2} NM, heading {rightOut.HeadingTrue:F0}");
+            $"turn {rightSide} at {rightHeight:F0} ft {rightAlong:F2} NM along, off the radial {OffRadial(rightOut, radialRight):F2} NM, heading {rightOut.HeadingTrue:F0}");
         (List<AircraftState> left, bool leftGone) = Depart(radialRight, false);
-        (int leftSide, _) = FirstTurn(left);
+        (int leftSide, _, _) = FirstTurn(left);
         AircraftState leftOut = left[^1];
         Check(leftGone && leftSide < 0 && Math.Abs(OffRadial(leftOut, radialRight)) < 0.3 && Math.Abs(SimEngine.Wrap(leftOut.HeadingTrue - radialRight)) < 15,
             "Departure onto the same radial turning left (the long way): along the radial, gone",
