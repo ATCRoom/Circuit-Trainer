@@ -1534,7 +1534,8 @@ namespace ATCRoom.Sim
             circuit.OnFinal = false;
             circuit.Departed = false;
             NextCircuit(circuit);
-            bool leave = circuit.LeaveAfterLast && circuit.LapsLeft == 1;
+            // (Only its planned low approach or low pass: a go-around of the instructor's flies the circuit again.)
+            bool leave = circuit.LeaveAfterLast && circuit.LapsLeft == 1 && circuit.End is EndAction.GoAround or EndAction.LowPass;
             LapDone(circuit);
             (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
             if (leave)
@@ -1789,7 +1790,8 @@ namespace ATCRoom.Sim
         private void DepartureStep(SimAircraft plane, CircuitState circuit)
         {
             // To its exit gate: gone there (as a crossing).
-            if (double.IsFinite(circuit.ExitX) && plane.Route is { } exitWay && plane.RouteNext >= exitWay.Count && circuit.DepartPhase == 0) circuit.TransitDone = true;
+            if (double.IsFinite(circuit.ExitX) && plane.Route is { Count: > 0 } exitWay && plane.RouteNext >= exitWay.Count
+                && exitWay[^1].Name == "DEPARTURE" && circuit.DepartPhase == 0) circuit.TransitDone = true;
             if (!double.IsFinite(circuit.DepartRadial) || circuit.DepartPhase >= 2) return;
             double course = circuit.DepartRadial * Math.PI / 180;
             double dx = plane.X - circuit.DepartFromX, dy = plane.Y - circuit.DepartFromY;

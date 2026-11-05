@@ -85,7 +85,8 @@ namespace ATCRoom.TwrTrainer
             if (runway)
             {
                 From = global::ATCRoom.TwrTrainer.From.Runway;
-                if (laps == NoCircuit) { Departure = true; Circuits = 0; return; }
+                // (One circuit and DEP: it left at once after the take-off.)
+                if (laps == NoCircuit || (laps == 1 && last == EndAction.Departure)) { Departure = true; Circuits = 0; return; }
                 if (last == EndAction.Departure && laps > 0)
                 {
                     // (Its last final a touch and go, then away.)

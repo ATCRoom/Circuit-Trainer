@@ -540,6 +540,8 @@ namespace ATCRoom.TwrTrainer
             {
                 // (The user, 5 Nov: a departure away at once by default.)
                 if (type == Flight.Departure) lapsRow.Show(0);
+                // (Back to one that lands: it lands at the first final unless asked.)
+                if (type is Flight.Arrival or Flight.Local) onFinalRow.Show(EndAction.FullStop);
                 ShowEntries();
             };
             viaRow.Picked += _ => ShowEntries();
