@@ -694,4 +694,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   Selected aircraft, a row DCT TO (the user, 5 Nov: not "ENTRY", it goes there at once): DW (join the conventional downwind now), BASE (straight to the start of the conventional
   base, then the final), IP (straight to the initial point, the overhead), HK (straight to the High Key, the SFO); lit on
   the WIDE and for an aircraft out of a circuit (flown by the instructor), at once (not the next circuit).
+  **Changed (the user, 5 Nov, after a test):** DCT TO lit for every aircraft in flight in a circuit (the first circuit
+  after the take-off too), not only on the WIDE: it can go to a new circuit before the first one is over.
+- **Take-off: CONV or WIDE only, on the label too (the user, 5 Nov, after a test: OVH chosen on the label while taking
+  off, the aircraft turned the other way to the IP at the lift-off).** On the ground and in the take-off roll, PATTERN on
+  the label and in Selected aircraft lights CONV and WIDE only (that choice is its first circuit); once airborne all (the
+  next circuit, as now). The way to another circuit at once in flight: DCT TO. Test: OVH not taken at the lift-off.
 
