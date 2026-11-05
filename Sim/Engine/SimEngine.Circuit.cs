@@ -1040,7 +1040,8 @@ namespace ATCRoom.Sim
         /// </summary>
         public void SetHelipad(string callsign, double x, double y) => Change(callsign, a =>
         {
-            if (a.Circuit == null) return;
+            // (Helicopters only, the user 5 Nov.)
+            if (a.Circuit == null || (!a.Class.CanHover && double.IsFinite(x))) return;
             a.Circuit.HasPad = double.IsFinite(x) && double.IsFinite(y);
             a.Circuit.PadX = a.Circuit.HasPad ? x : 0;
             a.Circuit.PadY = a.Circuit.HasPad ? y : 0;

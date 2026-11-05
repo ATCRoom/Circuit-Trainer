@@ -673,7 +673,11 @@ namespace ATCRoom.TwrTrainer
             Row("Side", selSideRow, next, 62);
             selSideRow.Picked += side => WithSelected(cs => commands.NextCircuit(cs, selCircuitRow.HasValue ? selCircuitRow.Value : CircuitType.Conventional, side));
             Row("At the end", selEndRow, next, 62);
-            selEndRow.Picked += end => WithSelected(cs => commands.SetEnd(cs, end));
+            selEndRow.Picked += end => WithSelected(cs =>
+            {
+                if (engine.Get(cs) is { CanHover: true, HasPad: true }) commands.Helipad(cs, double.NaN, double.NaN);
+                commands.SetEnd(cs, end);
+            });
             // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
             selBreakGrid = Row("Break", selBreakRow, next, 62);
             selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
@@ -1504,6 +1508,7 @@ namespace ATCRoom.TwrTrainer
             string? callsign = plan.Callsign.Length > 0 ? plan.Callsign : null;
             string? kind = plan.Class.Length > 0 ? plan.Class : null;
             if (plan.Radial is double r && double.IsNaN(r)) return "Write the radial (0 to 360, magnetic) in Radial °M.";
+            if (plan.ToPad && PadOf(plan) == null) return "Choose a helipad, or POINT and then click it on the map.";
             if (plan.Departure && (plan.Circuits ?? 0) <= 0)
             {
                 // A departure away at once (the user, 5 Nov: OUT): the runway heading, or the radial (magnetic: to true here).
@@ -1552,6 +1557,11 @@ namespace ATCRoom.TwrTrainer
         private void AddPlan()
         {
             TowerPlan plan = PlanOfRows();
+            if (plan.ToPad && PadOf(plan) == null)
+            {
+                Say("Choose a helipad, or POINT and then click it on the map.", Area.New);
+                return;
+            }
             if (plan.Radial is double radial && double.IsNaN(radial))
             {
                 Say("Write the radial (0 to 360, magnetic) in Radial °M.", Area.New);
@@ -2274,7 +2284,7 @@ namespace ATCRoom.TwrTrainer
             string typed = newPadName.Text.Trim().ToUpperInvariant();
             view.AskPoint("Helipad: click it on the map  -  Esc: cancel", (x, y) =>
             {
-                string name = typed.Length > 0 ? typed : Enumerable.Range(1, 99).Select(i => $"H{i}")
+                string name = typed.Length > 0 && typed != PadPointName ? typed : Enumerable.Range(1, 99).Select(i => $"H{i}")
                     .First(n => !airfield.Helipads.Any(h => string.Equals(h.Name, n, StringComparison.OrdinalIgnoreCase)));
                 airfield.AddHelipad(name, x, y);
                 Say(airfield.Save() ?? $"Helipad {name} added.");
@@ -2348,7 +2358,12 @@ namespace ATCRoom.TwrTrainer
                     PadMenu(callsign, now: value == "NOW");
                     return;
                 }
-                else if (name == "NEXT" && Enum.TryParse(value, out EndAction end)) commands.SetEnd(callsign, end);
+                else if (name == "NEXT" && Enum.TryParse(value, out EndAction end))
+                {
+                    // (Another end for a helicopter going to its pad: the pad dropped, the user 5 Nov.)
+                    if (a.CanHover && a.HasPad) commands.Helipad(callsign, double.NaN, double.NaN);
+                    commands.SetEnd(callsign, end);
+                }
                 else if (name == "BRK" && Enum.TryParse(value, out BreakPoint where))
                 {
                     if (where == BreakPoint.Point) view.AskPoint($"{callsign}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(callsign, x, y));
@@ -2523,7 +2538,7 @@ namespace ATCRoom.TwrTrainer
             items.Add(Item("Go around", () => commands.GoAround(callsign)));
             items.Add(Item("Rejoin the circuit", () => commands.Rejoin(callsign)));
             if (a.Leg == "LANDED") items.Add(Item("Expedite taxi", () => commands.ExpediteTaxi(callsign)));
-            items.Add(Item("Helipad on the map...", () => view.AskPoint($"{callsign}: click the helipad  -  Esc: cancel", (x, y) => commands.Helipad(callsign, x, y))));
+            if (a?.CanHover == true) items.Add(Item("Helipad...", () => PadMenu(callsign, now: false)));
             items.Add(Item("Remove", () => commands.Remove(callsign)));
             return items;
         }
@@ -2579,6 +2594,7 @@ namespace ATCRoom.TwrTrainer
                 // (The helipad: helicopters only; DCT TO HPAD also out of a circuit.)
                 padNowButton.Visibility = padEndLine.Visibility = a.CanHover ? Visibility.Visible : Visibility.Collapsed;
                 padNowButton.IsEnabled = a.CanHover && a.Contact == GroundContact.Airborne && !a.Transit;
+                padEndButton.IsEnabled = a.CanHover && a.Circuit != null && !a.Transit;
                 // (On the ground and taking off: the conventional or the wide, the user 5 Nov.)
                 foreach (CircuitType pattern in Enum.GetValues<CircuitType>())
                     selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);
