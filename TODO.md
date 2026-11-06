@@ -759,6 +759,18 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   is renamed **Formation separation** | FULL | REDUCED |, with a note above the row ("Formation landing to a full stop:
   separation of the next aircraft"); tooltips: FULL = the next lands when the one ahead has left the runway, REDUCED = when it
   has rolled a third of the runway.
+- **PHOTO for the debriefing (the user, 6 Nov night; decided; the screenshot in the next build, the marker with the log):** a
+  button PHOTO on the bar of the map (next to the level), the **middle mouse button on the map**, and **Ctrl+P** (P = Photo;
+  F1 / F2 / Pause already used). It takes the picture of the map **with all the labels of the tracks** (the map view only, not
+  the other windows), at the moment of the click; the simulation does not stop. The file goes in `Photos\<one folder for each
+  session: date and time of the start>\`, next to Maps / Logs (portable: the program folder; else the Trainer folder in
+  AppData), named like `Photo-03_T+12m40s.png` (progressive number of the session, simulated time, not the clock); the number
+  is the next free one of the folder. A button **Open folder** next to PHOTO (the friends do not find AppData). The message
+  shows the file name only (no full path: the Windows user name) and comes after the shot (not in the picture); the PNG is
+  written on another thread; an error (folder read-only, disk full) is said and the marker is made anyway. **Marker:** an event
+  "PHOTO n" with the simulated time in the log (CSV) and in the recording (a mark on the time bar and in the list of events of
+  the player, click = go there); to add when the log / the recording exist. The student console takes no photo (instructor
+  only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
