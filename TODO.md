@@ -737,8 +737,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   recording, read back by the player.
 - **Student console:** the same program with a role (Instructor / Student). The student sees everything of the traffic: the top
   view (map sent by the instructor, kept in memory only), labels, METAR line, UTC time, runway, link light; and a **compact strip
-  list** (narrow column): line 1 callsign, ICAO type, flight rules V / I; line 2 entry gate and entry altitude, where it is now.
-  Strip colour by rules (VFR / IFR). No commands.
+  list** (narrow column): line 1 callsign, ICAO type, flight rules V / I; line 2 entry gate (or exit for a departure) and
+  altitude. **Strip colour by type of flight** (the user, 6 Nov): arrivals one colour, transit and local the same colour,
+  departures one colour. **Nothing of the instructor's actions** on the student's side (no leg, no commands, not in the strip,
+  not in the student view of the player). No commands to the aircraft.
+- **Student's notes on the strips** (the user, 6 Nov; proposal shown in a mock-up, to confirm): click a strip to choose it, quick
+  buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, EXIT) and a free text box add a note at the end
+  of its note line (the last highlighted); click a note to remove it; drag a strip to change its place. The notes stay with the
+  student; kept in the recording (with their time) for the debrief.
 - **Same PC:** the student console is a second window of the same program (for a second monitor), no network. **Two PCs:** the
   link of AuroraPAR v2 Trainer (public relays, session code, no IP / ports); the map sent in pieces at the start; fixed delay.
 - **Log of the flights:** one CSV per session (Logs folder): a row per event (added, take-off, each T/G, L/A or L/P, G/A,
