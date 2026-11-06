@@ -759,6 +759,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Recording and player:** snapshots + events in a compressed file (no video, no map inside). Player: play / pause, x1-x8,
   time bar, list of events (click = go there), student or instructor view. The student may replay at home (without the map:
   runway and aircraft only).
+- **IVAO traffic too (the user, 6 Nov: it must work with IVAO).** As AuroraPAR v2 Trainer, three cases: IVAO only (Aurora),
+  mixed (IVAO + simulated), simulated only. Aurora's traffic read with the code of AuroraPAR v2 (Aurora.cs, copied here: today
+  TWR Trainer has no Aurora link). Simulated aircraft never go to IVAO. Proposal (to confirm): the student gets IVAO from his own
+  Aurora, the simulated aircraft from the link (as decided for AuroraPAR v2 Trainer); on one PC both from the same program. Strips
+  for IVAO aircraft too: callsign, ICAO type and rules from the flight plan, type of flight from departure / destination against
+  the aerodrome (departure, arrival, else transit), entry gate and altitude empty (not known); a strip goes as for the simulated
+  ones (off the runway, or out of range / disconnected). A callsign used by both: warned (the simulated one renamed). In the log
+  and the recording: IVAO aircraft too (marked IVAO). On the instructor's view the simulated labels in another colour (as the
+  Trainer); nothing different for the student.
 - **New fields of an aircraft (New aircraft, plans, label, strip, log):** **flight rules VFR / IFR**; **ICAO type** free text
   (F16, TOR, EUFI, C172...; no list; the class stays for the performance).
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
