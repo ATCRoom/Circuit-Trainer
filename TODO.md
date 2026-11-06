@@ -720,3 +720,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   flight (HPAD on END or DCT TO); on the final with no pad yet: a full stop on the runway. A note instead of the error:
   "no pad: choose it in flight with HPAD, else it lands on the runway".
 
+## Build of 6 Nov (the user: "fai subito") — WRITTEN
+- **A height for one circuit (the user, 6 Nov):** HEIGHT given in a circuit (on its route, or circling to the High Key)
+  is the height of that circuit: the downwind (CONV, WIDE, CLS), the initial and the break (OVH), the High Key (SFO; the
+  Low Key moved as much, not below the roll-out); from the base, the turn to the final, the Low Key down as usual by itself
+  (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
+  before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
+

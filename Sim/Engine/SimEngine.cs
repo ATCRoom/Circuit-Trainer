@@ -335,6 +335,11 @@ namespace ATCRoom.Sim
                 a.VerticalMode = VerticalMode.Altitude;
                 a.TargetAltitudeFt = Math.Clamp(altitudeFt, runwayElevation, MaxAltitude);
                 a.AltitudeGiven = true;
+                // In its circuit (flying its route): the height of this circuit (the user, 6 Nov), down as usual from the base.
+                if (a.Circuit is { Suspended: false, Departed: false, Transit: false, OnFinal: false } circuit && a.Navigation == NavigationMode.Route)
+                    circuit.LapHeight = a.TargetAltitudeFt;
+                else if (a.Circuit is { Spiral: true } spiral)
+                    spiral.LapHeight = a.TargetAltitudeFt;
                 if (verticalRateFpm is double rate) a.SelectedVerticalRateFpm = Math.Clamp(Math.Abs(rate), MinVerticalRate, MaxVerticalRate);
             });
 

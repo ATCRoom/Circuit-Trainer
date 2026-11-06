@@ -174,6 +174,12 @@ namespace ATCRoom.Sim
         public bool HasPad;
         /// <summary>A pad wanted but not given yet (the user, 5 Nov: it starts anyway; none given by the final: the runway).</summary>
         public bool WantsPad;
+        /// <summary>
+        /// The height of this circuit given by the instructor (the user, 6 Nov: ft, altitude; NaN: the class's): its downwind,
+        /// its initial and break, its High Key; from the base / the turn to the final / the Low Key it goes down as usual; the
+        /// next circuit the class's again.
+        /// </summary>
+        public double LapHeight = double.NaN;
         public double PadX, PadY;
         /// <summary>A wingman just split off: straight on with this heading until this step, then its circuit.</summary>
         public long DelayUntilStep;
@@ -967,6 +973,7 @@ namespace ATCRoom.Sim
                 // (Not flown by the instructor: its old route would give an old height.)
                 if (a.Route == null || !a.AltitudeGiven || a.Navigation != NavigationMode.Route || a.Circuit is { Suspended: true }) return;
                 a.AltitudeGiven = false;
+                if (a.Circuit != null) a.Circuit.LapHeight = double.NaN;
                 // (The vertical rate of the leg worked out again; not in a 180° turn, which would start again.)
                 if (a.Circuit is { Turning: false } circuit) circuit.LegIndex = -1;
                 StartLeg(a);
@@ -1255,6 +1262,18 @@ namespace ATCRoom.Sim
                 circuit.LegIndex = plane.RouteNext;
                 RoutePoint point = plane.Route[plane.RouteNext];
                 circuit.OnFinal = point.Name == "FINAL" && !point.Turn180;
+                // The height of this circuit given (the user, 6 Nov): from the base, the turn to the final, the Low Key: down
+                // as usual, by itself.
+                if (double.IsFinite(circuit.LapHeight) && (point.Name is "BASE" or "FINAL" || (point.Name == "LOW KEY" && point.Turn180)))
+                {
+                    circuit.LapHeight = double.NaN;
+                    plane.AltitudeGiven = false;
+                    if (double.IsFinite(point.AltitudeFt))
+                    {
+                        plane.VerticalMode = VerticalMode.Altitude;
+                        plane.TargetAltitudeFt = Math.Clamp(LowPassFloor(plane, point.AltitudeFt), runwayElevation, MaxAltitude);
+                    }
+                }
                 // The close pattern: its downwind and its final are reached by a 180° turn, not flown to as points.
                 if (IsJetShape(circuit.Type) && point.Turn180)
                 {
@@ -1404,7 +1423,7 @@ namespace ATCRoom.Sim
             plane.TurnDirection = TurnDirection.Shortest;
             plane.TargetHeading = HeadingForCourse(course, plane.SpeedKt);
             circuit.TurnHeading = plane.TargetHeading;
-            double highKey = runwayElevation + kind.HighKeyFt;
+            double highKey = double.IsFinite(circuit.LapHeight) ? circuit.LapHeight : runwayElevation + kind.HighKeyFt;
             if (!plane.AltitudeGiven)
             {
                 plane.VerticalMode = VerticalMode.Altitude;
@@ -1751,15 +1770,17 @@ namespace ATCRoom.Sim
             double highKey = HighKeyAlong();
             // The turn to the final starts at the threshold: at its end the aircraft is nearly on the runway.
             double turn = -SfoTurnStartNM;
-            double lowKey = runwayElevation + kind.LowKeyFt;
+            // (Its High Key given, the user 6 Nov: the Low Key moved as much, not below the roll-out.)
+            double highKeyHeight = double.IsFinite(plane.Circuit!.LapHeight) ? plane.Circuit!.LapHeight : runwayElevation + kind.HighKeyFt;
             double rollOut = runwayElevation + Math.Min(SfoRollOutHeight, kind.LowKeyFt);
+            double lowKey = Math.Max(rollOut + 100, runwayElevation + kind.LowKeyFt + highKeyHeight - (runwayElevation + kind.HighKeyFt));
             // The downwind and the half circle to the final, gliding at one slope.
             double downwind = Math.Max(0, highKey - turn);
             double finalTurn = Math.PI * width / 2;
             double endOfDownwind = lowKey - (lowKey - rollOut) * downwind / Math.Max(0.1, downwind + finalTurn);
             return
             [
-                Point(highKey, 0, side, runwayElevation + kind.HighKeyFt, kind.BestGlideKt, "HIGH KEY"),
+                Point(highKey, 0, side, highKeyHeight, kind.BestGlideKt, "HIGH KEY"),
                 Point(highKey, width, side, lowKey, kind.BestGlideKt, "LOW KEY", turn180: true),
                 Point(turn, width, side, endOfDownwind, kind.BestGlideKt, "LOW KEY"),
                 Point(turn, 0, side, rollOut, kind.FinalSpeedKt, "FINAL", turn180: true),
@@ -1822,6 +1843,8 @@ namespace ATCRoom.Sim
         /// </summary>
         private void NextCircuit(CircuitState circuit)
         {
+            // (A height given for one circuit: the class's again.)
+            circuit.LapHeight = double.NaN;
             if (circuit.NextType is CircuitType next)
             {
                 circuit.Type = next;

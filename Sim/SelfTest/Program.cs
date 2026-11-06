@@ -2024,6 +2024,33 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO BASE on the way in (Light)", flown));
     }
 
+    // 53. A height given in the circuit (the user, 6 Nov): the height of this circuit; down as usual from the base / the Low
+    // Key by itself (no AUTO), lands. The conventional downwind at 1500 ft; the SFO from a High Key 1000 ft higher.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        sim.RunFor(5);
+        sim.SetAltitude(cs, CircuitElevation + 1500);
+        List<AircraftState> flown = Fly(sim, cs, 1200);
+        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        double highest = onBase > 0 ? flown.Take(onBase).Max(Height) : double.NaN;
+        Check(onBase > 0 && highest > 1400 && LandedOnRunway(flown), "A height given on the downwind: held there, down from the base by itself, lands",
+            $"highest before the base {highest:F0} ft");
+
+        SimEngine sfo = NewCircuitEngine();
+        string jet = sfo.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sfo.RunFor(2);
+        double given = sfo.Get(jet)!.AltitudeFt + 1000;
+        sfo.SetAltitude(jet, given);
+        sfo.HoldAtHighKey(jet, false);
+        List<AircraftState> glide = Fly(sfo, jet, 1800);
+        int lowKey = glide.FindIndex(st => st.Leg == "LOW KEY");
+        double top = lowKey > 0 ? glide.Take(lowKey).Max(st => st.AltitudeFt) : double.NaN;
+        Check(lowKey > 0 && top > given - 150 && LandedOnRunway(glide), "SFO from a High Key given 1000 ft higher: it starts from there, down by itself, lands",
+            $"highest before the Low Key {top - given:+0;-0} ft from the one given");
+        pictures.Add(("SFO from a High Key 1000 ft higher (Jet)", glide));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {
