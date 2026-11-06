@@ -733,12 +733,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
-- Only the plans that **start on the ground** (departures and local from the runway, a helicopter from a helipad): a still,
-  faint grey symbol at its starting point (threshold / helipad), small label: callsign, ICAO type, state (countdown / HELD).
-  Arrivals and transits (gate, long final) are NOT drawn. A formation one symbol (F2, F3...). Several at the threshold: labels
-  staggered. A click: its plan chosen in the Traffic List and loaded in New aircraft (as a click on its row). It goes when the
-  plan starts (the aircraft takes its place) or is removed. Instructor only: not in the simulation, the log, the recording or
-  the student's map.
+- **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
+  final at its distance, the threshold (departures, local), the helipad. Small label: callsign, ICAO type, starting altitude,
+  state (countdown / HELD). A formation one symbol (F2, F3...). Several at the same point (e.g. departures at the threshold):
+  labels staggered. A click: its plan chosen in the Traffic List and loaded in New aircraft (as a click on its row). It goes when
+  the plan starts (the aircraft takes its place) or is removed. Instructor only: not in the simulation, the log, the recording
+  or the student's map. (Mock-up of the ones on the ground shown 6 Nov.)
 
 ## Student console, link, log, replay (the user, 6 Nov evening) — DECIDED, design (mock-up of the student shown 6 Nov)
 - **One "snapshot" each second** (aircraft, runway, METAR/QNH/wind, time) used three times: sent on the link, written in the
