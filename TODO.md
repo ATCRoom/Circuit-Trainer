@@ -744,6 +744,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   with circuits to an empty R/D or a gate no more there: said, not started; (4) no gates: Start from falls back to LONG FIN, not
   R/D; R/D text with the decimal point, radial 0-359; gate names R/D, RWY HDG, RADIAL, LONG FIN, RWY refused; hand-written files
   (transit from LONG FIN without CIRCUITS, circuits ∞) handled safely.
+- **360 = 0** (the user, 6 Nov): every radial box (R/D start, R/D exit, Radial °M) takes 360 as north, the same as 0; shown as
+  written (R360/10).
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
