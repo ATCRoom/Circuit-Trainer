@@ -26,6 +26,9 @@ namespace ATCRoom.TwrTrainer
 
         public static string Settings => Path.Combine(Folder, SettingsFileName);
 
+        /// <summary>The photos for the debriefing (the user, 6 Nov): one folder for each session.</summary>
+        public static string PhotosFolder => Path.Combine(Folder, "Photos");
+
         public static string Performance => Path.Combine(Folder, ATCRoom.Sim.PerformanceFile.FileName);
 
         /// <summary>The folders as said to the user (without the Windows user name).</summary>

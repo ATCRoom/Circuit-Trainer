@@ -2116,6 +2116,80 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             }
         }
 
+        // 57. A departure to a point on its turn side (the user, 6 Nov: L / R kept, also the long way), its exit altitude.
+        {
+            (double m57X, double m57Y) = Place(CircuitLength / 2, 0, CircuitSide.Left);
+            double b57 = (CircuitCourse - 70) * Math.PI / 180;
+            (double p57X, double p57Y) = (m57X + 8 * Math.Sin(b57), m57Y + 8 * Math.Cos(b57));
+            foreach (bool right57 in new[] { false, true })
+            {
+                SimEngine s57 = NewCircuitEngine();
+                string c57 = s57.AddDeparture(double.NaN, right57, null, null, 2000, performanceClass: "Turboprop", exitX: p57X, exitY: p57Y);
+                double first57 = 0, high57 = 0;
+                List<AircraftState> f57 = Fly(s57, c57, 1800, st =>
+                {
+                    if (first57 == 0 && st.Contact == GroundContact.Airborne && Math.Abs(st.TurnRateDps) > 0.5) first57 = st.TurnRateDps;
+                    high57 = Math.Max(high57, Height(st));
+                });
+                AircraftState l57 = f57[^1];
+                double o57 = Math.Sqrt((l57.X - p57X) * (l57.X - p57X) + (l57.Y - p57Y) * (l57.Y - p57Y));
+                Check(s57.Get(c57) == null && o57 < 0.6 && (right57 ? first57 > 0 : first57 < 0) && Between(high57, 1900, 2050),
+                    $"Departure to a point on the left, turn {(right57 ? "R (the long way)" : "L")}: turns that way, 2000 ft, gone there",
+                    $"first turn rate {first57:F1}, highest {high57:F0} ft, {o57:F2} NM from it, {Legs(f57)}");
+            }
+        }
+
+        // 58. A departure to a point taken off its way by the instructor (a heading): gone 10 NM out as the others (review of 6 Nov).
+        {
+            (double m58X, double m58Y) = Place(CircuitLength / 2, 0, CircuitSide.Left);
+            double b58 = (CircuitCourse + 60) * Math.PI / 180;
+            SimEngine s58 = NewCircuitEngine();
+            string c58 = s58.AddDeparture(double.NaN, true, null, null, null, performanceClass: "Turboprop", exitX: m58X + 20 * Math.Sin(b58), exitY: m58Y + 20 * Math.Cos(b58));
+            bool given58 = false;
+            List<AircraftState> f58 = Fly(s58, c58, 1800, st =>
+            {
+                if (!given58 && st.Contact == GroundContact.Airborne && Height(st) > 800)
+                {
+                    given58 = true;
+                    s58.SetHeading(c58, SimEngine.Wrap(CircuitCourse - 90) + 360);
+                }
+            });
+            AircraftState l58 = f58[^1];
+            double o58 = Math.Sqrt((l58.X - m58X) * (l58.X - m58X) + (l58.Y - m58Y) * (l58.Y - m58Y));
+            Check(given58 && s58.Get(c58) == null && Between(o58, 9.8, 11), "Departure to a point, a heading of the instructor's: gone 10 NM out",
+                $"{o58:F2} NM out when gone, {f58.Count} s");
+        }
+
+        // 59. A helicopter from a helipad (the user, 6 Nov): still on the pad, a hover of 15 ft in 4 s at most, an instruction
+        // waits for its end, then away as from the runway.
+        {
+            SimEngine s59 = NewCircuitEngine();
+            (double p59X, double p59Y) = Place(0.3, 0.15, CircuitSide.Left);
+            string c59 = s59.AddDeparture(double.NaN, null, null, null, null, performanceClass: "Helicopter");
+            s59.TakeOffFromPad(c59, p59X, p59Y);
+            bool still59 = true, under59 = true;
+            double hover59 = double.NaN, top59 = 0;
+            AircraftState? end59 = null;
+            for (double t59 = 0.5; t59 <= 3.9 + 1e-9; t59 += 0.1)
+            {
+                if (Math.Abs(t59 - 1.0) < 1e-9) s59.SetHeading(c59, SimEngine.Wrap(CircuitCourse + 90) + 360);
+                s59.RunFor(t59 == 0.5 ? 0.5 : 0.1);
+                AircraftState a59 = s59.Get(c59)!;
+                still59 &= Math.Abs(a59.X - p59X) < 1e-6 && Math.Abs(a59.Y - p59Y) < 1e-6 && a59.Contact != GroundContact.Airborne;
+                under59 &= Height(a59) <= 15 + 1e-6;
+                top59 = Math.Max(top59, Height(a59));
+                if (double.IsNaN(hover59) && Height(a59) > 15 - 0.01) hover59 = t59;
+            }
+            s59.RunFor(0.2);
+            end59 = s59.Get(c59);
+            Check(still59 && under59 && hover59 is >= 3 and <= 3.9 && end59 is { Contact: GroundContact.Airborne },
+                "Helicopter from a helipad: still on the pad, 15 ft by 3.5 s, away after 4 s", $"top {top59:F1} ft, 15 ft at {hover59:F1} s, then {end59?.Contact}");
+            List<AircraftState> f59 = Fly(s59, c59, 120);
+            AircraftState l59 = f59[^1];
+            Check(Math.Abs(SimEngine.Wrap(l59.HeadingTrue - (CircuitCourse + 90))) < 3 && Height(l59) > 100,
+                "Helicopter from a helipad: the heading given in the hover flown after it", $"heading {l59.HeadingTrue:F0}, {Height(l59):F0} ft");
+        }
+
         // START SFO a little before the High Key, on its circle: on round it, not a way back to the runway track.
         SimEngine near = NewCircuitEngine();
         string nc = near.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");

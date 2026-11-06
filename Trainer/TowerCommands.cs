@@ -197,6 +197,9 @@ namespace ATCRoom.TwrTrainer
         /// <summary>DCT TO HPAD (the user, 5 Nov): a helicopter straight to the pad now, a full stop there.</summary>
         public void DirectToPad(string callsign, double x, double y) => engine.DirectToPad(callsign, x, y);
 
+        /// <summary>A helicopter departing from a helipad (the user, 6 Nov): the aircraft just added on the runway starts there, its hover first.</summary>
+        public void TakeOffFromPad(string callsign, double x, double y) => engine.TakeOffFromPad(callsign, x, y);
+
         /// <summary>A helicopter's pad wanted, not chosen yet (HPAD?).</summary>
         public void WantPad(string callsign) => engine.WantPad(callsign);
 

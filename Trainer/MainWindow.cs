@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ATCRoom.Maps;
 using ATCRoom.Sim;
@@ -95,7 +96,16 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<bool> departRow = new([(false, "RWY HDG"), (true, "RADIAL")], (radial, _) => radial
             ? "Above 400 ft it turns (L or R) to intercept the radial (magnetic, outbound) from the middle of the runway (or from a point), then along it."
             : "On along the runway heading.");
-        private readonly ChoiceRow<bool> departTurnRow = new([(false, "L"), (true, "R")], (right, _) => right ? "The turn to the radial to the right." : "The turn to the radial to the left.");
+        /// <summary>
+        /// The first turn to the way out (the user, 6 Nov): lit by itself by the side of the runway the exit is on (on the axis or
+        /// the opposite radial: the aerodrome's circuit side); clicked: kept until the way out changes.
+        /// </summary>
+        private readonly ChoiceRow<bool> departTurnRow = new([(false, "L"), (true, "R")], (right, _) =>
+            $"After the take-off the turn to its way out to the {(right ? "right" : "left")} (lit by itself by where the exit is; click to change it).");
+        private Grid exitTurnLine = null!, exitAltLine = null!;
+        /// <summary>The altitude it climbs to when it leaves (the user, 6 Nov; empty: 3000 ft above the runway).</summary>
+        private readonly TextBox exitAltBox = new() { Width = 55 };
+        private TextBlock exitAltName = null!;
         private readonly TextBox radialBox = new() { Width = 45 };
         private readonly TextBlock radialFromText = new() { Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Text = "from the middle of the runway" };
         private (double X, double Y)? radialFrom;
@@ -140,6 +150,9 @@ namespace ATCRoom.TwrTrainer
         private readonly StackPanel padHolder = new();
         private (double X, double Y)? padPoint;
         private Grid padLine = null!;
+        private TextBlock padName = null!;
+        /// <summary>The pad row of a helicopter departure: from the runway (the user, 6 Nov: as now).</summary>
+        private const string PadRunwayName = "RWY";
         /// <summary>The width of the names of the rows of New aircraft (the user, 5 Nov: longer, clearer names).</summary>
         private const double LabelWidth = 112;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3s"), (4.0, "4s"), (5.0, "5s"), (10.0, "10s")], (v, _) => $"At the split each one {v:0} s after the one before.");
@@ -153,7 +166,7 @@ namespace ATCRoom.TwrTrainer
         private double HeightOffset => airfield.Circuits.Qfe ? 0 : airfield.ElevationFt;
         private string HeightWord => airfield.Circuits.Qfe ? "Height" : "Altitude";
         /// <summary>A formation landing, both full stop (the user, 4 Nov; it depends on the country, kept in the aerodrome file).</summary>
-        private readonly ChoiceRow<bool> separationRow = new([(false, "REDUCED RWY SEP"), (true, "FULL RWY SEP")], (full, _) => full
+        private readonly ChoiceRow<bool> separationRow = new([(true, "FULL"), (false, "REDUCED")], (full, _) => full
             ? "Full rwy separation: the next one of a formation lands once the one ahead has left the runway."
             : "Reduced rwy separation: the next one of a formation lands when the one ahead has rolled a third of the runway (both full stop).");
         /// <summary>The flight plans (advanced generation), their list and the status text of each row.</summary>
@@ -269,6 +282,23 @@ namespace ATCRoom.TwrTrainer
             bar.Children.Add(speedRow);
             bar.Children.Add(new TextBlock { Text = "View", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
             bar.Children.Add(levelRow);
+            // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
+            Button photoButton = ActionButton("PHOTO", TakePhoto);
+            photoButton.Margin = new Thickness(12, 0, 4, 4);
+            photoButton.ToolTip = "A picture of the map with all the labels, for the debriefing (also Ctrl+S, or the middle mouse button on the map). Saved in the Photos folder, one folder for each session.";
+            Button folderButton = ActionButton("FOLDER", OpenPhotos);
+            folderButton.ToolTip = "Opens the folder of the photos of this session (Photos).";
+            bar.Children.Add(photoButton);
+            bar.Children.Add(folderButton);
+            photoText.VerticalAlignment = VerticalAlignment.Center;
+            photoText.Margin = new Thickness(4, 0, 2, 4);
+            bar.Children.Add(photoText);
+            view.MouseDown += (_, e) =>
+            {
+                if (e.ChangedButton != MouseButton.Middle) return;
+                TakePhoto();
+                e.Handled = true;
+            };
             mapBar = new Border
             {
                 Child = bar,
@@ -450,6 +480,7 @@ namespace ATCRoom.TwrTrainer
             if (e.Key == Key.F1) { GoLevel(1); e.Handled = true; }
             else if (e.Key == Key.F2) { GoLevel(2); e.Handled = true; }
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
+            else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
         }
 
         // ----- The panel -------------------------------------------------------------------------------------------------
@@ -517,7 +548,7 @@ namespace ATCRoom.TwrTrainer
                 // (What is typed already, in the new reference: the same height.)
                 double before = HeightOffset;
                 airfield.Circuits.Qfe = qfe;
-                foreach (TextBox box in new[] { arrivalBox, hkBox, heightBox })
+                foreach (TextBox box in new[] { arrivalBox, hkBox, heightBox, exitAltBox })
                     if (double.TryParse(box.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double typed))
                         box.Text = Math.Round(typed - before + HeightOffset).ToString(CultureInfo.InvariantCulture);
                 if (airfield.Map != null) Say(airfield.Save());
@@ -537,11 +568,13 @@ namespace ATCRoom.TwrTrainer
             Row("Variation", Inline(variationBox, new TextBlock { Text = "(E / W, for the radials)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
             variationBox.LostFocus += (_, _) => ApplyVariation();
 
+            // (The user, 6 Nov night: the aircraft in a section of their own, out of Circuits.)
+            current = Section("Aircraft", null, false);
             // (The user, 6 Nov: all the classes in one window, their performance and their heights at this aerodrome.)
             Note("The classes of aircraft: their performance and their heights at this aerodrome.");
             Buttons(("Aircraft classes...", OpenClasses));
-
-            Row("Formation FS", separationRow);
+            Note("Formation landing to a full stop: separation of the next aircraft.");
+            Row("Formation separation", separationRow);
             separationRow.Picked += full =>
             {
                 airfield.Circuits.FullRunwaySeparation = full;
@@ -615,7 +648,7 @@ namespace ATCRoom.TwrTrainer
             departLine = Row("Exit via", departRow, null, LabelWidth);
             departLine.Visibility = Visibility.Collapsed;
             RadialTip(radialBox);
-            radialLine = Row("Radial °M", Wrap(radialBox, departTurnRow,
+            radialLine = Row("Radial °M", Wrap(radialBox,
                 ActionButton("FROM A POINT", () => view.AskPoint("Radial: click the point it starts from  -  Esc: cancel", (x, y) =>
                 {
                     radialFrom = (x, y);
@@ -623,13 +656,22 @@ namespace ATCRoom.TwrTrainer
                 })),
                 ActionButton("MIDDLE", () => { radialFrom = null; radialFromText.Text = "from the middle of the runway"; }),
                 radialFromText), null, LabelWidth);
+            // (The user, 6 Nov: the turn to the way out, L / R by itself; the exit altitude apart from the entry height.)
+            exitTurnLine = Row("Exit turn", departTurnRow, null, LabelWidth);
+            exitAltLine = Row("Exit altitude ft", Inline(exitAltBox, new TextBlock { Text = "(empty: 3000 above the runway)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
+            exitAltName = (TextBlock)exitAltLine.Children[0];
+            exitAltBox.ToolTip = "The altitude it climbs to when it leaves (empty: 3000 ft above the runway).";
             viaLine = Row("Via", viaRow, null, LabelWidth);
             typeRow.Show(Flight.Arrival);
             viaRow.Show(Via.Overhead);
             typeRow.Picked += type =>
             {
-                // (The user, 5 Nov: a departure away at once by default.)
-                if (type == Flight.Departure) lapsRow.Show(0);
+                // (The user, 5 Nov: a departure away at once by default; a helicopter from the runway unless a pad is chosen.)
+                if (type == Flight.Departure)
+                {
+                    lapsRow.Show(0);
+                    padRow.Show(PadRunwayName);
+                }
                 // (Back to one that lands: it lands at the first final unless asked.)
                 if (type is Flight.Arrival or Flight.Local) onFinalRow.Show(EndAction.FullStop);
                 ShowEntries();
@@ -645,14 +687,16 @@ namespace ATCRoom.TwrTrainer
             // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
             onFinalLine = Row("On Final", onFinalRow, null, LabelWidth);
             padLine = Row("Helipad", padHolder, null, LabelWidth);
+            padName = (TextBlock)padLine.Children[0];
             onFinalRow.Show(EndAction.FullStop);
             onFinalRow.Picked += _ => ShowEntries();
             circuitsLine = Row("Numb. of Circuits", lapsRow, null, LabelWidth);
             departRow.Show(false);
             departTurnRow.Show(true);
             departRow.Picked += _ => ShowEntries();
-            // (The shorter turn as the radial is written; L / R clicked: the instructor's, kept.)
-            radialBox.TextChanged += (_, _) => ShortTurnToRadial();
+            // (The turn by itself as the way out is written; L / R clicked: the instructor's, kept until the way out changes.)
+            foreach (TextBox box in new[] { radialBox, toRadialBox, toDistanceBox })
+                box.TextChanged += (_, _) => WayOutChanged();
             departTurnRow.Picked += _ => turnChosen = true;
             formationRow.Show(1);
             splitRow.Show(3.0);
@@ -697,8 +741,8 @@ namespace ATCRoom.TwrTrainer
             StackPanel more = new();
             current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
-            arrivalName = (TextBlock)Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth).Children[0];
-            arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure: the height it climbs to when it leaves (empty: 3000 ft).";
+            arrivalName = (TextBlock)Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth).Children[0];
+            arrivalBox.ToolTip = "The height it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A crossing: its height. (A departure: Exit altitude.)";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
             toListButton = ActionButton("TO LIST", AddPlan);
             cancelEditButton = ActionButton("CANCEL", CancelEdit);
@@ -1123,6 +1167,96 @@ namespace ATCRoom.TwrTrainer
             if (part != null && !part.IsOpen && !string.IsNullOrEmpty(text)) part.Flash(text);
         }
 
+        // ----- Photos for the debriefing (the user, 6 Nov) ----------------------------------------------------------------
+
+        /// <summary>The folder of the photos of this session (made at the first photo: the date and time of the start).</summary>
+        private readonly string photoSession = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+        private string PhotoFolder => Path.Combine(Paths.PhotosFolder, photoSession);
+        private int photoCount;
+        private readonly TextBlock photoText = new() { Foreground = DimBrush, FontSize = 11 };
+        private DispatcherTimer? photoTextTimer;
+
+        /// <summary>
+        /// A picture of the map with all the labels of the tracks, at the moment of the click (the simulation goes on), saved
+        /// as Photo-03_T+12m40s.png (the number of the session, the simulated time) in the folder of the session.
+        /// </summary>
+        private void TakePhoto()
+        {
+            if (view.ActualWidth < 20 || view.ActualHeight < 20) return;
+            RenderTargetBitmap bitmap;
+            try
+            {
+                DpiScale dpi = VisualTreeHelper.GetDpi(view);
+                Rect area = new(0, 0, view.ActualWidth, view.ActualHeight);
+                DrawingVisual picture = new();
+                using (DrawingContext dc = picture.RenderOpen()) dc.DrawRectangle(new VisualBrush(view) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }, null, area);
+                bitmap = new RenderTargetBitmap((int)Math.Ceiling(area.Width * dpi.DpiScaleX), (int)Math.Ceiling(area.Height * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+                bitmap.Render(picture);
+                bitmap.Freeze();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or OutOfMemoryException)
+            {
+                PhotoSaid("Photo not taken (the map could not be drawn).");
+                return;
+            }
+            string folder = PhotoFolder;
+            int number = ++photoCount;
+            double time = Math.Max(0, engine.Time);
+            string name = string.Create(CultureInfo.InvariantCulture, $"Photo-{number:00}_T+{(int)(time / 60)}m{(int)(time % 60):00}s.png");
+            // (Written on another thread: the simulation does not wait.)
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                string said;
+                try
+                {
+                    Directory.CreateDirectory(folder);
+                    string path = Path.Combine(folder, name);
+                    // (The number of the session: never over a photo already there.)
+                    if (File.Exists(path)) path = Path.Combine(folder, Path.GetFileNameWithoutExtension(name) + "_" + DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture) + ".png");
+                    PngBitmapEncoder encoder = new();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                    using FileStream file = File.Create(path);
+                    encoder.Save(file);
+                    said = $"Photo {number}: {Path.GetFileName(path)}";
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+                {
+                    // (No path in the message: the Windows user name.)
+                    said = $"Photo {number} not saved: the Photos folder cannot be written (read-only, or the disk is full).";
+                }
+                Dispatcher.InvokeAsync(() => PhotoSaid(said));
+            });
+        }
+
+        /// <summary>What happened to a photo, beside PHOTO on the bar of the map for a few seconds (not on the map: not in the next photo).</summary>
+        private void PhotoSaid(string text)
+        {
+            photoText.Text = text;
+            photoTextTimer?.Stop();
+            photoTextTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            photoTextTimer.Tick += (_, _) =>
+            {
+                photoText.Text = "";
+                photoTextTimer?.Stop();
+            };
+            photoTextTimer.Start();
+        }
+
+        /// <summary>The folder of the photos of this session (the Photos folder before the first photo) in the Explorer.</summary>
+        private void OpenPhotos()
+        {
+            string folder = photoCount > 0 && Directory.Exists(PhotoFolder) ? PhotoFolder : Paths.PhotosFolder;
+            try
+            {
+                Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+            {
+                PhotoSaid("The Photos folder cannot be opened.");
+            }
+        }
+
         // ----- Aerodrome -------------------------------------------------------------------------------------------------
 
         private void ChooseMap()
@@ -1350,6 +1484,7 @@ namespace ATCRoom.TwrTrainer
             view.Qfe = qfe;
             if (arrivalName == null) return;
             arrivalName.Text = $"{HeightWord} ft";
+            exitAltName.Text = $"Exit {HeightWord.ToLowerInvariant()} ft";
             heightName.Text = $"{HeightWord} ft";
             hkName.Text = $"HK {HeightWord.ToLowerInvariant()} ft";
             heightBox.ToolTip = qfe ? "Height above the runway (ft) for GO." : "Altitude (ft, QNH) for GO.";
@@ -1359,7 +1494,7 @@ namespace ATCRoom.TwrTrainer
         private void MakeClassRow(string? keep)
         {
             classHolder.Children.Clear();
-            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its performance and its heights at this aerodrome: Settings › Circuits › Aircraft classes).");
+            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its performance and its heights at this aerodrome: Settings › Aircraft › Aircraft classes).");
             // (The user, 4 Nov: the jet by default, the most used.)
             classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, keep, StringComparison.OrdinalIgnoreCase))?.Name
                 ?? engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
@@ -1560,7 +1695,7 @@ namespace ATCRoom.TwrTrainer
                 Say(airfield.Save());
             }
             variationBox.Text = VariationText(variation);
-            ShortTurnToRadial();
+            AutoExitTurn();
         }
 
         private static string VariationText(double variation) =>
@@ -1569,17 +1704,46 @@ namespace ATCRoom.TwrTrainer
         private static void RadialTip(TextBox box) =>
             box.ToolTip = "The radial (degrees magnetic, outbound) it intercepts after the take-off, from the middle of the runway or the point clicked.";
 
-        /// <summary>The radial written (degrees magnetic), or NaN.</summary>
+        /// <summary>The radial written (degrees magnetic; 360 = 0, kept as written, the user 6 Nov), or NaN.</summary>
         private double RadialWritten() =>
-            double.TryParse(radialBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double r) && r >= 0 && r <= 360 ? r % 360 : double.NaN;
+            double.TryParse(radialBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double r) && r >= 0 && r <= 360 ? r : double.NaN;
 
-        /// <summary>The turn to the radial the shorter way from the runway heading (the user, 5 Nov: the default; L / R change it).</summary>
-        private void ShortTurnToRadial()
+        /// <summary>The way out written changed (the way, its radial, its R/D point): the turn by itself again.</summary>
+        private void WayOutChanged()
         {
-            double radial = RadialWritten();
-            if (turnChosen || double.IsNaN(radial) || double.IsNaN(airfield.Course)) return;
-            double toward = radial + (airfield.Circuits.MagneticVariation ?? 0) - airfield.Course;
-            departTurnRow.Show(SimEngine.Wrap(toward) >= 0);
+            turnChosen = false;
+            AutoExitTurn();
+        }
+
+        /// <summary>The turn to the way out by itself (the user, 6 Nov), unless clicked by hand: see <see cref="ExitSideRight"/>.</summary>
+        private void AutoExitTurn()
+        {
+            if (turnChosen || ExitSideRight() is not bool right) return;
+            departTurnRow.Show(right);
+        }
+
+        /// <summary>
+        /// The side of the runway axis (seen from the take-off) the exit of New aircraft is on (the user, 6 Nov): right true;
+        /// on the axis (0.3 NM) or the opposite radial: the aerodrome's circuit side; null: none (RWY HDG, nothing written).
+        /// </summary>
+        private bool? ExitSideRight()
+        {
+            if (double.IsNaN(airfield.Course) || !toRow.HasValue) return null;
+            string to = toRow.Value ?? "";
+            bool circuitRight = (airfield.Runway != null ? airfield.Circuits.SideOf(airfield.Runway.Runway, CircuitType.Conventional) : null) == CircuitSide.Right;
+            if (to == ExitWay.RunwayHeading) return null;
+            if (to == ExitWay.Radial)
+            {
+                double radial = RadialWritten();
+                if (double.IsNaN(radial)) return null;
+                double toward = SimEngine.Wrap(radial + (airfield.Circuits.MagneticVariation ?? 0) - airfield.Course);
+                return Math.Abs(toward) < 3 || Math.Abs(toward) > 177 ? circuitRight : toward > 0;
+            }
+            if ((to == From.Point ? RdPoint(Typed(toRadialBox, 0, 360), Typed(toDistanceBox, 0.1, 200)) : PlaceOf(to, null, null)) is not (double x, double y)) return null;
+            // (The plane from the threshold: right of the axis positive.)
+            double course = airfield.Course * Math.PI / 180;
+            double lateral = x * Math.Cos(course) - y * Math.Sin(course);
+            return Math.Abs(lateral) < 0.3 ? circuitRight : lateral > 0;
         }
 
         /// <summary>The plan made of the rows of group 1 now.</summary>
@@ -1589,6 +1753,9 @@ namespace ATCRoom.TwrTrainer
             int Laps() => lapsRow.HasValue ? lapsRow.Value : 1;
             EndAction OnFinal() => onFinalRow.HasValue ? onFinalRow.Value : EndAction.FullStop;
             double delay = double.TryParse(delayBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && d >= 0 ? d : 0;
+            // (Departures and transits using the runway: the four ways out, the turn, the exit altitude.)
+            bool RunwayWay() => Type() == Flight.Departure || (Type() == Flight.Transit && viaRow.HasValue && viaRow.Value == Via.Circuits);
+            bool UsesPad() => OnFinal() == PadEnd || PadDeparture();
             return new TowerPlan
             {
                 Callsign = callsignBox.Text.Trim().ToUpperInvariant(),
@@ -1603,9 +1770,11 @@ namespace ATCRoom.TwrTrainer
                 End = OnFinal() == PadEnd ? EndAction.FullStop : OnFinal(),
                 OnFinal = OnFinal() == PadEnd ? EndAction.FullStop : OnFinal(),
                 ToPad = OnFinal() == PadEnd,
-                PadName = OnFinal() == PadEnd && padRow.HasValue && padRow.Value != PadPointName ? padRow.Value ?? "" : "",
-                PadX = OnFinal() == PadEnd && padRow.Value == PadPointName ? padPoint?.X : null,
-                PadY = OnFinal() == PadEnd && padRow.Value == PadPointName ? padPoint?.Y : null,
+                PadName = UsesPad() && padRow.HasValue && padRow.Value is not (PadPointName or PadRunwayName) ? padRow.Value ?? "" : "",
+                PadX = UsesPad() && padRow.Value == PadPointName ? padPoint?.X : null,
+                PadY = UsesPad() && padRow.Value == PadPointName ? padPoint?.Y : null,
+                FromPad = PadDeparture() && padRow.HasValue && padRow.Value != PadRunwayName,
+                WayOut = true,
                 Circuits = (OnFinal() is EndAction.FullStop or PadEnd) && (Type() is Flight.Arrival or Flight.Local) ? 0 : Laps(),
                 Local = Type() == Flight.Local,
                 TransitCircuits = Type() == Flight.Transit && viaRow.Value == Via.Circuits,
@@ -1616,7 +1785,9 @@ namespace ATCRoom.TwrTrainer
                 Departure = Type() == Flight.Departure,
                 // (The way out of a departure or a transit, the user 6 Nov: RWY HDG, RADIAL, a gate, an R/D point.)
                 Radial = (Type() is Flight.Departure or Flight.Transit) && toRow.HasValue && toRow.Value == ExitWay.Radial ? RadialWritten() : null,
-                TurnRight = (Type() is Flight.Departure or Flight.Transit) && toRow.HasValue && toRow.Value == ExitWay.Radial && departTurnRow.HasValue ? departTurnRow.Value : null,
+                // (The turn to every way out but the runway heading, the user 6 Nov.)
+                TurnRight = RunwayWay() && toRow.HasValue && toRow.Value != ExitWay.RunwayHeading && departTurnRow.HasValue ? departTurnRow.Value : null,
+                ExitAltFt = RunwayWay() && double.TryParse(exitAltBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double e) && e - HeightOffset > 0 ? e - HeightOffset : null,
                 RadialFromX = radialFrom?.X,
                 RadialFromY = radialFrom?.Y,
                 To = (Type() is Flight.Departure or Flight.Transit) && toRow.HasValue ? toRow.Value ?? "" : "",
@@ -1636,7 +1807,8 @@ namespace ATCRoom.TwrTrainer
         {
             TowerPlan plan = PlanOfRows();
             string? error = Launch(plan, out string added);
-            Say(error ?? (plan.ToPad && PadOf(plan) == null ? "No helipad yet: choose it in flight with HPAD, else it lands on the runway." : null), Area.New);
+            Say(error ?? (plan.ToPad && PadOf(plan) == null ? "No helipad yet: choose it in flight with HPAD, else it lands on the runway."
+                : plan.FromPad && plan.Departure && PadOf(plan) == null ? "No helipad clicked: it takes off from the runway." : null), Area.New);
             if (error != null) return;
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
             Started(plan, added);
@@ -1658,6 +1830,8 @@ namespace ATCRoom.TwrTrainer
             PlanOfCircuits(plan, added);
             // (The SFO: the height written is its High Key, the user 6 Nov.)
             if (!plan.Transit && plan.HighKeyFt is double highKey && engine.Get(added)?.Circuit == CircuitType.Sfo) commands.Height(added, highKey);
+            // (A helicopter departing from a helipad, the user 6 Nov: still there, its hover, then as from the runway.)
+            if (plan.FromPad && plan.Departure && plan.Formation <= 1 && PadOf(plan) is { } padFrom) commands.TakeOffFromPad(added, padFrom.X, padFrom.Y);
             if (plan.ToPad && PadOf(plan) is { } pad) commands.Helipad(added, pad.X, pad.Y);
             // (No pad yet, the user 5 Nov: it starts anyway, HPAD? on its label; none given by the final: the runway.)
             else if (plan.ToPad) commands.WantPad(added);
@@ -1685,8 +1859,8 @@ namespace ATCRoom.TwrTrainer
                 if (!plan.TransitCircuits) return;
                 (double radial, (double X, double Y)? exit, _) = ExitOf(plan);
                 // (From the long final its approach first, then its circuits: OUT = the approach only, the user 6 Nov.)
-                commands.SetLaps(added, plan.From == From.LongFinal ? circuits + 1 : Math.Max(1, circuits), each, each);
-                commands.LeaveAfterCircuits(added, radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, exit?.X ?? double.NaN, exit?.Y ?? double.NaN);
+                commands.SetLaps(added, plan.From == From.LongFinal ? Math.Max(0, circuits) + 1 : Math.Max(1, circuits), each, each);
+                commands.LeaveAfterCircuits(added, radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.ExitAltFt, exit?.X ?? double.NaN, exit?.Y ?? double.NaN);
                 return;
             }
             if (plan.Departure)
@@ -1694,7 +1868,7 @@ namespace ATCRoom.TwrTrainer
                 if (circuits <= 0) return;
                 (double radial, (double X, double Y)? exit, _) = ExitOf(plan);
                 commands.SetLaps(added, circuits, each, each);
-                commands.LeaveAfterCircuits(added, radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, exit?.X ?? double.NaN, exit?.Y ?? double.NaN);
+                commands.LeaveAfterCircuits(added, radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.ExitAltFt, exit?.X ?? double.NaN, exit?.Y ?? double.NaN);
                 return;
             }
             if (plan.OnFinal == EndAction.FullStop) commands.SetLaps(added, 1, EndAction.FullStop, EndAction.TouchAndGo);
@@ -1716,13 +1890,16 @@ namespace ATCRoom.TwrTrainer
         private void RebuildPads()
         {
             string? was = padRow.HasValue ? padRow.Value : null;
-            padRow = new ChoiceRow<string>([.. airfield.Helipads.Select(h => (h.Name, h.Name)), (PadPointName, "POINT")],
-                (value, _) => value == PadPointName ? "A point clicked on the map (click POINT again for another one)." : $"The helipad {value}.");
+            padRow = new ChoiceRow<string>([(PadRunwayName, "RWY"), .. airfield.Helipads.Select(h => (h.Name, h.Name)), (PadPointName, "POINT")],
+                (value, _) => value == PadPointName ? "A point clicked on the map (click POINT again for another one)."
+                    : value == PadRunwayName ? "A helicopter departure from the runway, as an aeroplane."
+                    : $"The helipad {value} (a departure: still there, a hover of {SimEngine.PadHoverFt:0} ft, then away along the runway).");
             padRow.Picked += value =>
             {
-                if (value == PadPointName) view.AskPoint("Helipad: click where the helicopter lands  -  Esc: cancel", (x, y) => padPoint = (x, y));
+                if (value == PadPointName) view.AskPoint(PadDeparture() ? "Helipad: click where the helicopter takes off  -  Esc: cancel" : "Helipad: click where the helicopter lands  -  Esc: cancel", (x, y) => padPoint = (x, y));
             };
-            padRow.Show(was != null && (was == PadPointName || airfield.Helipads.Any(h => h.Name == was)) ? was : airfield.Helipads.Count > 0 ? airfield.Helipads[0].Name : PadPointName);
+            padRow.Show(was != null && (was is PadPointName or PadRunwayName || airfield.Helipads.Any(h => h.Name == was)) ? was : airfield.Helipads.Count > 0 ? airfield.Helipads[0].Name : PadPointName);
+            if (departLine != null) ShowEntries();
             padHolder.Children.Clear();
             padHolder.Children.Add(padRow);
         }
@@ -1743,9 +1920,11 @@ namespace ATCRoom.TwrTrainer
                 // straight to a gate or an R/D point (the user, 6 Nov).
                 (double radial, (double X, double Y)? point, string? wrong) = ExitOf(plan);
                 if (wrong != null) return wrong;
-                return commands.AddDeparture(radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.HeightFt, kind, callsign, out added,
+                return commands.AddDeparture(radial, plan.TurnRight, plan.RadialFromX, plan.RadialFromY, plan.ExitAltFt, kind, callsign, out added,
                     point?.X ?? double.NaN, point?.Y ?? double.NaN);
             }
+            // (A departure with circuits to an R/D point not written or a gate no more there: said, not started; the review of 6 Nov.)
+            if (plan.Departure && ExitOf(plan).Error is string exitWrong) return exitWrong;
             if (plan.From == From.Runway)
             {
                 CircuitType type = plan.Circuit is CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
@@ -1828,12 +2007,10 @@ namespace ATCRoom.TwrTrainer
             editing = p;
             p.Upgrade();
             // (PTRN is gone, the user 5 Nov: such an old plan into the first gate.)
-            if (p.From.Length > 0) fromRow.Show(From.IsInCircuit(p.From) ? FromItems()[0] : p.From);
+            if (p.From.Length > 0) fromRow.Show(From.IsInCircuit(p.From) ? DefaultFrom() : p.From);
             typeRow.Show(p.Transit ? Flight.Transit : p.Departure ? Flight.Departure : p.Local ? Flight.Local : Flight.Arrival);
             departRow.Show(p.Radial != null);
             radialBox.Text = p.Radial is double r && !double.IsNaN(r) ? r.ToString("0", CultureInfo.InvariantCulture) : "";
-            if (p.TurnRight is bool right) departTurnRow.Show(right);
-            turnChosen = p.TurnRight != null;
             radialFrom = p.RadialFromX is double fx && p.RadialFromY is double fy ? (fx, fy) : null;
             radialFromText.Text = radialFrom != null ? "from the point clicked" : "from the middle of the runway";
             // (The way out; a departure of before: To empty, the radial written or not.)
@@ -1858,11 +2035,12 @@ namespace ATCRoom.TwrTrainer
                 }
             }
             onFinalRow.Show(p.ToPad ? PadEnd : p.OnFinal is EndAction.FullStop or EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.FullStop);
-            if (p.ToPad)
+            if (p.ToPad || p.FromPad)
             {
                 padPoint = p.PadX is double px && p.PadY is double py ? (px, py) : padPoint;
-                padRow.Show(p.PadName.Length > 0 ? p.PadName : PadPointName);
+                padRow.Show(p.PadName.Length > 0 && airfield.Helipads.Any(h => string.Equals(h.Name, p.PadName, StringComparison.OrdinalIgnoreCase)) ? airfield.Helipads.First(h => string.Equals(h.Name, p.PadName, StringComparison.OrdinalIgnoreCase)).Name : PadPointName);
             }
+            else if (p.Departure) padRow.Show(PadRunwayName);
             int circuits = p.Circuits ?? 0;
             lapsRow.Show(circuits == 0 && !p.Departure && !(p.Transit && p.From == From.LongFinal) ? 1 : circuits);
             formationRow.Show(Math.Clamp(p.Formation, 1, SimEngine.MaxFormation));
@@ -1873,8 +2051,16 @@ namespace ATCRoom.TwrTrainer
             rulesRow.Show(p.Ifr);
             arrivalBox.Text = p.HeightFt is double h ? (h + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             hkBox.Text = p.HighKeyFt is double k ? (k + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
+            exitAltBox.Text = p.ExitAltFt is double ea ? (ea + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             delayBox.Text = p.DelayMinutes.ToString("0.#", CultureInfo.InvariantCulture);
             ShowEntries();
+            // (Its turn as saved, kept; none saved: by itself.)
+            if (p.TurnRight is bool right)
+            {
+                departTurnRow.Show(right);
+                turnChosen = true;
+            }
+            else WayOutChanged();
 
             toListButton.Content = "UPDATE";
             toListButton.ToolTip = "The plan of the Traffic List changed as in these rows (in the same place).";
@@ -1918,13 +2104,17 @@ namespace ATCRoom.TwrTrainer
             string start = p.From == From.Point ? RdText(p.FromRadial, p.FromDistance) : p.From == From.LongFinal ? "LF" : p.From;
             if (p.Transit)
             {
-                if (p.TransitCircuits) return $"{who}  TRANSIT {start}{height} → {entry} {circuit}{side} {(circuits == 0 ? "OUT" : $"{circuits}×")} {Short(p.OnFinal)} → {way}  {delay}";
+                if (p.TransitCircuits) return $"{who}  TRANSIT {start}{height} → {entry} {circuit}{side} {(circuits <= 0 ? "OUT" : $"{circuits}×")} {Short(p.OnFinal)} → {way}{turn}{exitAlt}  {delay}";
                 return $"{who}  TRANSIT {start} → {(p.Overhead ? "OVHD → " : "")}{way}{height}  {delay}";
             }
+            // (The exit altitude, the user 6 Nov; a helicopter from a helipad.)
+            string exitAlt = p.ExitAltFt is double ea ? $" {ea + HeightOffset:0} ft" : "";
+            string turn = p.TurnRight is bool tr && p.To != ExitWay.Radial && p.To != ExitWay.RunwayHeading && p.To.Length > 0 ? (tr ? " R" : " L") : "";
+            string pad = p.FromPad ? $" HPAD {(p.PadName.Length > 0 ? p.PadName : "point")}" : "";
             if (p.Departure)
             {
-                if (circuits <= 0) return $"{who}  DEP{height} OUT {way}  {delay}";
-                return $"{who}  DEP{height} → {circuit}{side} {circuits}× {Short(p.OnFinal)} → OUT {way}  {delay}";
+                if (circuits <= 0) return $"{who}  DEP{pad} OUT {way}{turn}{exitAlt}  {delay}";
+                return $"{who}  DEP{pad} → {circuit}{side} {circuits}× {Short(p.OnFinal)} → OUT {way}{turn}{exitAlt}  {delay}";
             }
             string plan = p.ToPad ? $"HPAD {(p.PadName.Length > 0 ? p.PadName : "point")}" : p.OnFinal == EndAction.FullStop ? Short(EndAction.FullStop)
                 : circuits == TowerPlan.Forever ? $"∞ {Short(p.OnFinal)}" : $"{Short(p.OnFinal)} {circuits}× → {Short(EndAction.FullStop)}";
@@ -2137,7 +2327,8 @@ namespace ATCRoom.TwrTrainer
                     _ when From.IsInCircuit(p.From) => "CCT",
                     _ => p.From
                 };
-            string altitude = p.HeightFt is double h ? $"{Math.Max(0, Math.Round((h + HeightOffset) / 100)):000}" : "";
+            double? shown = p.Departure ? p.ExitAltFt : p.HeightFt;
+            string altitude = shown is double h ? $"{Math.Max(0, Math.Round((h + HeightOffset) / 100)):000}" : "";
             return (kind, entry, altitude);
         }
 
@@ -2191,7 +2382,12 @@ namespace ATCRoom.TwrTrainer
             (double X, double Y)? At(CircuitStart start, CircuitType type) => engine.StartPoint(start, type, p.Side, p.Class.Length > 0 ? p.Class : null);
             (double X, double Y)? point;
             bool ground = false;
-            if (p.Departure || p.From == From.Runway)
+            if (p.Departure && p.FromPad && p.Formation <= 1 && PadOf(p) is (double padX, double padY))
+            {
+                point = (padX, padY);
+                ground = true;
+            }
+            else if (p.Departure || p.From == From.Runway)
             {
                 point = At(CircuitStart.Runway, CircuitType.Conventional);
                 ground = true;
@@ -2570,7 +2766,7 @@ namespace ATCRoom.TwrTrainer
                 if (from == From.Runway && circuitRow.Value is not (CircuitType.Conventional or CircuitType.Wide)) circuitRow.Show(CircuitType.Conventional);
                 ShowEntries();
             };
-            fromRow.Show(was != null && items.Any(i => i.Item1 == was) ? was : items[0].Item1);
+            fromRow.Show(was != null && items.Any(i => i.Item1 == was) ? was : DefaultFrom());
             fromHolder.Children.Clear();
             fromHolder.Children.Add(fromRow);
             // The ways out (the user, 6 Nov): along the runway, onto a radial, to a gate, to an R/D point.
@@ -2583,7 +2779,11 @@ namespace ATCRoom.TwrTrainer
                 From.Point => "Straight to a point given as radial °M / distance NM from the middle of the runway (R/D exit), gone there.",
                 _ => $"Straight to the gate {value}, gone there."
             });
-            toRow.Picked += _ => ShowEntries();
+            toRow.Picked += _ =>
+            {
+                ShowEntries();
+                WayOutChanged();
+            };
             toRow.Show(wasTo != null && exits.Any(g => g.Item1 == wasTo) ? wasTo : ExitWay.RunwayHeading);
             toHolder.Children.Clear();
             toHolder.Children.Add(toRow);
@@ -2599,6 +2799,9 @@ namespace ATCRoom.TwrTrainer
 
         /// <summary>The values of the row From (the gates, LONG FIN, RWY).</summary>
         private List<string> FromItems() => [.. airfield.Gates.Select(g => g.Name), From.Point, From.LongFinal, From.Runway];
+
+        /// <summary>The start chosen when there is no other (the review of 6 Nov): the first gate, else the long final (not R/D, empty).</summary>
+        private string DefaultFrom() => airfield.Gates.Count > 0 ? airfield.Gates[0].Name : From.LongFinal;
 
         /// <summary>The two boxes of an R/D point (radial °M, distance NM).</summary>
         private static StackPanel PointBoxes(TextBox radial, TextBox distance)
@@ -2632,7 +2835,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The R/D text of a point (R270/12).</summary>
-        private static string RdText(double? radial, double? distance) => $"R{radial ?? 0:000}/{distance ?? 0:0.#}";
+        private static string RdText(double? radial, double? distance) => string.Create(CultureInfo.InvariantCulture, $"R{radial ?? 0:000}/{distance ?? 0:0.#}");
 
         /// <summary>
         /// The way out of a plan (departure, transit): a point (gate or R/D), else along the runway heading (radial NaN) or onto
@@ -2659,7 +2862,7 @@ namespace ATCRoom.TwrTrainer
             // a transit from the long final too).
             foreach (string item in FromItems()) fromRow.SetEnabled(item, runway ? item == From.Runway : item != From.Runway);
             if (runway && fromRow.Value != From.Runway) fromRow.Show(From.Runway);
-            if (!runway && fromRow.Value == From.Runway && FromItems().FirstOrDefault(i => i != From.Runway) is string other) fromRow.Show(other);
+            if (!runway && fromRow.Value == From.Runway) fromRow.Show(DefaultFrom());
             string from = fromRow.Value ?? "";
             // (A transit from the long final comes to do something on the runway: its circuits, OUT = only the approach.)
             bool fromFinal = transit && from == From.LongFinal;
@@ -2685,6 +2888,11 @@ namespace ATCRoom.TwrTrainer
             bool padAllowed = helicopter && (arrival || local);
             onFinalRow.SetEnabled(PadEnd, padAllowed);
             if (!padAllowed && onFinalRow.Value == PadEnd) onFinalRow.Show(arrival || local ? EndAction.FullStop : EndAction.TouchAndGo);
+            // (A helicopter departing: from the runway or a helipad, the user 6 Nov; landing on a pad: a pad, not RWY.)
+            bool padDeparture = PadDeparture();
+            padRow.SetEnabled(PadRunwayName, padDeparture);
+            if (padDeparture && !padRow.HasValue) padRow.Show(PadRunwayName);
+            if (!padDeparture && padRow.Value == PadRunwayName) padRow.Show(airfield.Helipads.Count > 0 ? airfield.Helipads[0].Name : PadPointName);
             bool landsFirst = (arrival || local) && onFinalRow.Value is EndAction.FullStop or PadEnd;
             // Circuits: OUT for departures, ∞ for arrivals and locals.
             bool outAllowed = departure || fromFinal;
@@ -2699,13 +2907,16 @@ namespace ATCRoom.TwrTrainer
             patternLine.Visibility = sideLine.Visibility = onFinalLine.Visibility = Shown(inCircuit && !away);
             hkLine.Visibility = Shown(inCircuit && !away && circuitRow.Value == CircuitType.Sfo);
             circuitsLine.Visibility = Shown(departure || withCircuits || ((arrival || local) && !landsFirst));
-            padLine.Visibility = Shown(padAllowed && onFinalRow.Value == PadEnd && inCircuit);
+            padLine.Visibility = Shown((padAllowed && onFinalRow.Value == PadEnd && inCircuit) || padDeparture);
+            padName.Text = padDeparture ? "Take off from" : "Helipad";
             entryLine.Visibility = Shown(arrival || withCircuits);
             departLine.Visibility = Visibility.Collapsed;
             // (The way out: "Exit via" for a departure, "Exit to" for a transit, the user 5 / 6 Nov.)
             toLine.Visibility = Shown(departure || transit);
             toName.Text = departure ? "Exit via" : "Exit to";
             radialLine.Visibility = Shown(usesRunway && toRow.Value == ExitWay.Radial);
+            exitTurnLine.Visibility = Shown(usesRunway && toRow.Value != ExitWay.RunwayHeading);
+            exitAltLine.Visibility = Shown(usesRunway);
             toPointLine.Visibility = Shown((departure || transit) && toRow.Value == From.Point);
             fromPointLine.Visibility = Shown(!runway && from == From.Point);
             viaLine.Visibility = Shown(transit);
@@ -2717,7 +2928,16 @@ namespace ATCRoom.TwrTrainer
             if (!longFinal && entryRow.Value == CircuitEntry.Circling) entryRow.Show(CircuitEntry.Downwind);
             if (longFinal && entryRow.Value == CircuitEntry.Circling) circuitRow.Show(CircuitType.Conventional);
             if (longFinal && circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
+            AutoExitTurn();
         }
+
+        /// <summary>A helicopter departure in New aircraft (it may take off from a helipad, the user 6 Nov).</summary>
+        private bool PadDeparture() =>
+            typeRow.HasValue && typeRow.Value == Flight.Departure && engine.Classes.FirstOrDefault(c => c.Name == classRow.Value)?.CanHover == true;
+
+        /// <summary>A name of the rows Start from / Exit via (R/D, RWY HDG, RADIAL, LONG FIN, RWY, PTRN...), not for a gate.</summary>
+        private static bool ReservedGateName(string name) =>
+            name is From.Point or From.LongFinal or From.Runway or ExitWay.RunwayHeading or ExitWay.Radial || From.IsInCircuit(name);
 
         private void AddGate()
         {
@@ -2726,6 +2946,12 @@ namespace ATCRoom.TwrTrainer
             view.AskPoint("Entry gate: click it on the map (a VRP gives its name)  -  Esc: cancel", (x, y) =>
             {
                 string name = typed.Length > 0 ? typed : view.MapPointNear(x, y)?.ToUpperInvariant() ?? $"G{airfield.Circuits.Gates.Count + 1}";
+                // (Names of the rows Start from and Exit via: not a gate's, the review of 6 Nov.)
+                if (ReservedGateName(name))
+                {
+                    Say($"{name} is a name of the program (Start from, Exit via): choose another name for the gate.");
+                    return;
+                }
                 airfield.AddGate(name, x, y);
                 string? error = airfield.Save();
                 double from = airfield.FromField(x, y);

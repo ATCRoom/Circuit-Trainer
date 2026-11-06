@@ -732,7 +732,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
-## Next build (the user, 6 Nov night: "si alla prossima build") — TO DO
+## Build of 7 Nov (the user: "procedi") — WRITTEN (tests 57-59)
 - **Exit turn L / R** (no SHORT; the user, 6 Nov): row under Exit via / Exit to for departures and transits using the runway
   (hidden with RWY HDG); lit by itself each time the way out changes, by the side of the runway axis the exit point (gate, R/D,
   radial) is on, seen from the take-off; on the axis (about 0.3 NM) or the opposite radial: the aerodrome's circuit side (AD);

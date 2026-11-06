@@ -702,6 +702,8 @@ namespace ATCRoom.Sim
                 SimAircraft? plane = Find(item.Callsign);
                 // The pilot flying with the stick on that axis: the instruction waits until the stick is let go.
                 if (plane != null && ((item.Kind == Kind.Heading && plane.StickX != 0) || (item.Kind == Kind.Vertical && plane.StickY != 0))) continue;
+                // (A helicopter in its hover on a helipad, the user 6 Nov: the hover ends first, then the instruction.)
+                if (plane?.Circuit is { } hovering && double.IsFinite(hovering.PadHover)) continue;
                 pending.Remove(item);
                 if (plane != null) item.Change(plane);
             }
@@ -790,8 +792,8 @@ namespace ATCRoom.Sim
             if (!double.IsNaN(glidePathCourse))
             {
                 (double fieldX, double fieldY) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
-                // (Not those going to a gate or a point: gone there, the user 6 Nov.)
-                aircraft.RemoveAll(a => a.Circuit is { Departed: true } && a.Contact == GroundContact.Airborne && !double.IsFinite(a.Circuit.ExitX)
+                // (Not those going to a gate or a point: gone there, the user 6 Nov; taken off that way by the instructor: as the others.)
+                aircraft.RemoveAll(a => a.Circuit is { Departed: true } && a.Contact == GroundContact.Airborne && (!double.IsFinite(a.Circuit.ExitX) || a.Circuit.DepartPhase == 3)
                     && Math.Sqrt((a.X - fieldX) * (a.X - fieldX) + (a.Y - fieldY) * (a.Y - fieldY)) > DepartureGoneNM);
             }
         }

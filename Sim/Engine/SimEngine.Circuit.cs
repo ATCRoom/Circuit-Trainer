@@ -129,6 +129,8 @@ namespace ATCRoom.Sim
         /// </summary>
         public bool LeaveAfterLast;
         public double ExitX = double.NaN, ExitY = double.NaN;
+        /// <summary>A helicopter taking off from a helipad (the user, 6 Nov): seconds of its hover there (NaN: none).</summary>
+        public double PadHover = double.NaN;
         /// <summary>On the runway: seconds since the touchdown (or since the start of the take-off roll).</summary>
         public double RollTime;
         /// <summary>The point of the route the last leg change was seen for (to set the vertical rate of each leg once).</summary>
@@ -424,6 +426,8 @@ namespace ATCRoom.Sim
         private void DepartureWay(CircuitState circuit, double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt)
         {
             circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : DepartureHeight);
+            // (To a gate or a point, the user 6 Nov: its turn kept, L or R; none given: the shorter, as before.)
+            circuit.DepartTurn = turnRight switch { true => TurnDirection.Right, false => TurnDirection.Left, _ => TurnDirection.Shortest };
             if (!double.IsFinite(radialTrue)) return;
             circuit.DepartRadial = Normalize(radialTrue);
             (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
@@ -1111,6 +1115,45 @@ namespace ATCRoom.Sim
         });
 
         /// <summary>A helicopter's plan to land on a pad not given yet (shown HPAD?; given later with HPAD; none: the runway).</summary>
+        /// <summary>
+        /// A helicopter departing from a helipad (the user, 6 Nov): the aircraft just added on the runway (a take-off) starts
+        /// still on the pad (the plane, NM), up to <see cref="PadHoverFt"/> in a hover of <see cref="PadHoverSeconds"/> at most,
+        /// then it goes as from its take-off (the runway heading, its circuit or its way out). Instructions wait for the end of
+        /// the hover. Not a helicopter, or not on the runway: nothing.
+        /// </summary>
+        public void TakeOffFromPad(string callsign, double x, double y) => Change(callsign, a =>
+        {
+            if (a.Circuit == null || !a.Class.CanHover || a.Contact != GroundContact.Rolling || !double.IsFinite(x) || !double.IsFinite(y)) return;
+            a.X = x;
+            a.Y = y;
+            a.SpeedKt = a.TargetSpeedKt = a.GroundSpeedKt = 0;
+            a.AltitudeFt = runwayElevation;
+            a.Circuit.PadHover = 0;
+        });
+
+        public const double PadHoverFt = 15, PadHoverSeconds = 4;
+        /// <summary>The climb to the hover height (s): the rest of <see cref="PadHoverSeconds"/> held there.</summary>
+        private const double PadClimbSeconds = 3.5;
+
+        /// <summary>The hover on the pad (see <see cref="TakeOffFromPad"/>): up smoothly, still; at its end away as from a take-off.</summary>
+        private void PadHoverStep(SimAircraft plane, CircuitState circuit)
+        {
+            circuit.PadHover += Step;
+            double f = Math.Clamp(circuit.PadHover / PadClimbSeconds, 0, 1);
+            plane.AltitudeFt = runwayElevation + PadHoverFt * f * f * (3 - 2 * f);
+            plane.VerticalSpeedFpm = f < 1 ? PadHoverFt * 6 * f * (1 - f) / PadClimbSeconds * 60 : 0;
+            plane.SpeedKt = plane.GroundSpeedKt = 0;
+            plane.TurnRateDps = 0;
+            plane.DriftDegrees = 0;
+            if (circuit.PadHover < PadHoverSeconds - 1e-9) return;
+            circuit.PadHover = double.NaN;
+            plane.Contact = GroundContact.Airborne;
+            plane.AltitudeFt = runwayElevation + PadHoverFt;
+            plane.VerticalSpeedFpm = 0;
+            (double along, _) = RunwayFrame(plane.X, plane.Y, circuit.Side);
+            LiftOff(plane, circuit, along);
+        }
+
         public void WantPad(string callsign) => Change(callsign, a =>
         {
             if (a.Circuit != null && a.Class.CanHover && !a.Circuit.HasPad) a.Circuit.WantsPad = true;
@@ -1657,6 +1700,11 @@ namespace ATCRoom.Sim
         private void Roll(SimAircraft plane)
         {
             CircuitState circuit = plane.Circuit!;
+            if (double.IsFinite(circuit.PadHover))
+            {
+                PadHoverStep(plane, circuit);
+                return;
+            }
             circuit.RollTime += Step;
             PerformanceClass kind = plane.Class;
             double liftOff = kind.FinalSpeedKt;
@@ -1678,6 +1726,15 @@ namespace ATCRoom.Sim
                 plane.Contact = GroundContact.Airborne;
                 plane.SpeedKt = Math.Max(plane.SpeedKt, liftOff);
                 plane.AltitudeFt = runwayElevation + 1;
+                LiftOff(plane, circuit, along);
+            }
+        }
+
+        /// <summary>Just airborne from the runway (or a helipad): up along the runway, then the circuit (or away, for a departure).</summary>
+        private void LiftOff(SimAircraft plane, CircuitState circuit, double along)
+        {
+            PerformanceClass kind = plane.Class;
+            {
                 // (The first take-off: the conventional or the wide, the user 5 Nov; another circuit ordered stays for later.)
                 if (circuit.LapTouched || circuit.NextType is not (CircuitType.Overhead or CircuitType.Sfo)) NextCircuit(circuit);
                 // (A circuit of its plan flown: the next one's end; the end of this one decides what it does now.)
@@ -2058,9 +2115,12 @@ namespace ATCRoom.Sim
         /// </summary>
         private void DepartureStep(SimAircraft plane, CircuitState circuit)
         {
-            // To its exit gate: gone there (as a crossing).
-            if (double.IsFinite(circuit.ExitX) && plane.Route is { Count: > 0 } exitWay && plane.RouteNext >= exitWay.Count
-                && exitWay[^1].Name == "DEPARTURE" && circuit.DepartPhase == 0) circuit.TransitDone = true;
+            // To its exit gate or point: gone there (as a crossing).
+            if (double.IsFinite(circuit.ExitX))
+            {
+                PointDepartureStep(plane, circuit);
+                return;
+            }
             if (!double.IsFinite(circuit.DepartRadial) || circuit.DepartPhase >= 2) return;
             double course = circuit.DepartRadial * Math.PI / 180;
             double dx = plane.X - circuit.DepartFromX, dy = plane.Y - circuit.DepartFromY;
@@ -2115,6 +2175,74 @@ namespace ATCRoom.Sim
             [
                 new RoutePoint(circuit.DepartFromX + ahead * Math.Sin(course), circuit.DepartFromY + ahead * Math.Cos(course), height, plane.Class.CircuitSpeedKt, "DEPARTURE")
             ]);
+            if (altitudeGiven)
+            {
+                plane.AltitudeGiven = true;
+                plane.TargetAltitudeFt = altitude;
+                plane.VerticalMode = vertical;
+            }
+            if (speedGiven)
+            {
+                plane.SpeedGiven = true;
+                plane.TargetSpeedKt = speed;
+            }
+            circuit.DepartPhase = 2;
+        }
+
+        /// <summary>
+        /// A departure to its exit gate or R/D point (the user, 6 Nov): after the upwind straight to it, its turn on its side (L / R;
+        /// none: the shorter), gone there. Phase: 0 the upwind, 1 turning on its side, 2 straight to the point, 3 the instructor's
+        /// (a heading, another route: then gone <see cref="DepartureGoneNM"/> out as the others).
+        /// </summary>
+        private void PointDepartureStep(SimAircraft plane, CircuitState circuit)
+        {
+            if (circuit.DepartPhase == 3) return;
+            bool toPoint = plane.Navigation == NavigationMode.Route && plane.Route is { Count: > 0 } way && way[^1].Name == "DEPARTURE";
+            if (circuit.DepartPhase != 1 && toPoint && plane.RouteNext >= plane.Route!.Count)
+            {
+                circuit.TransitDone = true;
+                return;
+            }
+            if (circuit.DepartPhase == 2)
+            {
+                if (!toPoint) InstructorsDeparture(plane, circuit);
+                return;
+            }
+            double bearing = Normalize(Math.Atan2(circuit.ExitX - plane.X, circuit.ExitY - plane.Y) * 180 / Math.PI);
+            if (circuit.DepartPhase == 0)
+            {
+                if (!toPoint || plane.Route is not { Count: 2 }) { InstructorsDeparture(plane, circuit); return; }
+                if (circuit.DepartTurn == TurnDirection.Shortest) { circuit.DepartPhase = 2; return; }
+                // (As the radial: past the far end of the runway and above 400 ft, or at the end of its upwind.)
+                (double runwayAlong, _) = RunwayFrame(plane.X, plane.Y, CircuitSide.Left);
+                bool upwindOver = plane.RouteNext >= 1;
+                if (!upwindOver && (plane.AltitudeFt - runwayElevation <= WaveoffTurnHeight || runwayAlong < Math.Max(runwayLength, 0.3))) return;
+                // (Almost straight ahead: no turn to speak of, on to it.)
+                if (Math.Abs(Wrap(bearing - plane.HeadingTrue)) < 10) { circuit.DepartPhase = 2; return; }
+                circuit.Radius = Math.Max(0.15, Width(CircuitType.Close, plane.Class, CircuitSide.Left) / 2);
+                circuit.DepartIntercept = bearing;
+                plane.Navigation = NavigationMode.Manual;
+                plane.TargetHeading = bearing;
+                plane.TurnDirection = circuit.DepartTurn;
+                plane.SelectedTurnRateDps = Math.Clamp(Math.Max(30, plane.GroundSpeedKt) / 3600 / circuit.Radius * 180 / Math.PI, MinTurnRate, MaxTurnRate);
+                plane.CircuitBankDegrees = plane.Class.CircuitBankDegrees;
+                if (!plane.AltitudeGiven)
+                {
+                    plane.VerticalMode = VerticalMode.Altitude;
+                    plane.TargetAltitudeFt = circuit.DepartHeight;
+                }
+                circuit.DepartPhase = 1;
+                return;
+            }
+            // Turning on its side: a heading of the instructor's is his; facing the point (or on the heading): straight to it.
+            if (plane.Navigation != NavigationMode.Manual || Math.Abs(Wrap(plane.TargetHeading - circuit.DepartIntercept)) > 0.5) { InstructorsDeparture(plane, circuit); return; }
+            if (Math.Abs(Wrap(bearing - plane.HeadingTrue)) > 10 && Math.Abs(Wrap(plane.TargetHeading - plane.HeadingTrue)) > 2) return;
+            double height = double.IsFinite(circuit.DepartHeight) ? circuit.DepartHeight : plane.TargetAltitudeFt;
+            bool altitudeGiven = plane.AltitudeGiven, speedGiven = plane.SpeedGiven;
+            double altitude = plane.TargetAltitudeFt, speed = plane.TargetSpeedKt;
+            VerticalMode vertical = plane.VerticalMode;
+            GiveRoute(plane, [new RoutePoint(circuit.ExitX, circuit.ExitY, height, plane.Class.CircuitSpeedKt, "DEPARTURE")]);
+            plane.TurnDirection = TurnDirection.Shortest;
             if (altitudeGiven)
             {
                 plane.AltitudeGiven = true;

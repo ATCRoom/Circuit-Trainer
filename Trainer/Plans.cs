@@ -95,9 +95,39 @@ namespace ATCRoom.TwrTrainer
         public double? ToDistance { get; set; }
         public int? Circuits { get; set; }
         public const int Forever = -1;
+        /// <summary>
+        /// The altitude it climbs to when it leaves (the user, 6 Nov; ft above the runway; null: 3000 ft), apart from <see
+        /// cref="HeightFt"/> (the entry): departures and transits using the runway.
+        /// </summary>
+        public double? ExitAltFt { get; set; }
+        /// <summary>A helicopter departing from a helipad (the user, 6 Nov): <see cref="PadName"/>, else the point <see cref="PadX"/>, <see cref="PadY"/>.</summary>
+        public bool FromPad { get; set; }
+        /// <summary>A plan saved by the build of 7 Nov or later: its way out (To, TurnRight, ExitAltFt) as written.</summary>
+        public bool WayOut { get; set; }
 
-        /// <summary>A plan of an older scenario (circuits counted as finals, Last) as the same flight in the plan of 5 Nov.</summary>
+        /// <summary>A plan of an older scenario (circuits counted as finals, Last) as the same flight in the plan of 5 Nov; its way out as now.</summary>
         public void Upgrade()
+        {
+            UpgradeCircuits();
+            if (!WayOut)
+            {
+                WayOut = true;
+                // (Before the R/D build every departure kept the last gate of the row in To, never used, and its turn L / R
+                // always: that gate ignored, its runway heading or its radial as then.)
+                if (Departure && To is not (ExitWay.RunwayHeading or ExitWay.Radial or global::ATCRoom.TwrTrainer.From.Point) && TurnRight != null)
+                    To = Radial != null ? ExitWay.Radial : ExitWay.RunwayHeading;
+                // (Its Height ft was its exit altitude, the user 6 Nov.)
+                if ((Departure || TransitCircuits) && ExitAltFt == null)
+                {
+                    ExitAltFt = HeightFt;
+                    if (Departure) HeightFt = null;
+                }
+            }
+            // (A file written by hand: a transit from the long final always comes to the runway, its circuits.)
+            if (Transit && From == global::ATCRoom.TwrTrainer.From.LongFinal) TransitCircuits = true;
+        }
+
+        private void UpgradeCircuits()
         {
             if (Circuits != null) return;
             if (Transit) { Circuits = 0; return; }
