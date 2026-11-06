@@ -23,6 +23,11 @@ the decisions marked DECIDED / CORRECTION further down replace them.
 
 (Original first lines, 30 Oct:) First step: answer the questions below and make a few mock-ups, no code.
 
+## Open after the review of 6 Nov (SFO, QNH/QFE)
+- Traffic lists saved with the dev builds of 6 Nov morning: an SFO plan kept its High Key in "Height ft"; now it is read as the gate height. Only those lists; to load them right, move the value to HK altitude by hand.
+- The way to the High Key (START SFO off its circle) sizes its turns on the ground speed: with strong wind they may be a little tight (margin 1.5).
+- Switching QNH/QFE redraws Settings › Circuits from the saved values (edits not saved yet are lost).
+
 ## Starting point: what already exists (AuroraPAR v2 Trainer, repository ATCRoom/AuroraPAR-v2, branch `trainer`)
 
 Two libraries without WPF, already separate projects (net9.0) — the natural base:
