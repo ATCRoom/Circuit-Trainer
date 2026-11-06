@@ -1462,7 +1462,9 @@ namespace ATCRoom.Sim
                 // (Its turns a little wider than it turns at its bank: it can follow them.)
                 double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
                 double turnRadius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
-                sfo.InsertRange(0, ShortestToHighKey(plane, Math.Max(radius, turnRadius * 1.5), highKey));
+                // (And what it flies while it rolls into a turn.)
+                double rollIn = Math.Max(30, plane.GroundSpeedKt) / 3600 * (rate / TurnRateChange);
+                sfo.InsertRange(0, ShortestToHighKey(plane, Math.Max(radius, turnRadius * 1.5 + rollIn * 1.5), highKey));
                 GiveRoute(plane, sfo);
             }
         }
