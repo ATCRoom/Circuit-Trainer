@@ -137,13 +137,14 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>A departure with no circuit: along the runway heading (radial NaN) or onto a radial (degrees true) from a point (null: the middle of the runway).</summary>
-        public string? AddDeparture(double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt, string? performanceClass, string? callsign, out string added)
+        public string? AddDeparture(double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt, string? performanceClass, string? callsign, out string added,
+            double exitX = double.NaN, double exitY = double.NaN)
         {
             added = "";
             if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
             try
             {
-                added = engine.AddDeparture(radialTrue, turnRight, fromX, fromY, heightFt, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass);
+                added = engine.AddDeparture(radialTrue, turnRight, fromX, fromY, heightFt, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, null, exitX, exitY);
                 return null;
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)

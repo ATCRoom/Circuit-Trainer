@@ -95,26 +95,36 @@ namespace ATCRoom.TwrTrainer
             foreach (object key in notes.Keys.ToList())
                 if (!waiting.Any(s => Equals(s.Key, key)) && !flying.Any(s => Equals(s.Key, key))) notes.Remove(key);
             if (chosen != null && !waiting.Any(s => Equals(s.Key, chosen)) && !flying.Any(s => Equals(s.Key, chosen))) chosen = null;
-            string now = string.Join("|", waiting.Concat(flying).Select(s => s.ToString())) + "#" + Signature();
-            if (now == shown) return;
+            if (Text() == shown) return;
             Draw();
         }
 
-        /// <summary>A plan started: its notes go with its first aircraft (its strip moves to In contact).</summary>
-        public void Started(object plan, string callsign)
+        /// <summary>
+        /// A strip has a new key: a plan started (its notes go with its first aircraft, its strip to In contact), or a plan
+        /// changed (UPDATE: the new plan in the place of the old one).
+        /// </summary>
+        public void Rekey(object old, object now)
         {
-            if (notes.Remove(plan, out List<string>? kept)) notes[callsign] = kept;
-            if (Equals(chosen, plan)) chosen = callsign;
+            if (ReferenceEquals(old, now) || Equals(old, now)) return;
+            if (notes.Remove(old, out List<string>? kept)) notes[now] = kept;
+            if (Equals(chosen, old)) chosen = now;
         }
+
+        /// <summary>A key as text: the callsign, or the plan itself (not its content: two plans alike are two strips).</summary>
+        private static string KeyText(object key) => key is string text ? text : $"#{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(key)}";
+
+        /// <summary>All that is drawn, as text: drawn again only when it changes.</summary>
+        private string Text() =>
+            string.Join("|", waiting.Concat(flying).Select(s => $"{KeyText(s.Key)}:{s.Callsign}:{s.Type}:{s.Ifr}:{s.Kind}:{s.Entry}:{s.Altitude}")) + "#" + Signature();
 
         /// <summary>The colours changed: drawn again.</summary>
         public void Redraw() => Draw();
 
-        private string Signature() => string.Join(";", notes.Select(n => $"{n.Key.GetHashCode()}:{string.Join(",", n.Value)}")) + $"@{chosen?.GetHashCode()}";
+        private string Signature() => string.Join(";", notes.Select(n => $"{KeyText(n.Key)}:{string.Join(",", n.Value)}")) + $"@{(chosen != null ? KeyText(chosen) : "")}";
 
         private void Draw()
         {
-            shown = string.Join("|", waiting.Concat(flying).Select(s => s.ToString())) + "#" + Signature();
+            shown = Text();
             coordinationTitle.Text = $"Coordination · {waiting.Count}";
             contactTitle.Text = $"In contact · {flying.Count}";
             Fill(coordination, waiting, true);

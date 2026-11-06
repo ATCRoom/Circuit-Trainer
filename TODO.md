@@ -745,7 +745,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   WAITING header: 👁 WAITING TFC; under the WAITING rows: ▶ START ALL, ☐ GROUP, and on the right ✕ CLEAR ALL (apart, it empties
   the list); at the bottom a line "Scenario": LOAD..., SAVE... (plain buttons, not blue).
 
-## Transit: long final, R/D points (the user, 6 Nov evening) — DECIDED, to write
+## Transit: long final, R/D points (the user, 6 Nov evening) — WRITTEN 6 Nov night (with the fixes of the review of the strip bay)
 - **R/D point:** a point given as radial °M / distance NM from the middle of the runway in use, instead of a gate (not saved
   as a gate: only in the plan / scenario). Just a way to name a point: an aircraft goes **straight to it** (no interception).
   In Start from (arrivals and transits, as a gate) and in Exit to (transits, as a gate: straight to it, gone there).

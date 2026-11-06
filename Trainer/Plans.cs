@@ -13,6 +13,15 @@ namespace ATCRoom.TwrTrainer
         /// <summary>(Scenarios of 3 Nov: "IN CCT", then "CIRC": read as this.)</summary>
         public const string InCircuit = "PTRN";
         public static bool IsInCircuit(string from) => from is InCircuit or "CIRC" or "IN CCT";
+        /// <summary>A point given as radial / distance from the middle of the runway (the user, 6 Nov: instead of a gate).</summary>
+        public const string Point = "R/D";
+    }
+
+    /// <summary>The ways out of a departure or a transit (the user, 6 Nov), besides a gate or an R/D point.</summary>
+    internal static class ExitWay
+    {
+        public const string RunwayHeading = "RWY HDG";
+        public const string Radial = "RADIAL";
     }
 
     /// <summary>
@@ -79,6 +88,11 @@ namespace ATCRoom.TwrTrainer
         public double? PadX { get; set; }
         public double? PadY { get; set; }
         public bool TransitCircuits { get; set; }
+        /// <summary>The R/D point it starts from (From = R/D) and the one it goes out to (To = R/D): radial °M, distance NM.</summary>
+        public double? FromRadial { get; set; }
+        public double? FromDistance { get; set; }
+        public double? ToRadial { get; set; }
+        public double? ToDistance { get; set; }
         public int? Circuits { get; set; }
         public const int Forever = -1;
 
@@ -138,6 +152,7 @@ namespace ATCRoom.TwrTrainer
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
             HighKeyFt = HighKeyFt, ToPad = ToPad, PadName = PadName, PadX = PadX, PadY = PadY,
             Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,
+            FromRadial = FromRadial, FromDistance = FromDistance, ToRadial = ToRadial, ToDistance = ToDistance,
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };

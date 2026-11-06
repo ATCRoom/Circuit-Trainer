@@ -790,7 +790,8 @@ namespace ATCRoom.Sim
             if (!double.IsNaN(glidePathCourse))
             {
                 (double fieldX, double fieldY) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, CircuitSide.Left);
-                aircraft.RemoveAll(a => a.Circuit is { Departed: true } && a.Contact == GroundContact.Airborne
+                // (Not those going to a gate or a point: gone there, the user 6 Nov.)
+                aircraft.RemoveAll(a => a.Circuit is { Departed: true } && a.Contact == GroundContact.Airborne && !double.IsFinite(a.Circuit.ExitX)
                     && Math.Sqrt((a.X - fieldX) * (a.X - fieldX) + (a.Y - fieldY) * (a.Y - fieldY)) > DepartureGoneNM);
             }
         }

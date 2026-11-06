@@ -2086,6 +2086,36 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(released && turned < 330 && LandedOnRunway(flown), "START SFO on the far side of the circle: off at once, no whole circle more, lands",
             $"turned {turned:F0}° before the Low Key; {Legs(flown)} {FromLowKey(flown)}");
 
+        // 55. A departure straight to a point (a gate or an R/D point, the user 6 Nov): to it, gone there, also beyond 10 NM.
+        {
+            (double m55X, double m55Y) = Place(CircuitLength / 2, 0, CircuitSide.Left);
+            foreach (double nm55 in new[] { 6.0, 15.0 })
+            {
+                double b55 = 40 * Math.PI / 180;
+                (double p55X, double p55Y) = (m55X + nm55 * Math.Sin(b55), m55Y + nm55 * Math.Cos(b55));
+                SimEngine s55 = NewCircuitEngine();
+                string c55 = s55.AddDeparture(double.NaN, null, null, null, null, performanceClass: "Turboprop", exitX: p55X, exitY: p55Y);
+                List<AircraftState> f55 = Fly(s55, c55, 1800);
+                AircraftState l55 = f55[^1];
+                double o55 = Math.Sqrt((l55.X - p55X) * (l55.X - p55X) + (l55.Y - p55Y) * (l55.Y - p55Y));
+                Check(s55.Get(c55) == null && o55 < 0.6, $"Departure straight to a point {nm55:0} NM out: gone there", $"{o55:F2} NM from it when gone, {Legs(f55)}");
+            }
+        }
+
+        // 56. Where a plan waiting is drawn = where the aircraft starts (StartPoint, the review of 6 Nov).
+        {
+            foreach ((CircuitStart st56, CircuitType ty56) in new[] { (CircuitStart.Downwind, CircuitType.Conventional), (CircuitStart.LongFinal, CircuitType.Conventional),
+                (CircuitStart.InitialPoint, CircuitType.Overhead), (CircuitStart.HighKey, CircuitType.Sfo), (CircuitStart.Runway, CircuitType.Wide) })
+            {
+                SimEngine s55 = NewCircuitEngine();
+                (double X, double Y)? d56 = s55.StartPoint(st56, ty56, CircuitSide.Right, "Jet");
+                string c55 = s55.AddInCircuit(st56, ty56, CircuitSide.Right, EndAction.FullStop, performanceClass: "Jet");
+                AircraftState? a56 = s55.Get(c55);
+                Check(d56 is (double x56, double y56) && a56 != null && Math.Abs(a56.X - x56) < 1e-6 && Math.Abs(a56.Y - y56) < 1e-6,
+                    $"Plan waiting drawn where it starts: {st56} {ty56}", d56 is { } dd56 && a56 != null ? $"{dd56.X:F3},{dd56.Y:F3} / {a56.X:F3},{a56.Y:F3}" : "none");
+            }
+        }
+
         // START SFO a little before the High Key, on its circle: on round it, not a way back to the runway track.
         SimEngine near = NewCircuitEngine();
         string nc = near.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");

@@ -433,13 +433,15 @@ namespace ATCRoom.TwrTrainer
         private void DrawWaiting(DrawingContext dc, double dip)
         {
             waitingRects.Clear();
-            Dictionary<(int, int), int> taken = [];
+            // (Marks within 8 px of one another: one symbol, the labels one under the other, the review of 6 Nov.)
+            List<(Point At, int Count, double Next)> places = [];
             foreach (WaitingMark mark in Waiting)
             {
                 Point at = ToScreen(mark.X, mark.Y);
-                (int, int) cell = ((int)Math.Round(at.X / 6), (int)Math.Round(at.Y / 6));
-                int order = taken.TryGetValue(cell, out int seen) ? seen : 0;
-                taken[cell] = order + 1;
+                int index = places.FindIndex(p => (p.At - at).Length < 8);
+                int order = index >= 0 ? places[index].Count : 0;
+                double next = index >= 0 ? places[index].Next : at.Y + 6;
+                if (index >= 0) at = places[index].At;
                 Pen pen = new(WaitingBrush, 1.3);
                 if (order == 0)
                 {
@@ -459,11 +461,13 @@ namespace ATCRoom.TwrTrainer
                 }
                 FormattedText first = new(mark.Line1, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, WaitingBrush, dip);
                 FormattedText second = new(mark.Line2, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, mark.Held ? WaitingHeldBrush : WaitingBrush, dip);
-                Point text = new(at.X + 14, at.Y + 6 + order * 26);
+                Point text = new(at.X + 14, next);
                 if (order > 0) dc.DrawLine(new Pen(WaitingBrush, 0.6), at, new Point(text.X - 2, text.Y + 6));
                 dc.DrawText(first, text);
                 dc.DrawText(second, new Point(text.X, text.Y + first.Height));
                 double width = Math.Max(first.Width, second.Width);
+                double below = next + first.Height + second.Height + 2;
+                if (index >= 0) places[index] = (at, order + 1, below); else places.Add((at, 1, below));
                 waitingRects.Add((new Rect(text.X - 2, text.Y - 1, width + 4, first.Height + second.Height + 2), mark.Tag));
                 if (order == 0) waitingRects.Add((new Rect(at.X - 8, at.Y - 8, 16, 16), mark.Tag));
             }
