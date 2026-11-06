@@ -1800,14 +1800,16 @@ namespace ATCRoom.Sim
             // One vertical speed from the High Key to the touchdown (the user, 6 Nov): the heights of the Low Key, of the end of
             // the downwind and of the roll-out by the time to them; too high for the class's descent: a longer downwind.
             // (Down to the roll-out of the last turn, low and nearly on the runway, as the flame out does; then the landing.)
-            double rollOut = runwayElevation + Math.Min(SfoRollOutHeight, Math.Max(0, highKeyHeight - runwayElevation));
-            double loss = Math.Max(0, highKeyHeight - rollOut);
             double glide = Math.Max(30, kind.BestGlideKt), final = Math.Max(30, kind.FinalSpeedKt);
             double half = Math.PI * width / 2;
             double cap = DescentLimit(plane) * 0.8;
-            double t1 = 0, t2 = 0, t3 = 0, total = 1;
+            double t1 = 0, t2 = 0, t3 = 0, total = 1, rollOut = runwayElevation, loss = 0;
             for (int stretch = 0; stretch < 60; stretch++)
             {
+                // (A longer downwind rolls out farther: there on the glide path, never above it; then the normal final.)
+                double onGlidePath = (TouchdownAim - turn) * 6076.12 * Math.Tan(3 * Math.PI / 180);
+                rollOut = runwayElevation + Math.Min(Math.Max(SfoRollOutHeight, onGlidePath), Math.Max(0, highKeyHeight - runwayElevation));
+                loss = Math.Max(0, highKeyHeight - rollOut);
                 t1 = half / glide * 60;
                 t2 = Math.Max(0, highKey - turn) / glide * 60;
                 t3 = half / ((glide + final) / 2) * 60;

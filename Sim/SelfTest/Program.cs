@@ -853,6 +853,10 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         return track;
     }
     double Height(AircraftState st) => st.AltitudeFt - CircuitElevation;
+    // The legs flown, for the details of a failure: each leg once, with its second, height and place.
+    string Legs(List<AircraftState> track) => string.Join(" ", track.Select((st, i) => (st, i))
+        .Where(q => q.i == 0 || q.st.Leg != track[q.i - 1].Leg || q.i == track.Count - 1)
+        .Select(q => $"{q.st.Leg}@{q.i}s/{Height(q.st):F0}ft/{Frame(q.st).Along:F1},{Frame(q.st).Lateral:F1}{(q.st.Contact == GroundContact.Airborne ? "" : "/gnd")}").Take(40));
     List<AircraftState> OnLeg(List<AircraftState> track, string leg) => track.Where(st => st.Leg == leg).ToList();
     bool LandedOnRunway(List<AircraftState> track)
     {
@@ -1289,7 +1293,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     }
     Sfo("Jet", CircuitSide.Left, 7000, 3000, 5600);
     Sfo("Jet", CircuitSide.Right, 7000, 3000, 5600);
-    Sfo("Light", CircuitSide.Left, 2500, 900, 1600);
+    Sfo("Light", CircuitSide.Left, 2500, 900, 1800);
     Sfo("Turboprop", CircuitSide.Right, 4000, 1500, 2800);
 
     // 22b. SFO again after a go-around: straight to the High Key, climbing on the circle over the field (no wide loop).
@@ -1537,7 +1541,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(fin.All(st => st.Leg is not ("DOWNWIND" or "BASE")) && LandedOnRunway(fin), "From a gate: straight in to the final, lands");
         Check(ip.Any(st => st.Leg == "INITIAL") && ip.All(st => st.Circuit is CircuitType.Overhead or CircuitType.Close) && LandedOnRunway(ip),
             "From a gate to the IP: the overhead, lands");
-        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands");
+        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk));
         pictures.Add(("From a gate 6 NM out: 45° onto the downwind (Light)", dw));
         pictures.Add(("From a gate: straight to the base (Light)", bs));
         pictures.Add(("From a gate: straight in (Turboprop)", fin));
@@ -2075,7 +2079,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             if (st.Leg == "LOW KEY") lastHeading = double.NaN;
         });
         Check(released && turned < 330 && LandedOnRunway(flown), "START SFO on the far side of the circle: off at once, no whole circle more, lands",
-            $"turned {turned:F0}° before the Low Key");
+            $"turned {turned:F0}° before the Low Key; {Legs(flown)}");
 
         SimEngine high = NewCircuitEngine();
         string hk = high.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
@@ -2083,11 +2087,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         high.SetAltitude(hk, high.Get(hk)!.AltitudeFt + 4000);
         List<AircraftState> glide = Fly(high, hk, 2400);
         int lowKeyAt = glide.FindIndex(st => st.Leg == "LOW KEY");
-        List<double> rates = lowKeyAt > 0 ? glide.Skip(lowKeyAt + 10).TakeWhile(st => Height(st) > 300).Select(st => -st.VerticalSpeedFpm).ToList() : [];
+        List<double> rates = lowKeyAt > 0 ? glide.Skip(lowKeyAt + 10).TakeWhile(st => st.Leg == "LOW KEY").Select(st => -st.VerticalSpeedFpm).ToList() : [];
         double median = rates.Count > 0 ? rates.OrderBy(r => r).ElementAt(rates.Count / 2) : double.NaN;
         double steady = rates.Count > 0 ? rates.Count(r => Math.Abs(r - median) < 0.35 * median) / (double)rates.Count : 0;
         Check(rates.Count > 30 && steady > 0.8 && LandedOnRunway(glide), "SFO from a High Key 4000 ft higher: one vertical speed down to the final, lands",
-            $"{steady:P0} of {rates.Count} s within 35% of {median:F0} ft/min");
+            $"{steady:P0} of {rates.Count} s within 35% of {median:F0} ft/min; {Legs(glide)}");
         pictures.Add(("SFO from a High Key 4000 ft higher (Jet)", glide));
     }
 
