@@ -749,6 +749,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, EXIT) and a free text box add a note at the end
   of its note line (the last highlighted); click a note to remove it; drag a strip to change its place. The notes stay with the
   student; kept in the recording (with their time) for the debrief.
+  **The instructor does not see them during the simulation** (the user, 6 Nov: not graded live): only in the player. EXIT button:
+  its meaning asked to the user (leaving the circuit / the zone).
 - **Same PC:** the student console is a second window of the same program (for a second monitor), no network. **Two PCs:** the
   link of AuroraPAR v2 Trainer (public relays, session code, no IP / ports); the map sent in pieces at the start; fixed delay.
 - **Log of the flights:** one CSV per session (Logs folder): a row per event (added, take-off, each T/G, L/A or L/P, G/A,
