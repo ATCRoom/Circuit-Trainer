@@ -1166,7 +1166,9 @@ namespace ATCRoom.Sim
                 // off the track: at once.)
                 (double alongHere, double lateralHere) = RunwayFrame(plane.X, plane.Y, circuit.Side);
                 bool sideward = Math.Abs(lateralHere) > 0.3 || alongHere >= HighKeyAlong() - 0.1;
-                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && circuit.Hold && sideward))
+                if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && sideward && (circuit.Hold
+                    // (Its High Key given and not there yet, the user 6 Nov: on the circle up or down to it first.)
+                    || (double.IsFinite(circuit.LapHeight) && Math.Abs(plane.AltitudeFt - circuit.LapHeight) > 150))))
                 {
                     StartSpiral(plane, circuit);
                     return;
