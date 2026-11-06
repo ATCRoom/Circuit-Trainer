@@ -2051,6 +2051,46 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("SFO from a High Key 1000 ft higher (Jet)", glide));
     }
 
+    // 54. SFO (the user, 6 Nov): START SFO on the far side of its circle: off at once the shortest way, never a whole circle
+    // more; a High Key 4000 ft higher: one vertical speed from the High Key to the final (a longer downwind), lands.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sim.HoldAtHighKey(cs, true);
+        bool released = false;
+        double turned = 0, lastHeading = double.NaN;
+        List<AircraftState> flown = Fly(sim, cs, 1800, st =>
+        {
+            if (!released && st.Leg == "HOLD" && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) > 150 && sim.Time > 120)
+            {
+                released = true;
+                sim.HoldAtHighKey(cs, false);
+                lastHeading = st.HeadingTrue;
+            }
+            else if (released && st.Leg != "LOW KEY" && double.IsFinite(lastHeading) && turned >= 0)
+            {
+                turned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - lastHeading));
+                lastHeading = st.HeadingTrue;
+            }
+            if (st.Leg == "LOW KEY") lastHeading = double.NaN;
+        });
+        Check(released && turned < 330 && LandedOnRunway(flown), "START SFO on the far side of the circle: off at once, no whole circle more, lands",
+            $"turned {turned:F0}° before the Low Key");
+
+        SimEngine high = NewCircuitEngine();
+        string hk = high.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        high.RunFor(2);
+        high.SetAltitude(hk, high.Get(hk)!.AltitudeFt + 4000);
+        List<AircraftState> glide = Fly(high, hk, 2400);
+        int lowKeyAt = glide.FindIndex(st => st.Leg == "LOW KEY");
+        List<double> rates = lowKeyAt > 0 ? glide.Skip(lowKeyAt + 10).TakeWhile(st => Height(st) > 300).Select(st => -st.VerticalSpeedFpm).ToList() : [];
+        double median = rates.Count > 0 ? rates.OrderBy(r => r).ElementAt(rates.Count / 2) : double.NaN;
+        double steady = rates.Count > 0 ? rates.Count(r => Math.Abs(r - median) < 0.35 * median) / (double)rates.Count : 0;
+        Check(rates.Count > 30 && steady > 0.8 && LandedOnRunway(glide), "SFO from a High Key 4000 ft higher: one vertical speed down to the final, lands",
+            $"{steady:P0} of {rates.Count} s within 35% of {median:F0} ft/min");
+        pictures.Add(("SFO from a High Key 4000 ft higher (Jet)", glide));
+    }
+
     // 34. Circling (the user, 3 Nov): from the long final of the opposite runway, at the conventional circuit height, aside
     // by 45° onto the downwind of the runway in use, then the conventional circuit, landing on the runway in use.
     {

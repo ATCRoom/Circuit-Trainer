@@ -226,7 +226,6 @@ namespace ATCRoom.Sim
         private const double PadRadius = 0.05;
         /// <summary>SFO: the turn to the final starts this far before the threshold (NM) and ends at this height (ft): nearly on the runway.</summary>
         private const double SfoTurnStartNM = 0.2;
-        private const double SfoRollOutHeight = 120;
 
         private double longFinal = 10;
         private double initialPoint = 3;
@@ -1296,7 +1295,7 @@ namespace ATCRoom.Sim
                     double climb = LowPassFloor(plane, point.AltitudeFt) - plane.AltitudeFt;
                     double minutes = Math.Sqrt((point.X - plane.X) * (point.X - plane.X) + (point.Y - plane.Y) * (point.Y - plane.Y)) / Math.Max(30, plane.GroundSpeedKt) * 60;
                     plane.SelectedVerticalRateFpm = climb > 0 ? Math.Max(MinVerticalRate, plane.Class.MaxClimbFpm * 0.8)
-                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * 1.2, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
+                        : Math.Clamp(-climb / Math.Max(0.1, minutes) * (circuit.Type == CircuitType.Sfo ? 1.0 : 1.2), Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
                 }
             }
             if (!circuit.OnFinal) return;
@@ -1444,11 +1443,25 @@ namespace ATCRoom.Sim
             if (!plane.SpeedGiven) plane.TargetSpeedKt = Math.Clamp(kind.BestGlideKt, kind.MinSpeedKt, kind.MaxSpeedKt);
             // On the circle, over the High Key, along the runway (the top of the circle), at its height: the SFO.
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, circuit.Side);
-            if (!circuit.Hold && Math.Abs(distance - radius) < 0.15 * radius && Math.Abs(plane.AltitudeFt - highKey) < 150 && Math.Abs(lateral) < 0.15
-                && Math.Abs(along - HighKeyAlong()) < 0.3 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 15)
+            // (The user, 6 Nov: START SFO given anywhere on the circle, at its height: off at once, the shortest way, never a
+            // whole circle more.)
+            if (!circuit.Hold && Math.Abs(plane.AltitudeFt - highKey) < 150)
             {
+                double hk = HighKeyAlong();
+                List<RoutePoint> sfo = SfoRoute(plane);
                 circuit.Spiral = false;
-                GiveRoute(plane, SfoRoute(plane).Skip(1).ToList());
+                if (Math.Abs(lateral) < 0.15 && Math.Abs(along - hk) < 0.3 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 15)
+                {
+                    // Over the High Key along the runway: the flame out from here.
+                    GiveRoute(plane, sfo.Skip(1).ToList());
+                    return;
+                }
+                (double hkX, double hkY) = FromRunway(hk, 0, circuit.Side);
+                double toHighKey = Math.Atan2(hkX - plane.X, hkY - plane.Y) * 180 / Math.PI;
+                bool straight = along < hk - 0.3 && Math.Abs(Wrap(toHighKey - glidePathCourse)) < 45 && Math.Abs(Wrap(plane.HeadingTrue - toHighKey)) < 90;
+                // Not lined up: first onto the runway track before the High Key (the shortest turn there), then over it.
+                if (!straight) sfo.Insert(0, Point(hk - Math.Max(0.5, 2 * radius), 0, circuit.Side, highKey, kind.BestGlideKt, "HIGH KEY"));
+                GiveRoute(plane, sfo);
             }
         }
 
@@ -1488,7 +1501,8 @@ namespace ATCRoom.Sim
                 plane.VerticalMode = VerticalMode.Altitude;
                 plane.TargetAltitudeFt = Math.Clamp(LowPassFloor(plane, after.AltitudeFt), runwayElevation, MaxAltitude);
                 // (A margin: it slows down in the turn, which then lasts less, and the level-off takes its time.)
-                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * 1.5, Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
+                // (The flame out: one vertical speed all along, the user 6 Nov.)
+                if (change < 0) plane.SelectedVerticalRateFpm = Math.Clamp(-change / Math.Max(0.1, minutes) * (circuit.Type == CircuitType.Sfo ? 1.05 : 1.5), Math.Min(300, DescentLimit(plane)), DescentLimit(plane));
             }
             if (!plane.SpeedGiven && double.IsFinite(after.SpeedKt)) plane.TargetSpeedKt = Math.Clamp(after.SpeedKt, plane.Class.MinSpeedKt, plane.Class.MaxSpeedKt);
         }
@@ -1781,14 +1795,27 @@ namespace ATCRoom.Sim
             double highKey = HighKeyAlong();
             // The turn to the final starts at the threshold: at its end the aircraft is nearly on the runway.
             double turn = -SfoTurnStartNM;
-            // (Its High Key given, the user 6 Nov: the Low Key moved as much, not below the roll-out.)
             double highKeyHeight = double.IsFinite(plane.Circuit!.LapHeight) ? plane.Circuit!.LapHeight : runwayElevation + kind.HighKeyFt;
-            double rollOut = runwayElevation + Math.Min(SfoRollOutHeight, kind.LowKeyFt);
-            double lowKey = Math.Max(rollOut + 100, runwayElevation + kind.LowKeyFt + highKeyHeight - (runwayElevation + kind.HighKeyFt));
-            // The downwind and the half circle to the final, gliding at one slope.
-            double downwind = Math.Max(0, highKey - turn);
-            double finalTurn = Math.PI * width / 2;
-            double endOfDownwind = lowKey - (lowKey - rollOut) * downwind / Math.Max(0.1, downwind + finalTurn);
+            // One vertical speed from the High Key to the touchdown (the user, 6 Nov): the heights of the Low Key, of the end of
+            // the downwind and of the roll-out by the time to them; too high for the class's descent: a longer downwind.
+            double loss = Math.Max(0, highKeyHeight - runwayElevation);
+            double glide = Math.Max(30, kind.BestGlideKt), final = Math.Max(30, kind.FinalSpeedKt);
+            double half = Math.PI * width / 2;
+            double cap = DescentLimit(plane) * 0.8;
+            double t1 = 0, t2 = 0, t3 = 0, total = 1;
+            for (int stretch = 0; stretch < 60; stretch++)
+            {
+                t1 = half / glide * 60;
+                t2 = Math.Max(0, highKey - turn) / glide * 60;
+                t3 = half / ((glide + final) / 2) * 60;
+                double t4 = (TouchdownAim - turn) / final * 60;
+                total = t1 + t2 + t3 + t4;
+                if (loss / total <= cap) break;
+                turn -= 0.2;
+            }
+            double lowKey = highKeyHeight - loss * t1 / total;
+            double endOfDownwind = highKeyHeight - loss * (t1 + t2) / total;
+            double rollOut = highKeyHeight - loss * (t1 + t2 + t3) / total;
             return
             [
                 Point(highKey, 0, side, highKeyHeight, kind.BestGlideKt, "HIGH KEY"),

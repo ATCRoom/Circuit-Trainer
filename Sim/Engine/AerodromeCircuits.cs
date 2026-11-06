@@ -38,6 +38,8 @@ namespace ATCRoom.Sim
         public List<EntryGate> Exits { get; set; } = [];
         /// <summary>The helipads registered at this aerodrome (the user, 5 Nov: H1, H2...; any other point clicked on the map too).</summary>
         public List<EntryGate> Helipads { get; set; } = [];
+        /// <summary>The heights shown and written as heights above the runway (QFE); false: altitudes (QNH), the default (the user, 6 Nov).</summary>
+        public bool Qfe { get; set; }
         /// <summary>
         /// A formation landing, both full stop (the user, 4 Nov; it depends on the country): false, "reduced rwy separation":
         /// the one behind touches down when the one ahead has rolled a third of the runway; true, "full rwy separation":

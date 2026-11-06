@@ -727,3 +727,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Build of 6 Nov midday (the user: "vai") — WRITTEN
+- **SFO START at once (the user, 6 Nov):** START SFO anywhere on the High Key circle, at its height: off at once; over the
+  High Key along the runway: the flame out from there; lined up before it (within 45°, turn under 90°): straight to it;
+  else onto the runway track before it first (the shortest turn), never a whole circle more. Test 54.
+- **SFO at one vertical speed:** the Low Key, the end of the downwind and the roll-out by the time to them from the High
+  Key; too high for the class's descent: a longer downwind. The Low Key gone from Settings. Test 54.
+- **HK altitude / height ft in New aircraft** (Pattern type SFO; empty: Settings › Circuits); Height ft only the gate's.
+- **QNH / QFE per aerodrome (Settings › Map, Pressure; QNH by default):** every height shown and written follows it: the
+  label ALT / HGT, the map tags, New aircraft (Altitude / Height ft, HK), Selected aircraft, Settings › Circuits, the
+  Traffic List. Inside, heights above the runway as before.
+

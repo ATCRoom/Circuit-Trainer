@@ -59,7 +59,7 @@ namespace ATCRoom.TwrTrainer
         private readonly ComboBox heightClassBox = new();
         /// <summary>The heights of a class at this aerodrome: each circuit, the overhead's initial and break, the SFO's keys.</summary>
         private readonly TextBox conventionalHeight = new(), wideHeight = new(), closeHeight = new(), initialHeight = new(), breakHeight = new(),
-            highKeyHeight = new(), lowKeyHeight = new();
+            highKeyHeight = new();
         private readonly TextBox metarBox = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock windText = new();
         /// <summary>The METAR on the map: whole, or only the wind and the QNH.</summary>
@@ -112,6 +112,9 @@ namespace ATCRoom.TwrTrainer
             _ => "Crossing straight from gate to gate."
         });
         private readonly TextBox arrivalBox = new() { Width = 55 };
+        /// <summary>The High Key of an SFO in New aircraft (the user, 6 Nov; empty: the aerodrome's, Settings).</summary>
+        private readonly TextBox hkBox = new() { Width = 55 };
+        private Grid hkLine = null!;
         /// <summary>A formation (the user, 4 Nov): how many, which of them land together, the seconds between them at the split.</summary>
         private readonly ChoiceRow<int> formationRow = new([(1, "SINGLE"), (2, "2"), (3, "3"), (4, "4")], (n, _) => n == 1
             ? "Alone." : $"A formation of {n}: one label until it splits (its wingmen: the numbers after the leader's: VIPER01, 02...).");
@@ -141,6 +144,12 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox newGateName = new() { Width = 70 };
         private readonly TextBox newExitName = new() { Width = 70 };
         private readonly TextBox newPadName = new() { Width = 70 };
+        private readonly ChoiceRow<bool> pressureRow = new([(false, "QNH"), (true, "QFE")], (qfe, _) => qfe
+            ? "QFE: the heights shown and written are above the runway (HGT)." : "QNH: the heights shown and written are altitudes, above the sea (ALT).");
+        private TextBlock arrivalName = null!, heightName = null!, hkName = null!, heightsNote = null!;
+        /// <summary>What is shown and written = the height above the runway + this (QNH: the elevation; QFE: 0).</summary>
+        private double HeightOffset => airfield.Circuits.Qfe ? 0 : airfield.ElevationFt;
+        private string HeightWord => airfield.Circuits.Qfe ? "Height" : "Altitude";
         /// <summary>A formation landing, both full stop (the user, 4 Nov; it depends on the country, kept in the aerodrome file).</summary>
         private readonly ChoiceRow<bool> separationRow = new([(false, "REDUCED RWY SEP"), (true, "FULL RWY SEP")], (full, _) => full
             ? "Full rwy separation: the next one of a formation lands once the one ahead has left the runway."
@@ -469,6 +478,15 @@ namespace ATCRoom.TwrTrainer
             Note("New runway (or its place again): its name and elevation, then click its threshold and its end on the map.");
             Row("Name / elevation ft", Inline(newRunwayName, newRunwayElevation));
             Buttons(("Place on the map", PlaceRunway), ("Remove runway", RemoveRunway));
+            // (The user, 6 Nov: altitudes (QNH) or heights above the runway (QFE), for this aerodrome.)
+            Row("Pressure", pressureRow);
+            pressureRow.Show(false);
+            pressureRow.Picked += qfe =>
+            {
+                airfield.Circuits.Qfe = qfe;
+                if (airfield.Map != null) Say(airfield.Save());
+                ShowPressure();
+            };
 
             current = Section("Circuits", circuitsSummary, false);
             Note("The side of each circuit at this runway:");
@@ -483,12 +501,13 @@ namespace ATCRoom.TwrTrainer
             Row("Variation", Inline(variationBox, new TextBlock { Text = "(E / W, for the radials)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
             variationBox.LostFocus += (_, _) => ApplyVariation();
 
-            Note("Heights of a class at this aerodrome, ft above the runway (empty: the class's). Close: also the overhead's downwind; break empty: the close height.");
+            heightsNote = Note("Heights of a class at this aerodrome, ft above the runway (empty: the class's). Close: also the overhead's downwind; break empty: the close height.");
             Row("Class", heightClassBox);
             heightClassBox.SelectionChanged += (_, _) => ShowHeights();
             current.Children.Add(Labelled(("Conventional", conventionalHeight), ("Wide", wideHeight), ("Close", closeHeight)));
             current.Children.Add(Labelled(("Initial (OVH)", initialHeight), ("Break (OVH)", breakHeight)));
-            current.Children.Add(Labelled(("High Key (SFO)", highKeyHeight), ("Low Key (SFO)", lowKeyHeight)));
+            // (The Low Key no more, the user 6 Nov: worked out each time, one vertical speed from the High Key.)
+            current.Children.Add(Labelled(("High Key (SFO)", highKeyHeight)));
             Buttons(("Save heights", SaveHeights));
 
             Row("Formation FS", separationRow);
@@ -570,6 +589,9 @@ namespace ATCRoom.TwrTrainer
             patternLine = Row("Pattern type", circuitRow, null, LabelWidth);
             entryLine = Row("Pattern entry", entryRow, null, LabelWidth);
             sideLine = Row("Pattern side", sideRow, null, LabelWidth);
+            hkLine = Row("HK altitude ft", Inline(hkBox, new TextBlock { Text = "(empty: Settings › Circuits)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
+            hkName = (TextBlock)hkLine.Children[0];
+            hkBox.ToolTip = "The High Key of this aircraft's SFO (empty: the one of Settings › Circuits).";
             // (The user, 5 Nov: what each final does, how many circuits; the end is the type's.)
             onFinalLine = Row("On Final", onFinalRow, null, LabelWidth);
             padLine = Row("Helipad", padHolder, null, LabelWidth);
@@ -624,6 +646,8 @@ namespace ATCRoom.TwrTrainer
                 if (type == CircuitType.Overhead) entryRow.Show(CircuitEntry.InitialPoint);
                 else if (type == CircuitType.Sfo) entryRow.Show(CircuitEntry.HighKey);
                 else if (entryRow.Value is CircuitEntry.InitialPoint or CircuitEntry.HighKey) entryRow.Show(CircuitEntry.Downwind);
+                // (The High Key row with the SFO only.)
+                ShowEntries();
             };
             entryRow.Show(CircuitEntry.Downwind);
             circuitRow.Show(CircuitType.Conventional);
@@ -633,7 +657,7 @@ namespace ATCRoom.TwrTrainer
             StackPanel more = new();
             current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
             Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
-            Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
+            arrivalName = (TextBlock)Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing / of a departure; empty: 500 above the circuit, departure 3000)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth).Children[0];
             arrivalBox.ToolTip = "The height above the runway it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A departure: the height it climbs to when it leaves (empty: 3000 ft).";
             Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
             toListButton = ActionButton("TO LIST", AddPlan);
@@ -733,7 +757,7 @@ namespace ATCRoom.TwrTrainer
 
             StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
             Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
-            Row("Height ft", Inline(heightBox, ActionButton("GO", () => WithSelected(cs => Number(heightBox, "a height in feet above the runway", v => commands.Height(cs, v))))), outside, 62);
+            heightName = (TextBlock)Row("Height ft", Inline(heightBox, ActionButton("GO", () => WithSelected(cs => Number(heightBox, "a height or an altitude in feet", v => commands.Height(cs, v - HeightOffset))))), outside, 62).Children[0];
             Row("Speed kt", Inline(speedKtBox, ActionButton("GO", () => WithSelected(cs => Number(speedKtBox, "a speed in knots", v => commands.Speed(cs, v))))), outside, 62);
             rejoinButton = Order("REJOIN", commands.Rejoin);
             breakupButton = Order("BREAKUP", commands.Breakup);
@@ -804,14 +828,19 @@ namespace ATCRoom.TwrTrainer
             Foreground = TextBrush
         });
 
-        private void Note(string text, Panel? into = null) => (into ?? current ?? panel).Children.Add(new TextBlock
+        private TextBlock Note(string text, Panel? into = null)
         {
-            Text = text,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = DimBrush,
-            FontSize = 11,
-            Margin = new Thickness(0, 6, 0, 2)
-        });
+            TextBlock note = new()
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = DimBrush,
+                FontSize = 11,
+                Margin = new Thickness(0, 6, 0, 2)
+            };
+            (into ?? current ?? panel).Children.Add(note);
+            return note;
+        }
 
         /// <summary>A group of the panel: a frame with its title and what it is for; its rows go in the panel returned.</summary>
         private static StackPanel Group(string title, string note, Panel into)
@@ -1122,6 +1151,7 @@ namespace ATCRoom.TwrTrainer
             view.Course = airfield.Course;
             view.LengthNM = airfield.LengthNM;
             view.ElevationFt = airfield.ElevationFt;
+            ShowPressure();
             view.SetMap(airfield.Map, airfield.Plane);
             RebuildFrom();
             ShowAerodrome();
@@ -1201,10 +1231,26 @@ namespace ATCRoom.TwrTrainer
         private ClassCircuit? HeightsOf(string? name) =>
             airfield.Circuits.Classes.FirstOrDefault(c => string.Equals(c.Class, name, StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>QNH or QFE of this aerodrome (the user, 6 Nov): the names and the values of the heights shown and written.</summary>
+        private void ShowPressure()
+        {
+            bool qfe = airfield.Circuits.Qfe;
+            pressureRow.Show(qfe);
+            view.Qfe = qfe;
+            if (arrivalName == null) return;
+            arrivalName.Text = $"{HeightWord} ft";
+            heightName.Text = $"{HeightWord} ft";
+            hkName.Text = $"HK {HeightWord.ToLowerInvariant()} ft";
+            heightsNote.Text = $"Heights of a class at this aerodrome, ft {(qfe ? "above the runway (QFE)" : "altitude (QNH)")} (empty: the class's). Close: also the overhead's downwind; break empty: the close height.";
+            heightBox.ToolTip = qfe ? "Height above the runway (ft) for GO." : "Altitude (ft, QNH) for GO.";
+            ShowHeights();
+        }
+
         private void ShowHeights()
         {
             ClassCircuit? heights = HeightsOf(heightClassBox.SelectedItem as string);
-            static string Text(double? value) => value is double v ? v.ToString("0", CultureInfo.InvariantCulture) : "";
+            double offset = HeightOffset;
+            string Text(double? value) => value is double v ? (v + offset).ToString("0", CultureInfo.InvariantCulture) : "";
             // (A file with one height for all the circuits: shown in each of them.)
             conventionalHeight.Text = Text(heights?.ConventionalHeightFt ?? heights?.CircuitHeightFt);
             wideHeight.Text = Text(heights?.WideHeightFt ?? heights?.CircuitHeightFt);
@@ -1212,7 +1258,6 @@ namespace ATCRoom.TwrTrainer
             initialHeight.Text = Text(heights?.InitialHeightFt);
             breakHeight.Text = Text(heights?.BreakHeightFt);
             highKeyHeight.Text = Text(heights?.HighKeyFt);
-            lowKeyHeight.Text = Text(heights?.LowKeyFt);
         }
 
         private void SaveHeights()
@@ -1221,7 +1266,8 @@ namespace ATCRoom.TwrTrainer
             double? Read(TextBox box)
             {
                 string text = box.Text.Trim();
-                return text.Length > 0 && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && value > 0 ? value : null;
+                // (Written as shown: altitudes with QNH.)
+                return text.Length > 0 && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && value - HeightOffset > 0 ? value - HeightOffset : null;
             }
             ClassCircuit heights = HeightsOf(name) ?? new ClassCircuit { Class = name };
             heights.CircuitHeightFt = null;
@@ -1231,7 +1277,6 @@ namespace ATCRoom.TwrTrainer
             heights.InitialHeightFt = Read(initialHeight);
             heights.BreakHeightFt = Read(breakHeight);
             heights.HighKeyFt = Read(highKeyHeight);
-            heights.LowKeyFt = Read(lowKeyHeight);
             airfield.Circuits.Classes.RemoveAll(c => string.Equals(c.Class, name, StringComparison.OrdinalIgnoreCase));
             if (heights.ConventionalHeightFt != null || heights.WideHeightFt != null || heights.CloseHeightFt != null || heights.InitialHeightFt != null
                 || heights.BreakHeightFt != null || heights.HighKeyFt != null || heights.LowKeyFt != null || heights.Extra != null) airfield.Circuits.Classes.Add(heights);
@@ -1402,7 +1447,9 @@ namespace ATCRoom.TwrTrainer
                 RadialFromY = radialFrom?.Y,
                 To = toRow.HasValue ? toRow.Value ?? "" : "",
                 Overhead = Type() == Flight.Transit && viaRow.Value == Via.Overhead,
-                HeightFt = double.TryParse(arrivalBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && h > 0 ? h : null,
+                // (Written as shown: altitudes with QNH, the user 6 Nov.)
+                HeightFt = double.TryParse(arrivalBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && h - HeightOffset > 0 ? h - HeightOffset : null,
+                HighKeyFt = circuitRow.Value == CircuitType.Sfo && double.TryParse(hkBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double k) && k - HeightOffset > 0 ? k - HeightOffset : null,
                 DelayMinutes = delay
             };
         }
@@ -1432,7 +1479,7 @@ namespace ATCRoom.TwrTrainer
             if (error != null) return error;
             PlanOfCircuits(plan, added);
             // (The SFO: the height written is its High Key, the user 6 Nov.)
-            if (!plan.Transit && plan.HeightFt is double highKey && engine.Get(added)?.Circuit == CircuitType.Sfo) commands.Height(added, highKey);
+            if (!plan.Transit && plan.HighKeyFt is double highKey && engine.Get(added)?.Circuit == CircuitType.Sfo) commands.Height(added, highKey);
             if (plan.ToPad && PadOf(plan) is { } pad) commands.Helipad(added, pad.X, pad.Y);
             // (No pad yet, the user 5 Nov: it starts anyway, HPAD? on its label; none given by the final: the runway.)
             else if (plan.ToPad) commands.WantPad(added);
@@ -1608,7 +1655,8 @@ namespace ATCRoom.TwrTrainer
             splitRow.Show(p.SplitSeconds is 3.0 or 4.0 or 5.0 or 10.0 ? p.SplitSeconds : 3.0);
             intervalLine.Visibility = p.Formation > 1 ? Visibility.Visible : Visibility.Collapsed;
             callsignBox.Text = p.Callsign;
-            arrivalBox.Text = p.HeightFt is double h ? h.ToString("0", CultureInfo.InvariantCulture) : "";
+            arrivalBox.Text = p.HeightFt is double h ? (h + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
+            hkBox.Text = p.HighKeyFt is double k ? (k + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             delayBox.Text = p.DelayMinutes.ToString("0.#", CultureInfo.InvariantCulture);
             ShowEntries();
 
@@ -1634,7 +1682,7 @@ namespace ATCRoom.TwrTrainer
             cancelEditButton.Visibility = Visibility.Collapsed;
         }
 
-        private static string PlanText(TowerPlan p)
+        private string PlanText(TowerPlan p)
         {
             p.Upgrade();
             static string Short(EndAction end) => TowerCommands.Ends.FirstOrDefault(e => e.End == end).Short ?? "";
@@ -1642,7 +1690,7 @@ namespace ATCRoom.TwrTrainer
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
             int circuits = p.Circuits ?? 0;
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
-            string height = p.HeightFt is double hf ? $" {hf:0} ft" : "";
+            string height = p.HeightFt is double hf ? $" {hf + HeightOffset:0} ft" : "";
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
             string who = $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}";
             string delay = $"+{p.DelayMinutes:0.#}'";
@@ -2201,6 +2249,7 @@ namespace ATCRoom.TwrTrainer
             if (departLine == null) return;
             static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
             patternLine.Visibility = sideLine.Visibility = onFinalLine.Visibility = Shown(inCircuit && !away);
+            hkLine.Visibility = Shown(inCircuit && !away && circuitRow.Value == CircuitType.Sfo);
             circuitsLine.Visibility = Shown(departure || withCircuits || ((arrival || local) && !landsFirst));
             padLine.Visibility = Shown(padAllowed && onFinalRow.Value == PadEnd && inCircuit);
             entryLine.Visibility = Shown(arrival || withCircuits);
@@ -2435,7 +2484,9 @@ namespace ATCRoom.TwrTrainer
                 if (field == "ALT")
                 {
                     double from = view.PendingHeightFt ?? (!a.RouteAltitude && a.VerticalMode == VerticalMode.Altitude ? a.TargetAltitudeFt : a.AltitudeFt) - airfield.ElevationFt;
-                    view.PendingHeightFt = Math.Clamp(Math.Round(from / 100) * 100 - step * 100, 100, 15000);
+                    // (In hundreds of what is shown: altitudes with QNH, heights with QFE.)
+                    double shown = Math.Round((from + view.HeightOffset) / 100) * 100 - step * 100;
+                    view.PendingHeightFt = Math.Clamp(shown - view.HeightOffset, 100, 15000);
                 }
                 else
                 {

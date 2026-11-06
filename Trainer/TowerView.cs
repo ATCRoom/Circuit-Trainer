@@ -71,6 +71,9 @@ namespace ATCRoom.TwrTrainer
         public double Course { get; set; } = double.NaN;
         public double LengthNM { get; set; }
         public double ElevationFt { get; set; }
+        /// <summary>QFE: heights above the runway; else (QNH) altitudes (the user, 6 Nov). What is shown = the height + <see cref="HeightOffset"/>.</summary>
+        public bool Qfe { get; set; }
+        public double HeightOffset => Qfe ? 0 : ElevationFt;
         /// <summary>Distance of the extended centreline drawn (NM).</summary>
         public double CentrelineNM { get; set; } = 10;
         /// <summary>The entry gates of the aerodrome (the plane, NM).</summary>
@@ -506,7 +509,7 @@ namespace ATCRoom.TwrTrainer
                 double track = a.TrackTrue * Math.PI / 180;
                 dc.DrawLine(pen, at, ToScreen(a.X + vector * Math.Sin(track), a.Y + vector * Math.Cos(track)));
                 string line1 = a.Formation is { Count: > 1 } members ? $"{a.Callsign} F{members.Count}" : a.Callsign;
-                string line2 = $"{Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt) / 100)):000} {Math.Round(a.GroundSpeedKt):0}";
+                string line2 = $"{Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt + HeightOffset) / 100)):000} {Math.Round(a.GroundSpeedKt):0}";
                 if (selected)
                 {
                     DrawSelectedLabel(dc, dip, a, at, line2);
@@ -564,7 +567,7 @@ namespace ATCRoom.TwrTrainer
             }
             else
             {
-                rows.Add([("", "HEIGHT", Look.Tag), ("ALT", HeightText(a), Look.Option), ("", "SPEED", Look.Tag), ("SPD", SpeedText(a), Look.Option)]);
+                rows.Add([("", Qfe ? "HGT" : "ALT", Look.Tag), ("ALT", HeightText(a), Look.Option), ("", "SPEED", Look.Tag), ("SPD", SpeedText(a), Look.Option)]);
                 if (strip == "ALT")
                 {
                     rows.Add([("", "", Look.Tag), ("ALT=AUTO", "AUTO", !a.RouteAltitude && a.Route != null && a.Navigation == NavigationMode.Route ? Look.Command : Look.Off),
@@ -693,12 +696,12 @@ namespace ATCRoom.TwrTrainer
         /// </summary>
         private string HeightText(AircraftState a)
         {
-            double now = Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt) / 100));
+            double now = Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt + HeightOffset) / 100));
             string text = $"{now:000}";
             double? target = PendingHeightFt ?? (!a.RouteAltitude && a.VerticalMode == VerticalMode.Altitude ? a.TargetAltitudeFt - ElevationFt : null);
             if (target is double t && (PendingHeightFt != null || Math.Abs(t - (a.AltitudeFt - ElevationFt)) > 50))
             {
-                text += $"{(t > a.AltitudeFt - ElevationFt ? "↑" : "↓")}{Math.Max(0, Math.Round(t / 100)):000}{(PendingHeightFt != null ? "?" : "")}";
+                text += $"{(t > a.AltitudeFt - ElevationFt ? "↑" : "↓")}{Math.Max(0, Math.Round((t + HeightOffset) / 100)):000}{(PendingHeightFt != null ? "?" : "")}";
             }
             return text;
         }

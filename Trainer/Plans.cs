@@ -69,6 +69,8 @@ namespace ATCRoom.TwrTrainer
         public bool Local { get; set; }
         /// <summary>A helicopter landing on a helipad (the user, 5 Nov): a registered one by its name, else this point (the plane, NM).</summary>
         public bool ToPad { get; set; }
+        /// <summary>Its High Key (SFO), ft above the runway (the user, 6 Nov; null: the aerodrome's, Settings).</summary>
+        public double? HighKeyFt { get; set; }
         public string PadName { get; set; } = "";
         public double? PadX { get; set; }
         public double? PadY { get; set; }
@@ -130,7 +132,7 @@ namespace ATCRoom.TwrTrainer
         {
             Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
-            ToPad = ToPad, PadName = PadName, PadX = PadX, PadY = PadY,
+            HighKeyFt = HighKeyFt, ToPad = ToPad, PadName = PadName, PadX = PadX, PadY = PadY,
             Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
