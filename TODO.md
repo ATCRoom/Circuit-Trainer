@@ -744,12 +744,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Strips (the user, 6 Nov):** compact, about 26 px (line 1 callsign, ICAO type, V/I, entry short N / S / LF / RWY or exit
   for a departure, altitude in hundreds; line 2 the student's notes, the last highlighted, empty until he writes). A strip
   **goes** when its aircraft is off the runway after landing, or is removed from the simulation; a departure when the
-  simulation ends it (at its exit / end of its route), or removed.
+  simulation ends it (at its exit / end of its route), or removed. (Colours: see Strip colours below.)
 - **Strip bay (the user, 6 Nov; mock-up shown):** a floating panel (like the others: dragged by its bar, docked or in a window
   of its own) with two sections. **Coordination:** a strip for every plan in the instructor's Traffic List (WAITING), shown at
   once, as if coordinated (no countdown, nothing of the instructor). **In contact:** when the plan flies, its strip moves here
   (as if the radar unit had sent it to the tower frequency). The quick note buttons and the free note box at the bottom of the
-  bay. Open: held plans (⏸) shown in Coordination too (proposed yes); IVAO aircraft straight into In contact.
+  bay. Held plans (⏸) stay in Coordination (the user, 6 Nov: yes). **IVAO aircraft:** their strip in Coordination when in
+  range; the student moves it to In contact by hand when it really calls (the user, 6 Nov).
+- **Strip colours (the user, 6 Nov):** by type of flight, **changeable by the user**; default departures **white**, arrivals
+  **yellow**, local and transit **pink**. (Set in Settings › Appearance.)
 - **Student's notes on the strips** (the user, 6 Nov; proposal shown in a mock-up, to confirm): click a strip to choose it, quick
   buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, FRQ CNG) and a free text box add a note at the end
   of its note line (the last highlighted); click a note to remove it; drag a strip to change its place. The notes stay with the
