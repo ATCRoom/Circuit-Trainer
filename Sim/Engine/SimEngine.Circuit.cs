@@ -1872,7 +1872,20 @@ namespace ATCRoom.Sim
                     for (int k = 1; k < pieces; k++) { var q = On(c2, straightOn + last * a2 * k / pieces, last); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
                     way.Add(new RoutePoint(tx, ty, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY"));
                 }
-            return way;
+            // (No point too near the one before, or to the aircraft: it could not be turned to, the aircraft would circle it.)
+            List<RoutePoint> kept = [];
+            double lastX = plane.X, lastY = plane.Y;
+            for (int k = 0; k < way.Count; k++)
+            {
+                RoutePoint point = way[k];
+                if (k == way.Count - 1)
+                    while (kept.Count > 0 && Math.Sqrt((point.X - kept[^1].X) * (point.X - kept[^1].X) + (point.Y - kept[^1].Y) * (point.Y - kept[^1].Y)) < 0.8 * radius)
+                        kept.RemoveAt(kept.Count - 1);
+                else if (Math.Sqrt((point.X - lastX) * (point.X - lastX) + (point.Y - lastY) * (point.Y - lastY)) < 0.8 * radius) continue;
+                kept.Add(point);
+                (lastX, lastY) = (point.X, point.Y);
+            }
+            return kept;
         }
 
         /// <summary>The High Key along the runway (NM from the threshold): over its middle.</summary>
