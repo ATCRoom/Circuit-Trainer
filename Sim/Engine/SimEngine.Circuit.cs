@@ -114,36 +114,6 @@ namespace ATCRoom.Sim
         /// <summary>Left the circuit (end action Departure): the circuit does nothing more (gone at <see cref="SimEngine.DepartureGoneNM"/>).</summary>
         public bool Departed;
         /// <summary>
-        /// Where <see cref="AddInCircuit"/> would put an aircraft (the plane, NM), without adding it: for the plans waiting drawn
-        /// on the instructor's map (the user, 6 Nov). Null with no runway.
-        /// </summary>
-        public (double X, double Y)? StartPoint(CircuitStart start, CircuitType type, CircuitSide? sideGiven, string? performanceClass)
-        {
-            lock (sync)
-            {
-                if (double.IsNaN(glidePathCourse)) return null;
-                if (start == CircuitStart.HighKey) type = CircuitType.Sfo;
-                else if (start == CircuitStart.Circling) type = CircuitType.Conventional;
-                else if (type == CircuitType.Sfo || (type == CircuitType.Overhead && start != CircuitStart.InitialPoint)) type = CircuitType.Close;
-                if (start == CircuitStart.Runway && type is not (CircuitType.Conventional or CircuitType.Wide)) type = CircuitType.Conventional;
-                CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
-                PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
-                    ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
-                PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
-                (double along, double lateral) = start switch
-                {
-                    CircuitStart.LongFinal => (-longFinal, 0),
-                    CircuitStart.InitialPoint => (-initialPoint, 0),
-                    CircuitStart.Downwind => (DownwindStartAlong(type, kind), Width(type, kind, side)),
-                    CircuitStart.HighKey => (HighKeyAlong() - 1, 0),
-                    CircuitStart.Circling => (Math.Max(runwayLength, 0.3) + longFinal, 0),
-                    _ => (0.02, 0)
-                };
-                return FromRunway(along, lateral, side);
-            }
-        }
-
-        /// <summary>
         /// A departure with no circuit (the user, 5 Nov): the radial it intercepts after the take-off (degrees true; NaN: on
         /// along the runway heading), from this point (the plane, NM), its first turn to it (left or right), its height
         /// (ft, altitude). Phase: 0 along the runway, 1 turning to the intercept heading, 2 on the radial, 3 the instructor's.
@@ -375,6 +345,36 @@ namespace ATCRoom.Sim
                         break;
                 }
                 return name;
+            }
+        }
+
+        /// <summary>
+        /// Where <see cref="AddInCircuit"/> would put an aircraft (the plane, NM), without adding it: for the plans waiting drawn
+        /// on the instructor's map (the user, 6 Nov). Null with no runway.
+        /// </summary>
+        public (double X, double Y)? StartPoint(CircuitStart start, CircuitType type, CircuitSide? sideGiven, string? performanceClass)
+        {
+            lock (sync)
+            {
+                if (double.IsNaN(glidePathCourse)) return null;
+                if (start == CircuitStart.HighKey) type = CircuitType.Sfo;
+                else if (start == CircuitStart.Circling) type = CircuitType.Conventional;
+                else if (type == CircuitType.Sfo || (type == CircuitType.Overhead && start != CircuitStart.InitialPoint)) type = CircuitType.Close;
+                if (start == CircuitStart.Runway && type is not (CircuitType.Conventional or CircuitType.Wide)) type = CircuitType.Conventional;
+                CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
+                PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
+                    ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
+                PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
+                (double along, double lateral) = start switch
+                {
+                    CircuitStart.LongFinal => (-longFinal, 0),
+                    CircuitStart.InitialPoint => (-initialPoint, 0),
+                    CircuitStart.Downwind => (DownwindStartAlong(type, kind), Width(type, kind, side)),
+                    CircuitStart.HighKey => (HighKeyAlong() - 1, 0),
+                    CircuitStart.Circling => (Math.Max(runwayLength, 0.3) + longFinal, 0),
+                    _ => (0.02, 0)
+                };
+                return FromRunway(along, lateral, side);
             }
         }
 
