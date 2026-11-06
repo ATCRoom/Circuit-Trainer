@@ -1459,7 +1459,10 @@ namespace ATCRoom.Sim
                 }
                 // Elsewhere: the shortest way that ends over the High Key on the runway track (a turn, straight, a turn), so the
                 // flame out starts lined up.
-                sfo.InsertRange(0, ShortestToHighKey(plane, radius * 1.15, highKey));
+                // (Its turns a little wider than it turns at its bank: it can follow them.)
+                double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
+                double turnRadius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
+                sfo.InsertRange(0, ShortestToHighKey(plane, Math.Max(radius, turnRadius) * 1.2, highKey));
                 GiveRoute(plane, sfo);
             }
         }
