@@ -2197,12 +2197,14 @@ namespace ATCRoom.Sim
         private void PointDepartureStep(SimAircraft plane, CircuitState circuit)
         {
             if (circuit.DepartPhase == 3) return;
-            bool toPoint = plane.Navigation == NavigationMode.Route && plane.Route is { Count: > 0 } way && way[^1].Name == "DEPARTURE";
-            if (circuit.DepartPhase != 1 && toPoint && plane.RouteNext >= plane.Route!.Count)
+            // (At the end of the route the navigation is MANUAL already: the point reached whatever the mode, the review of 7 Nov.)
+            bool reached = plane.Route is { Count: > 0 } done && done[^1].Name == "DEPARTURE" && plane.RouteNext >= done.Count;
+            if (circuit.DepartPhase != 1 && reached)
             {
                 circuit.TransitDone = true;
                 return;
             }
+            bool toPoint = plane.Navigation == NavigationMode.Route && plane.Route is { Count: > 0 } way && way[^1].Name == "DEPARTURE";
             if (circuit.DepartPhase == 2)
             {
                 if (!toPoint) InstructorsDeparture(plane, circuit);

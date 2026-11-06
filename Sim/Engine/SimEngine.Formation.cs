@@ -240,7 +240,8 @@ namespace ATCRoom.Sim
                 {
                     plane.Navigation = NavigationMode.Manual;
                     plane.TargetHeading = circuit.DepartIntercept;
-                    plane.TurnDirection = TurnDirection.Shortest;
+                    // (To a gate or a point its turn on its side, also the long way, the review of 7 Nov.)
+                    plane.TurnDirection = double.IsFinite(circuit.ExitX) ? circuit.DepartTurn : TurnDirection.Shortest;
                 }
                 else if (plane.Route != null)
                 {

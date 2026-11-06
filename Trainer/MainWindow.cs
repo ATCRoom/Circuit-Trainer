@@ -153,6 +153,7 @@ namespace ATCRoom.TwrTrainer
         private TextBlock padName = null!;
         /// <summary>The pad row of a helicopter departure: from the runway (the user, 6 Nov: as now).</summary>
         private const string PadRunwayName = "RWY";
+        private bool wasPadDeparture;
         /// <summary>The width of the names of the rows of New aircraft (the user, 5 Nov: longer, clearer names).</summary>
         private const double LabelWidth = 112;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3s"), (4.0, "4s"), (5.0, "5s"), (10.0, "10s")], (v, _) => $"At the split each one {v:0} s after the one before.");
@@ -1924,7 +1925,7 @@ namespace ATCRoom.TwrTrainer
                     point?.X ?? double.NaN, point?.Y ?? double.NaN);
             }
             // (A departure with circuits to an R/D point not written or a gate no more there: said, not started; the review of 6 Nov.)
-            if (plan.Departure && ExitOf(plan).Error is string exitWrong) return exitWrong;
+            if ((plan.Departure || (plan.Transit && plan.TransitCircuits)) && ExitOf(plan).Error is string exitWrong) return exitWrong;
             if (plan.From == From.Runway)
             {
                 CircuitType type = plan.Circuit is CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
@@ -2053,6 +2054,8 @@ namespace ATCRoom.TwrTrainer
             hkBox.Text = p.HighKeyFt is double k ? (k + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             exitAltBox.Text = p.ExitAltFt is double ea ? (ea + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             delayBox.Text = p.DelayMinutes.ToString("0.#", CultureInfo.InvariantCulture);
+            // (Its own pad kept, not RWY by default.)
+            wasPadDeparture = PadDeparture();
             ShowEntries();
             // (Its turn as saved, kept; none saved: by itself.)
             if (p.TurnRight is bool right)
@@ -2079,6 +2082,9 @@ namespace ATCRoom.TwrTrainer
         private void EndEdit()
         {
             editing = null;
+            // (The turn of the plan changed was its own: the next ones by themselves again, the review of 7 Nov.)
+            turnChosen = false;
+            AutoExitTurn();
             toListButton.Content = "TO LIST";
             toListButton.ToolTip = Tips["TO LIST"];
             cancelEditButton.Visibility = Visibility.Collapsed;
@@ -2102,15 +2108,15 @@ namespace ATCRoom.TwrTrainer
                 : p.To.Length > 0 && p.To is not (ExitWay.RunwayHeading or ExitWay.Radial) ? p.To
                 : p.Radial is double r ? $"R{r:000}°M {(p.TurnRight == false ? "L" : "R")}{(p.RadialFromX != null ? " (point)" : "")}" : "RWY HDG";
             string start = p.From == From.Point ? RdText(p.FromRadial, p.FromDistance) : p.From == From.LongFinal ? "LF" : p.From;
+            // (The exit altitude, the user 6 Nov; a helicopter from a helipad.)
+            string exitAlt = p.ExitAltFt is double ea ? $" {ea + HeightOffset:0} ft" : "";
+            string turn = p.TurnRight is bool tr && p.To != ExitWay.Radial && p.To != ExitWay.RunwayHeading && p.To.Length > 0 ? (tr ? " R" : " L") : "";
+            string pad = p.FromPad ? $" HPAD {(p.PadName.Length > 0 ? p.PadName : "point")}" : "";
             if (p.Transit)
             {
                 if (p.TransitCircuits) return $"{who}  TRANSIT {start}{height} → {entry} {circuit}{side} {(circuits <= 0 ? "OUT" : $"{circuits}×")} {Short(p.OnFinal)} → {way}{turn}{exitAlt}  {delay}";
                 return $"{who}  TRANSIT {start} → {(p.Overhead ? "OVHD → " : "")}{way}{height}  {delay}";
             }
-            // (The exit altitude, the user 6 Nov; a helicopter from a helipad.)
-            string exitAlt = p.ExitAltFt is double ea ? $" {ea + HeightOffset:0} ft" : "";
-            string turn = p.TurnRight is bool tr && p.To != ExitWay.Radial && p.To != ExitWay.RunwayHeading && p.To.Length > 0 ? (tr ? " R" : " L") : "";
-            string pad = p.FromPad ? $" HPAD {(p.PadName.Length > 0 ? p.PadName : "point")}" : "";
             if (p.Departure)
             {
                 if (circuits <= 0) return $"{who}  DEP{pad} OUT {way}{turn}{exitAlt}  {delay}";
@@ -2891,7 +2897,9 @@ namespace ATCRoom.TwrTrainer
             // (A helicopter departing: from the runway or a helipad, the user 6 Nov; landing on a pad: a pad, not RWY.)
             bool padDeparture = PadDeparture();
             padRow.SetEnabled(PadRunwayName, padDeparture);
-            if (padDeparture && !padRow.HasValue) padRow.Show(PadRunwayName);
+            // (Just become a helicopter departure, by its type or its class: from the runway unless a pad is chosen.)
+            if (padDeparture && (!padRow.HasValue || !wasPadDeparture)) padRow.Show(PadRunwayName);
+            wasPadDeparture = padDeparture;
             if (!padDeparture && padRow.Value == PadRunwayName) padRow.Show(airfield.Helipads.Count > 0 ? airfield.Helipads[0].Name : PadPointName);
             bool landsFirst = (arrival || local) && onFinalRow.Value is EndAction.FullStop or PadEnd;
             // Circuits: OUT for departures, ∞ for arrivals and locals.
