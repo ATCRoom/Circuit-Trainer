@@ -857,6 +857,9 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
     string Legs(List<AircraftState> track) => string.Join(" ", track.Select((st, i) => (st, i))
         .Where(q => q.i == 0 || q.st.Leg != track[q.i - 1].Leg || q.i == track.Count - 1)
         .Select(q => $"{q.st.Leg}@{q.i}s/{Height(q.st):F0}ft/{Frame(q.st).Along:F1},{Frame(q.st).Lateral:F1}{(q.st.Contact == GroundContact.Airborne ? "" : "/gnd")}").Take(40));
+    // From the Low Key on, every 4 s: along, lateral, height, vertical speed, heading, ground speed (for the details).
+    string FromLowKey(List<AircraftState> track) => string.Join(" ", track.SkipWhile(st => st.Leg != "LOW KEY").Where((st, i) => i % 4 == 0).Take(45)
+        .Select(st => $"[{st.Leg[0]}{Frame(st).Along:F2},{Frame(st).Lateral:F2},{Height(st):F0},{st.VerticalSpeedFpm:F0},{st.HeadingTrue:F0},{st.GroundSpeedKt:F0},{st.Contact}]"));
     List<AircraftState> OnLeg(List<AircraftState> track, string leg) => track.Where(st => st.Leg == leg).ToList();
     bool LandedOnRunway(List<AircraftState> track)
     {
@@ -1288,7 +1291,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             && rolled != null && Between(Frame(rolled).Along, -0.5, 0.1) && Height(rolled) < 400 && LandedOnRunway(flown),
             $"SFO ({kind}, {side}): High Key over the runway at about {highKey} ft, Low Key abeam on the {side.ToString().ToLowerInvariant()}, out of the last turn nearly on the runway, lands",
             atHigh != null && atLow != null ? $"High Key {Height(atHigh):F0} ft at {Frame(atHigh).Along:F2} NM, Low Key {Height(atLow):F0} ft {Frame(atLow).Lateral:F2} NM out"
-                + (rolled != null ? $", on the final {-Frame(rolled).Along:F2} NM before the threshold at {Height(rolled):F0} ft" : ", never on the final") : "no High or Low Key");
+                + (rolled != null ? $", on the final {-Frame(rolled).Along:F2} NM before the threshold at {Height(rolled):F0} ft" : ", never on the final") + (kind == "Jet" && side == CircuitSide.Left ? " " + FromLowKey(flown) : "") : "no High or Low Key");
         pictures.Add(($"SFO, {kind}, {side.ToString().ToLowerInvariant()}", flown));
     }
     Sfo("Jet", CircuitSide.Left, 7000, 3000, 5600);
@@ -1541,7 +1544,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(fin.All(st => st.Leg is not ("DOWNWIND" or "BASE")) && LandedOnRunway(fin), "From a gate: straight in to the final, lands");
         Check(ip.Any(st => st.Leg == "INITIAL") && ip.All(st => st.Circuit is CircuitType.Overhead or CircuitType.Close) && LandedOnRunway(ip),
             "From a gate to the IP: the overhead, lands");
-        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk));
+        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk) + " " + FromLowKey(hk));
         pictures.Add(("From a gate 6 NM out: 45° onto the downwind (Light)", dw));
         pictures.Add(("From a gate: straight to the base (Light)", bs));
         pictures.Add(("From a gate: straight in (Turboprop)", fin));
@@ -2079,10 +2082,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             if (st.Leg == "LOW KEY") lastHeading = double.NaN;
         });
         Check(released && turned < 330 && LandedOnRunway(flown), "START SFO on the far side of the circle: off at once, no whole circle more, lands",
-            $"turned {turned:F0}° before the Low Key; {Legs(flown)}");
+            $"turned {turned:F0}° before the Low Key; {Legs(flown)} {FromLowKey(flown)}");
 
         SimEngine high = NewCircuitEngine();
         string hk = high.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        high.HoldAtHighKey(hk, false);
         high.RunFor(2);
         high.SetAltitude(hk, high.Get(hk)!.AltitudeFt + 4000);
         List<AircraftState> glide = Fly(high, hk, 2400);
