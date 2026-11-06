@@ -344,8 +344,9 @@ namespace ATCRoom.Sim
                     // (On its way to the High Key: its SFO from there, the Low Key moved as much.)
                     if (circuit.Type == CircuitType.Sfo && a.Route is { } way && a.RouteNext < way.Count && way[a.RouteNext].Name == "HIGH KEY")
                     {
-                        a.Route = SfoRoute(a);
-                        a.RouteNext = 0;
+                        // (The way to the High Key kept, the SFO from there: the flame out starts lined up all the same.)
+                        int start = way.ToList().FindLastIndex(p => p.Name == "HIGH KEY");
+                        a.Route = [.. way.Take(start), .. SfoRoute(a)];
                         circuit.LegIndex = -1;
                     }
                 }

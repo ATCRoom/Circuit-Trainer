@@ -2076,7 +2076,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
                 sim.HoldAtHighKey(cs, false);
                 lastHeading = st.HeadingTrue;
             }
-            else if (released && st.Leg != "LOW KEY" && double.IsFinite(lastHeading) && turned >= 0)
+            else if (released && st.Leg != "LOW KEY" && double.IsFinite(lastHeading))
             {
                 turned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - lastHeading));
                 lastHeading = st.HeadingTrue;
@@ -2085,6 +2085,30 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         });
         Check(released && turned < 330 && LandedOnRunway(flown), "START SFO on the far side of the circle: off at once, no whole circle more, lands",
             $"turned {turned:F0}° before the Low Key; {Legs(flown)} {FromLowKey(flown)}");
+
+        // START SFO a little before the High Key, on its circle: on round it, not a way back to the runway track.
+        SimEngine near = NewCircuitEngine();
+        string nc = near.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        near.HoldAtHighKey(nc, true);
+        bool nearReleased = false;
+        double nearTurned = 0, nearHeading = double.NaN;
+        List<AircraftState> nearFlown = Fly(near, nc, 1800, st =>
+        {
+            if (!nearReleased && st.Leg == "HOLD" && near.Time > 120 && Between(SimEngine.Wrap(st.HeadingTrue - CircuitCourse), 20, 60))
+            {
+                nearReleased = true;
+                near.HoldAtHighKey(nc, false);
+                nearHeading = st.HeadingTrue;
+            }
+            else if (nearReleased && double.IsFinite(nearHeading) && st.Leg != "LOW KEY")
+            {
+                nearTurned += Math.Abs(SimEngine.Wrap(st.HeadingTrue - nearHeading));
+                nearHeading = st.HeadingTrue;
+            }
+            if (st.Leg == "LOW KEY") nearHeading = double.NaN;
+        });
+        Check(nearReleased && nearTurned < 90 && LandedOnRunway(nearFlown), "START SFO a little before the High Key: on round the circle to it, lands",
+            $"turned {nearTurned:F0}° before the Low Key; {Legs(nearFlown)}");
 
         SimEngine high = NewCircuitEngine();
         string hk = high.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");

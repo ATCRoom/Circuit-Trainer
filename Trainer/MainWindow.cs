@@ -483,7 +483,12 @@ namespace ATCRoom.TwrTrainer
             pressureRow.Show(false);
             pressureRow.Picked += qfe =>
             {
+                // (What is typed already, in the new reference: the same height.)
+                double before = HeightOffset;
                 airfield.Circuits.Qfe = qfe;
+                foreach (TextBox box in new[] { arrivalBox, hkBox, heightBox })
+                    if (double.TryParse(box.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double typed))
+                        box.Text = Math.Round(typed - before + HeightOffset).ToString(CultureInfo.InvariantCulture);
                 if (airfield.Map != null) Say(airfield.Save());
                 ShowPressure();
             };
@@ -1690,7 +1695,7 @@ namespace ATCRoom.TwrTrainer
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
             int circuits = p.Circuits ?? 0;
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
-            string height = p.HeightFt is double hf ? $" {hf + HeightOffset:0} ft" : "";
+            string height = (p.HeightFt is double hf ? $" {hf + HeightOffset:0} ft" : "") + (p.HighKeyFt is double hk ? $" HK {hk + HeightOffset:0} ft" : "");
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
             string who = $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}";
             string delay = $"+{p.DelayMinutes:0.#}'";
@@ -1969,7 +1974,7 @@ namespace ATCRoom.TwrTrainer
                 if (a == null) continue;
                 string team = a.Formation is { Count: > 1 } f ? $"F{f.Count}" : "";
                 text.Text = string.Format(CultureInfo.InvariantCulture, "{0,-3}{1:000} {2,3} {3}", team,
-                    Math.Max(0, Math.Round((a.AltitudeFt - airfield.ElevationFt) / 100)), Math.Round(a.GroundSpeedKt), a.Frozen ? "FROZEN" : TowerView.LegText(a));
+                    Math.Max(0, Math.Round((a.AltitudeFt - airfield.ElevationFt + HeightOffset) / 100)), Math.Round(a.GroundSpeedKt), a.Frozen ? "FROZEN" : TowerView.LegText(a));
                 // (The selected one in yellow, as on the map.)
                 bool chosen = a.Callsign == view.Selected;
                 text.Foreground = chosen ? Brushes.Gold : TextBrush;
@@ -2666,7 +2671,7 @@ namespace ATCRoom.TwrTrainer
                 expTaxiButton.IsEnabled = leg == "LANDED" && !a.ExpediteTaxi;
             }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
-                : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt):0} ft  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
+                : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt + HeightOffset):0} ft {(airfield.Circuits.Qfe ? "HGT" : "ALT")}  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
         }
     }
 }

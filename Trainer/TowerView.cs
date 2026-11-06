@@ -571,7 +571,7 @@ namespace ATCRoom.TwrTrainer
                 if (strip == "ALT")
                 {
                     rows.Add([("", "", Look.Tag), ("ALT=AUTO", "AUTO", !a.RouteAltitude && a.Route != null && a.Navigation == NavigationMode.Route ? Look.Command : Look.Off),
-                        .. HeightChoices.Select(h => ($"ALT={h:0}", $"{h:0}", Look.Option))]);
+                        .. HeightChoices.Select(h => ($"ALT={h:0}", $"{Math.Round((h + HeightOffset) / 100) * 100:0}", Look.Option))]);
                 }
                 if (strip == "SPD")
                 {
