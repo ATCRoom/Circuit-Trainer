@@ -751,8 +751,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   In Start from (arrivals and transits, as a gate) and in Exit to (transits, as a gate: straight to it, gone there).
 - **Transit from LONG FIN** (the user, 6 Nov): it comes to the aerodrome to "do something" (On Final T/G, L/A, L/P; also
   several circuits in a row; OUT = only the approach), then it leaves. **Four ways out:** RWY HDG, intercept a RADIAL (as a
-  departure, turn L/R), a gate, an R/D point (straight to it). Proposed: the same four for every transit that uses the runway
-  (Via CIRCUITS); a transit that only crosses (DIRECT / OVERHEAD from a gate or R/D): a gate or an R/D point.
+  departure, turn L/R), a gate, an R/D point (straight to it). **Confirmed (the user, 6 Nov):** the same four for every transit
+  that uses the runway (Via CIRCUITS); a transit that only crosses (DIRECT / OVERHEAD from a gate or R/D): a gate or an R/D
+  point. **The four ways out also for DEPARTURES** (today RWY HDG and RADIAL; to add: a gate, an R/D point).
 - Strip / list text: "R270/12", "LF", gate name.
 
 ## Student console, link, log, replay (the user, 6 Nov evening) — DECIDED, design (mock-up of the student shown 6 Nov)
