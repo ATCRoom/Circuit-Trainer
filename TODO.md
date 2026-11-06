@@ -732,6 +732,26 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Student console, link, log, replay (the user, 6 Nov evening) — DECIDED, design (mock-up of the student shown 6 Nov)
+- **One "snapshot" each second** (aircraft, runway, METAR/QNH/wind, time) used three times: sent on the link, written in the
+  recording, read back by the player.
+- **Student console:** the same program with a role (Instructor / Student). The student sees everything of the traffic: the top
+  view (map sent by the instructor, kept in memory only), labels, METAR line, UTC time, runway, link light; and a **compact strip
+  list** (narrow column): line 1 callsign, ICAO type, flight rules V / I; line 2 entry gate and entry altitude, where it is now.
+  Strip colour by rules (VFR / IFR). No commands.
+- **Same PC:** the student console is a second window of the same program (for a second monitor), no network. **Two PCs:** the
+  link of AuroraPAR v2 Trainer (public relays, session code, no IP / ports); the map sent in pieces at the start; fixed delay.
+- **Log of the flights:** one CSV per session (Logs folder): a row per event (added, take-off, each T/G, L/A or L/P, G/A,
+  landing, out of the circuit, removed; main instructor commands), time, callsign, ICAO type, rules, runway, pattern; a summary at
+  the end. "For now like this, then we see."
+- **Recording and player:** snapshots + events in a compressed file (no video, no map inside). Player: play / pause, x1-x8,
+  time bar, list of events (click = go there), student or instructor view. The student may replay at home (without the map:
+  runway and aircraft only).
+- **New fields of an aircraft (New aircraft, plans, label, strip, log):** **flight rules VFR / IFR**; **ICAO type** free text
+  (F16, TOR, EUFI, C172...; no list; the class stays for the performance).
+- **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
+  The new fields (rules, ICAO type) first, they go in all of them.
+
 ## Next build (the user, 6 Nov) — TO DO
 - Settings: the row Panels DARK / LIGHT out of Map layers (it is not about the map): a new section **Appearance** at the top of
   Settings, before Map, with only that row (from the next start, as now).
