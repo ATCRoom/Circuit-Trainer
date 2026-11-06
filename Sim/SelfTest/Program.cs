@@ -858,7 +858,8 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         .Where(q => q.i == 0 || q.st.Leg != track[q.i - 1].Leg || q.i == track.Count - 1)
         .Select(q => $"{q.st.Leg}@{q.i}s/{Height(q.st):F0}ft/{Frame(q.st).Along:F1},{Frame(q.st).Lateral:F1}{(q.st.Contact == GroundContact.Airborne ? "" : "/gnd")}").Take(40));
     // From the Low Key on, every 4 s: along, lateral, height, vertical speed, heading, ground speed (for the details).
-    string FromLowKey(List<AircraftState> track) => string.Join(" ", track.SkipWhile(st => st.Leg != "LOW KEY").Where((st, i) => i % 4 == 0).Take(45)
+    string FromLowKey(List<AircraftState> track) => From(track, "LOW KEY", 4);
+    string From(List<AircraftState> track, string leg, int every) => string.Join(" ", track.SkipWhile(st => st.Leg != leg).Where((st, i) => i % every == 0).Take(45)
         .Select(st => $"[{st.Leg[0]}{Frame(st).Along:F2},{Frame(st).Lateral:F2},{Height(st):F0},{st.VerticalSpeedFpm:F0},{st.HeadingTrue:F0},{st.GroundSpeedKt:F0},{st.Contact}]"));
     List<AircraftState> OnLeg(List<AircraftState> track, string leg) => track.Where(st => st.Leg == leg).ToList();
     bool LandedOnRunway(List<AircraftState> track)
@@ -1544,7 +1545,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(fin.All(st => st.Leg is not ("DOWNWIND" or "BASE")) && LandedOnRunway(fin), "From a gate: straight in to the final, lands");
         Check(ip.Any(st => st.Leg == "INITIAL") && ip.All(st => st.Circuit is CircuitType.Overhead or CircuitType.Close) && LandedOnRunway(ip),
             "From a gate to the IP: the overhead, lands");
-        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk) + " " + FromLowKey(hk));
+        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk) + " " + From(hk, "HIGH KEY", 5));
         pictures.Add(("From a gate 6 NM out: 45° onto the downwind (Light)", dw));
         pictures.Add(("From a gate: straight to the base (Light)", bs));
         pictures.Add(("From a gate: straight in (Turboprop)", fin));
