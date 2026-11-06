@@ -732,6 +732,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Next build (the user, 6 Nov) — TO DO
+- Settings: the row Panels DARK / LIGHT out of Map layers (it is not about the map): a new section **Appearance** at the top of
+  Settings, before Map, with only that row (from the next start, as now).
+
 ## Build of 6 Nov, runways.par (the user: "ok") — WRITTEN
 - Settings › Map › From runways.par...: the runways of the map's aerodrome (ICAO) from AuroraPAR's runways.par (the file chosen
   each time, the last one proposed; not copied into this repository). Each runway once (its glide paths "14 3.0", "14 2.5"
