@@ -226,6 +226,7 @@ namespace ATCRoom.Sim
         private const double PadRadius = 0.05;
         /// <summary>SFO: the turn to the final starts this far before the threshold (NM) and ends at this height (ft): nearly on the runway.</summary>
         private const double SfoTurnStartNM = 0.2;
+        private const double SfoRollOutHeight = 120;
 
         private double longFinal = 10;
         private double initialPoint = 3;
@@ -1798,7 +1799,9 @@ namespace ATCRoom.Sim
             double highKeyHeight = double.IsFinite(plane.Circuit!.LapHeight) ? plane.Circuit!.LapHeight : runwayElevation + kind.HighKeyFt;
             // One vertical speed from the High Key to the touchdown (the user, 6 Nov): the heights of the Low Key, of the end of
             // the downwind and of the roll-out by the time to them; too high for the class's descent: a longer downwind.
-            double loss = Math.Max(0, highKeyHeight - runwayElevation);
+            // (Down to the roll-out of the last turn, low and nearly on the runway, as the flame out does; then the landing.)
+            double rollOut = runwayElevation + Math.Min(SfoRollOutHeight, Math.Max(0, highKeyHeight - runwayElevation));
+            double loss = Math.Max(0, highKeyHeight - rollOut);
             double glide = Math.Max(30, kind.BestGlideKt), final = Math.Max(30, kind.FinalSpeedKt);
             double half = Math.PI * width / 2;
             double cap = DescentLimit(plane) * 0.8;
@@ -1808,14 +1811,12 @@ namespace ATCRoom.Sim
                 t1 = half / glide * 60;
                 t2 = Math.Max(0, highKey - turn) / glide * 60;
                 t3 = half / ((glide + final) / 2) * 60;
-                double t4 = (TouchdownAim - turn) / final * 60;
-                total = t1 + t2 + t3 + t4;
+                total = t1 + t2 + t3;
                 if (loss / total <= cap) break;
                 turn -= 0.2;
             }
             double lowKey = highKeyHeight - loss * t1 / total;
             double endOfDownwind = highKeyHeight - loss * (t1 + t2) / total;
-            double rollOut = highKeyHeight - loss * (t1 + t2 + t3) / total;
             return
             [
                 Point(highKey, 0, side, highKeyHeight, kind.BestGlideKt, "HIGH KEY"),
