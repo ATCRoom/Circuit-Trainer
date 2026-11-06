@@ -1457,11 +1457,9 @@ namespace ATCRoom.Sim
                     GiveRoute(plane, sfo.Skip(1).ToList());
                     return;
                 }
-                (double hkX, double hkY) = FromRunway(hk, 0, circuit.Side);
-                double toHighKey = Math.Atan2(hkX - plane.X, hkY - plane.Y) * 180 / Math.PI;
-                bool straight = along < hk - 0.3 && Math.Abs(Wrap(toHighKey - glidePathCourse)) < 45 && Math.Abs(Wrap(plane.HeadingTrue - toHighKey)) < 90;
-                // Not lined up: first onto the runway track before the High Key (the shortest turn there), then over it.
-                if (!straight) sfo.Insert(0, Point(hk - Math.Max(0.5, 2 * radius), 0, circuit.Side, highKey, kind.BestGlideKt, "HIGH KEY"));
+                // Elsewhere: the shortest way that ends over the High Key on the runway track (a turn, straight, a turn), so the
+                // flame out starts lined up.
+                sfo.InsertRange(0, ShortestToHighKey(plane, radius * 1.15, highKey));
                 GiveRoute(plane, sfo);
             }
         }
@@ -1827,6 +1825,46 @@ namespace ATCRoom.Sim
                 Point(turn, 0, side, rollOut, kind.FinalSpeedKt, "FINAL", turn180: true),
                 Point(0, 0, side, double.NaN, kind.FinalSpeedKt, "FINAL")
             ];
+        }
+
+        /// <summary>
+        /// The shortest way from where the aircraft is, on its heading, to the High Key on the runway course (a turn of the given
+        /// radius, a straight line, a turn): its points every 30° of the turns (the High Key itself not included).
+        /// </summary>
+        private List<RoutePoint> ShortestToHighKey(SimAircraft plane, double radius, double altitudeFt)
+        {
+            static (double X, double Y) Dir(double degrees) => (Math.Sin(degrees * Math.PI / 180), Math.Cos(degrees * Math.PI / 180));
+            (double tx, double ty) = FromRunway(HighKeyAlong(), 0, plane.Circuit!.Side);
+            double h = plane.HeadingTrue, ht = glidePathCourse;
+            // A turn to the right (+1) or to the left (-1): its centre, and the point on it flying on a heading.
+            (double X, double Y) Centre(double x, double y, double heading, int turn) { var d = Dir(heading + 90 * turn); return (x + radius * d.X, y + radius * d.Y); }
+            (double X, double Y) On((double X, double Y) c, double heading, int turn) { var d = Dir(heading - 90 * turn); return (c.X + radius * d.X, c.Y + radius * d.Y); }
+            double Arc(double from, double to, int turn) => ((turn * (to - from)) % 360 + 360) % 360;
+            double best = double.MaxValue;
+            List<RoutePoint> way = [];
+            foreach (int first in new[] { 1, -1 })
+                foreach (int last in new[] { 1, -1 })
+                {
+                    var c1 = Centre(plane.X, plane.Y, h, first);
+                    var c2 = Centre(tx, ty, ht, last);
+                    double dx = c2.X - c1.X, dy = c2.Y - c1.Y, d = Math.Sqrt(dx * dx + dy * dy);
+                    double bearing = Math.Atan2(dx, dy) * 180 / Math.PI;
+                    double straightOn;
+                    if (first == last) straightOn = bearing;
+                    else if (d < 2 * radius) continue;
+                    else straightOn = bearing + first * Math.Asin(2 * radius / d) * 180 / Math.PI;
+                    var p1 = On(c1, straightOn, first);
+                    var p2 = On(c2, straightOn, last);
+                    double a1 = Arc(h, straightOn, first), a2 = Arc(straightOn, ht, last);
+                    double length = radius * (a1 + a2) * Math.PI / 180 + Math.Sqrt((p2.X - p1.X) * (p2.X - p1.X) + (p2.Y - p1.Y) * (p2.Y - p1.Y));
+                    if (length >= best) continue;
+                    best = length;
+                    way = [];
+                    for (double a = 30; a < a1; a += 30) { var q = On(c1, h + first * a, first); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
+                    way.Add(new RoutePoint(p1.X, p1.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY"));
+                    for (double a = 0; a < a2 - 15; a += 30) { var q = On(c2, straightOn + last * a, last); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
+                }
+            return way;
         }
 
         /// <summary>The High Key along the runway (NM from the threshold): over its middle.</summary>
