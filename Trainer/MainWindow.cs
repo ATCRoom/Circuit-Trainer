@@ -1251,9 +1251,7 @@ namespace ATCRoom.TwrTrainer
         private void OpenClasses()
         {
             bool map = airfield.Map != null;
-            ClassesWindow window = new(engine.Classes, map ? airfield.Circuits : null, HeightOffset, airfield.Circuits.Qfe ? "HGT" : "ALT") { Owner = this };
-            if (window.ShowDialog() != true || window.Result is not { } saved) return;
-            // The performance: into the file as it is (what this version does not know kept).
+            // The performance file read first: one of a newer version is not changed (said before any change is typed).
             PerformanceFile file;
             try
             {
@@ -1268,25 +1266,20 @@ namespace ATCRoom.TwrTrainer
             }
             if (file.FormatVersion > PerformanceFile.CurrentFormatVersion)
             {
-                Say($"{PerformanceFile.FileName} was made by a newer version: it is not changed.", Area.Aerodrome);
+                Say($"{PerformanceFile.FileName} was made by a newer version of TWR Trainer: the classes can't be changed with this one.", Area.Aerodrome);
                 return;
             }
+            ClassesWindow window = new(engine.Classes, map ? airfield.Circuits : null, HeightOffset, airfield.Circuits.Qfe ? "HGT" : "ALT") { Owner = this };
+            if (window.ShowDialog() != true || window.Result is not { } saved) return;
             List<PerformanceClass> before = file.Classes ?? [];
             List<PerformanceClass> after = [];
             foreach (ClassesWindow.Saved item in saved)
             {
                 PerformanceClass? old = item.OriginalName == null ? null
                     : before.FirstOrDefault(c => c != null && string.Equals((c.Name ?? "").Trim(), item.OriginalName, StringComparison.OrdinalIgnoreCase));
-                PerformanceClass kind = old?.Copy() ?? item.Class.Copy();
-                kind.Name = item.Class.Name;
-                kind.MinSpeedKt = item.Class.MinSpeedKt;
-                kind.MaxSpeedKt = item.Class.MaxSpeedKt;
-                kind.ApproachSpeedKt = item.Class.ApproachSpeedKt;
-                kind.FinalSpeedKt = item.Class.FinalSpeedKt;
-                kind.MaxClimbFpm = item.Class.MaxClimbFpm;
-                kind.MaxDescentFpm = item.Class.MaxDescentFpm;
-                kind.MaxBankDegrees = item.Class.MaxBankDegrees;
-                kind.BrakingKtPerSecond = item.Class.BrakingKtPerSecond;
+                // (The class as it flew, every value given, with the changes: a new name does not bring other defaults.)
+                PerformanceClass kind = item.Class.Copy();
+                if (old?.Extra != null) kind.Extra = new Dictionary<string, System.Text.Json.JsonElement>(old.Extra);
                 after.Add(kind);
             }
             file.Classes = after;
@@ -1299,32 +1292,37 @@ namespace ATCRoom.TwrTrainer
                 Say($"{PerformanceFile.FileName} could not be written: nothing saved ({ex.Message}).", Area.Aerodrome);
                 return;
             }
-            string? keep = classRow.Value;
+            // (The class chosen in New aircraft followed, also renamed.)
+            string? keep = saved.FirstOrDefault(item => string.Equals(item.OriginalName, classRow.Value, StringComparison.OrdinalIgnoreCase))?.Class.Name ?? classRow.Value;
             (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
             engine.SetPerformanceClasses(classes);
             // The heights: each class in the aerodrome (its old name followed), what this version does not know kept.
             string? error = null;
             if (map)
             {
-                List<ClassCircuit> heights = [];
+                // Every entry kept (classes this copy does not know too), but those of the classes removed in the window; of
+                // each class saved only the boxes that could be changed (a helicopter's overhead and SFO, its Low Key kept).
+                List<ClassCircuit> heights = airfield.Circuits.Classes.Where(c => c != null).ToList();
+                ClassCircuit? Find(string? name) => name == null ? null : heights.FirstOrDefault(c => string.Equals((c.Class ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase));
+                foreach (string removed in window.OpenedWith.Where(name => !saved.Any(item => string.Equals(item.OriginalName, name, StringComparison.OrdinalIgnoreCase))))
+                    if (Find(removed) is ClassCircuit gone && gone.Extra == null) heights.Remove(gone);
                 foreach (ClassesWindow.Saved item in saved)
                 {
-                    string name = item.OriginalName ?? item.Class.Name;
-                    ClassCircuit? old = airfield.Circuits.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase))
-                        ?? airfield.Circuits.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), item.Class.Name, StringComparison.OrdinalIgnoreCase));
+                    ClassCircuit entry = Find(item.OriginalName) ?? Find(item.Class.Name) ?? new ClassCircuit();
+                    if (!heights.Contains(entry)) heights.Add(entry);
                     double?[] h = item.Heights;
-                    if (h.All(v => v == null) && old?.Extra == null) continue;
-                    heights.Add(new ClassCircuit
-                    {
-                        Class = item.Class.Name,
-                        ConventionalHeightFt = h[0], WideHeightFt = h[1], CloseHeightFt = h[2], InitialHeightFt = h[3], BreakHeightFt = h[4], HighKeyFt = h[5],
-                        Extra = old?.Extra
-                    });
+                    bool[] e = item.Editable;
+                    entry.Class = item.Class.Name;
+                    if (e[0] || e[1] || e[2]) entry.CircuitHeightFt = null;
+                    if (e[0]) entry.ConventionalHeightFt = h[0];
+                    if (e[1]) entry.WideHeightFt = h[1];
+                    if (e[2]) entry.CloseHeightFt = h[2];
+                    if (e[3]) entry.InitialHeightFt = h[3];
+                    if (e[4]) entry.BreakHeightFt = h[4];
+                    if (e[5]) entry.HighKeyFt = h[5];
+                    if (entry is { CircuitHeightFt: null, ConventionalHeightFt: null, WideHeightFt: null, CloseHeightFt: null, InitialHeightFt: null, BreakHeightFt: null,
+                        HighKeyFt: null, LowKeyFt: null, Extra: null }) heights.Remove(entry);
                 }
-                // (Of a class no more here: kept only for what this version does not know.)
-                foreach (ClassCircuit other in airfield.Circuits.Classes)
-                    if (other?.Extra != null && !heights.Any(c => string.Equals(c.Class, (other.Class ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
-                        && !saved.Any(item => string.Equals(item.OriginalName, (other.Class ?? "").Trim(), StringComparison.OrdinalIgnoreCase))) heights.Add(other);
                 airfield.Circuits.Classes.Clear();
                 airfield.Circuits.Classes.AddRange(heights);
                 error = airfield.Save();
@@ -1691,7 +1689,17 @@ namespace ATCRoom.TwrTrainer
             entryRow.Show(p.Entry);
             circuitRow.Show(p.Circuit);
             sideRow.Show(p.Side);
-            if (p.Class.Length > 0) classRow.Show(p.Class);
+            if (p.Class.Length > 0)
+            {
+                // (A class no more there, removed or renamed in Aircraft classes: said, the default one chosen.)
+                string? known = engine.Classes.FirstOrDefault(c => string.Equals(c.Name, p.Class, StringComparison.OrdinalIgnoreCase))?.Name;
+                if (known != null) classRow.Show(known);
+                else
+                {
+                    MakeClassRow(null);
+                    Say($"Class {p.Class} no longer exists: {classRow.Value} chosen.", Area.New);
+                }
+            }
             onFinalRow.Show(p.ToPad ? PadEnd : p.OnFinal is EndAction.FullStop or EndAction.TouchAndGo or EndAction.GoAround or EndAction.LowPass ? p.OnFinal : EndAction.FullStop);
             if (p.ToPad)
             {

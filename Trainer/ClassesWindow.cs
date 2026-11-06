@@ -55,7 +55,7 @@ namespace ATCRoom.TwrTrainer
 
         /// <summary>What Save gives back: each class (its performance set; name, name in the files) and its heights at this
         /// aerodrome (ft above the runway, null: the class's).</summary>
-        internal sealed record Saved(PerformanceClass Class, string? OriginalName, double?[] Heights);
+        internal sealed record Saved(PerformanceClass Class, string? OriginalName, double?[] Heights, bool[] Editable);
 
         private readonly List<ClassRow> rows = [];
         private readonly Grid table = new();
@@ -65,6 +65,8 @@ namespace ATCRoom.TwrTrainer
         private ClassRow? chosen;
 
         public List<Saved>? Result { get; private set; }
+        /// <summary>The names of the classes when the window opened (those not saved: removed).</summary>
+        public IReadOnlyList<string> OpenedWith { get; }
 
         /// <param name="classes">The classes now.</param>
         /// <param name="here">The heights of this aerodrome (null: no map open, the heights can't be changed).</param>
@@ -82,6 +84,7 @@ namespace ATCRoom.TwrTrainer
             Foreground = TextBrush;
             offset = heightOffset;
             heightsHere = here != null;
+            OpenedWith = classes.Select(c => c.Name).ToList();
 
             StackPanel panel = new() { Margin = new Thickness(12) };
             table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.6, GridUnitType.Star) });
@@ -104,7 +107,13 @@ namespace ATCRoom.TwrTrainer
                 ClassCircuit? heights = here?.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), kind.Name, StringComparison.OrdinalIgnoreCase));
                 AddRow(kind, kind.Name, kind.Name, heights);
             }
-            panel.Children.Add(table);
+            // (Many classes, a small screen: the table scrolls, the buttons stay in sight.)
+            panel.Children.Add(new ScrollViewer
+            {
+                Content = table,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = Math.Max(200, SystemParameters.WorkArea.Height - 300)
+            });
             panel.Children.Add(message);
 
             DockPanel edit = new() { Margin = new Thickness(0, 10, 0, 0), LastChildFill = false };
@@ -117,7 +126,10 @@ namespace ATCRoom.TwrTrainer
             {
                 if (chosen == null) { message.Text = "Click the name of a class first."; return; }
                 if (Read(chosen) is not PerformanceClass copy) return;
+                ClassRow from = chosen;
                 AddRow(copy, null, Unique(copy.Name + " 2"), null);
+                // (Its heights here too.)
+                for (int i = 0; i < HeightColumns.Length; i++) rows[^1].Heights[i].Text = from.Heights[i].IsEnabled ? from.Heights[i].Text : "";
             };
             Button remove = Small("Remove");
             remove.ToolTip = "Removes the chosen class (click its name first); the aircraft of that class get another one.";
@@ -138,7 +150,7 @@ namespace ATCRoom.TwrTrainer
                 {
                     kind.Normalize();
                     ClassCircuit? heights = here?.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), kind.Name, StringComparison.OrdinalIgnoreCase));
-                    AddRow(kind, null, kind.Name, heights);
+                    AddRow(kind, OpenedWith.FirstOrDefault(n => string.Equals(n, kind.Name, StringComparison.OrdinalIgnoreCase)), kind.Name, heights);
                 }
                 message.Text = "";
             };
@@ -227,8 +239,10 @@ namespace ATCRoom.TwrTrainer
             for (int i = 0; i < PerformanceColumns.Length; i++)
             {
                 TextBox box = new() { Text = Number(values[i]), Margin = new Thickness(1), TextAlignment = TextAlignment.Right };
+                // (A helicopter hovers: its minimum speed is 0.)
+                if (i == 0 && kind.CanHover) { box.IsReadOnly = true; box.Foreground = Brushes.Gray; box.ToolTip = "A helicopter: it can hover (0 kt)."; }
                 int column = i;
-                box.PreviewMouseWheel += (_, e) => Wheel(box, PerformanceColumns[column].Step, () => null, e);
+                box.PreviewMouseWheel += (_, e) => { if (!box.IsReadOnly) Wheel(box, PerformanceColumns[column].Step, 0, () => null, e); };
                 box.GotFocus += (_, _) => Choose(row);
                 row.Performance[i] = box;
                 Place(box, at, 1 + i);
@@ -256,7 +270,7 @@ namespace ATCRoom.TwrTrainer
                 cell.Children.Add(box);
                 int column = i;
                 box.TextChanged += (_, _) => ShowGreys(row);
-                box.PreviewMouseWheel += (_, e) => Wheel(box, 100, () => Grey(row, column), e);
+                box.PreviewMouseWheel += (_, e) => Wheel(box, 100, offset, () => Grey(row, column), e);
                 box.GotFocus += (_, _) => Choose(row);
                 row.Heights[i] = box;
                 row.Greys[i] = grey;
@@ -305,13 +319,14 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The wheel over a box (empty: from its grey value): one step up or down.</summary>
-        private void Wheel(TextBox box, double step, Func<double?> empty, MouseWheelEventArgs e)
+        private void Wheel(TextBox box, double step, double origin, Func<double?> empty, MouseWheelEventArgs e)
         {
             if (!box.IsEnabled) return;
             double? value = box.Text.Trim().Length == 0 ? empty() : Typed(box);
             if (value is not double v) return;
             double by = step * ((Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 5 : 1);
-            double next = Math.Round((v + (e.Delta > 0 ? by : -by)) / step) * step;
+            // (Heights: whole hundreds above the runway, whatever the elevation.)
+            double next = Math.Round((v - origin + (e.Delta > 0 ? by : -by)) / step) * step + origin;
             box.Text = Number(Math.Max(0, next));
             message.Text = "";
             e.Handled = true;
@@ -326,10 +341,12 @@ namespace ATCRoom.TwrTrainer
             for (int i = 0; i < PerformanceColumns.Length; i++)
             {
                 var column = PerformanceColumns[i];
-                double low = i is 0 or 2 or 3 && !row.Source.CanHover ? 30 : column.Low;
-                if (Typed(row.Performance[i]) is not double value || !double.IsFinite(value) || value < low || value > column.High)
+                // (Speeds: at least 30 kt; a helicopter's minimum 0, its initial and final at least 10.)
+                double low = i == 0 && row.Source.CanHover ? 0 : i is 0 or 2 or 3 ? (row.Source.CanHover ? 10 : 30) : column.Low;
+                double high = i == 0 && row.Source.CanHover ? 0 : column.High;
+                if (Typed(row.Performance[i]) is not double value || !double.IsFinite(value) || value < low || value > high)
                 {
-                    Say(row, string.Format(CultureInfo.InvariantCulture, "{0}: {1} must be a number from {2} to {3} {4}.", name, column.Header.ToLowerInvariant(), low, column.High, column.Unit));
+                    Say(row, string.Format(CultureInfo.InvariantCulture, "{0}: {1} must be a number from {2} to {3} {4}.", name, column.Header.ToLowerInvariant(), low, high, column.Unit));
                     return null;
                 }
                 values[i] = value;
@@ -338,6 +355,11 @@ namespace ATCRoom.TwrTrainer
             if (max < min + 10) { Say(row, $"{name}: the max speed must be at least 10 kt more than the min speed."); return null; }
             if (initial < min || initial > max) { Say(row, $"{name}: the initial speed ({initial:0} kt) must be between the min ({min:0}) and the max ({max:0})."); return null; }
             if (final < min || final > initial) { Say(row, $"{name}: the final speed ({final:0} kt) must be between the min ({min:0}) and the initial ({initial:0})."); return null; }
+            // (The speeds of its circuits, not in the table, within its speeds: said, not changed silently.)
+            PerformanceClass source = row.Source;
+            if (final > source.CircuitSpeedKt) { Say(row, $"{name}: the final speed must be at most its circuit speed ({source.CircuitSpeedKt:0} kt, in performance.json)."); return null; }
+            double fastest = new[] { source.CircuitSpeedKt, source.OverheadSpeedKt, source.BestGlideKt, source.ArrivalSpeedKt }.Max();
+            if (max < fastest) { Say(row, $"{name}: the max speed must be at least {fastest:0} kt (its circuit, overhead, glide or arrival speed, in performance.json)."); return null; }
             PerformanceClass kind = row.Source.Copy();
             kind.Name = name;
             (kind.MinSpeedKt, kind.MaxSpeedKt, kind.ApproachSpeedKt, kind.FinalSpeedKt) = (min, max, initial, final);
@@ -361,6 +383,7 @@ namespace ATCRoom.TwrTrainer
                 if (Read(row) is not PerformanceClass kind) return;
                 if (saved.Any(s => string.Equals(s.Class.Name, kind.Name, StringComparison.OrdinalIgnoreCase))) { Say(row, $"Two classes are named {kind.Name}."); return; }
                 double?[] heights = new double?[HeightColumns.Length];
+                bool[] editable = row.Heights.Select(b => b.IsEnabled).ToArray();
                 for (int i = 0; i < HeightColumns.Length; i++)
                 {
                     TextBox box = row.Heights[i];
@@ -375,7 +398,7 @@ namespace ATCRoom.TwrTrainer
                     }
                     heights[i] = shown - offset;
                 }
-                saved.Add(new Saved(kind, row.OriginalName, heights));
+                saved.Add(new Saved(kind, row.OriginalName, heights, editable));
             }
             Result = saved;
             DialogResult = true;
