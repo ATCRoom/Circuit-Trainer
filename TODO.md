@@ -732,6 +732,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Build of 6 Nov afternoon (the user: "vai") — WRITTEN
+- Aircraft classes window (Settings › Circuits › Aircraft classes...), as Aircraft performance of AuroraPAR v2 Trainer: a row per
+  class; performance (min, max, initial, final speed, climb, descent, bank, brake) into performance.json (the other values of the
+  file kept); heights at this aerodrome (conv, wide, close, IP, break, HK) in ALT/HGT: white = of this aerodrome, grey = the class's
+  (empty box). Add class, Duplicate, Remove, Reset to defaults; Save checks every value. Helicopter: IP, break, HK off.
+  The class / heights rows of Settings › Circuits gone (the old Low Key of a class dropped from the aerodrome file on save).
+
 ## Build of 6 Nov midday (the user: "vai") — WRITTEN
 - **SFO START at once (the user, 6 Nov):** START SFO anywhere on the High Key circle, at its height: off at once; over the
   High Key along the runway: the flame out from there; lined up before it (within 45°, turn under 90°): straight to it;

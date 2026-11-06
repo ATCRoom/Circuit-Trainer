@@ -56,10 +56,6 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBlock gatesSummary = SectionSummary(), weatherSummary = SectionSummary(), circuitsSummary = SectionSummary(), mapSummary = SectionSummary();
         private readonly TextBox newRunwayName = new() { Width = 50 };
         private readonly TextBox newRunwayElevation = new() { Width = 60 };
-        private readonly ComboBox heightClassBox = new();
-        /// <summary>The heights of a class at this aerodrome: each circuit, the overhead's initial and break, the SFO's keys.</summary>
-        private readonly TextBox conventionalHeight = new(), wideHeight = new(), closeHeight = new(), initialHeight = new(), breakHeight = new(),
-            highKeyHeight = new();
         private readonly TextBox metarBox = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock windText = new();
         /// <summary>The METAR on the map: whole, or only the wind and the QNH.</summary>
@@ -146,7 +142,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox newPadName = new() { Width = 70 };
         private readonly ChoiceRow<bool> pressureRow = new([(false, "QNH"), (true, "QFE")], (qfe, _) => qfe
             ? "QFE: the heights shown and written are above the runway (HGT)." : "QNH: the heights shown and written are altitudes, above the sea (ALT).");
-        private TextBlock arrivalName = null!, heightName = null!, hkName = null!, heightsNote = null!;
+        private TextBlock arrivalName = null!, heightName = null!, hkName = null!;
         /// <summary>What is shown and written = the height above the runway + this (QNH: the elevation; QFE: 0).</summary>
         private double HeightOffset => airfield.Circuits.Qfe ? 0 : airfield.ElevationFt;
         private string HeightWord => airfield.Circuits.Qfe ? "Height" : "Altitude";
@@ -322,14 +318,7 @@ namespace ATCRoom.TwrTrainer
             Directory.CreateDirectory(Paths.Folder);
             (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
             engine.SetPerformanceClasses(classes);
-            foreach (PerformanceClass kind in engine.Classes) heightClassBox.Items.Add(kind.Name);
-            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its values in performance.json; its heights at this aerodrome: Settings › Circuits).");
-            // (The user, 4 Nov: the jet by default, the most used.)
-            classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
-                ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
-            classHolder.Children.Add(classRow);
-            classRow.Picked += _ => ShowEntries();
-            heightClassBox.SelectedIndex = heightClassBox.Items.Count > 0 ? 0 : -1;
+            MakeClassRow(null);
             if (note != null) Say(note);
             engine.LongFinalNM = settings.LongFinalNM;
             engine.InitialPointNM = settings.InitialPointNM;
@@ -462,7 +451,6 @@ namespace ATCRoom.TwrTrainer
             current = Section("Map", mapSummary, true);
             newRunwayName.ToolTip = "The name of the runway (for example 14).";
             newRunwayElevation.ToolTip = "The elevation of its threshold (ft): the heights of the labels are above it.";
-            heightClassBox.ToolTip = "The class whose heights at this aerodrome are below.";
             metarBox.ToolTip = "A METAR line (or Get METAR): its wind is used and it is shown on the map (for example LIPI 031250Z 06012KT CAVOK 15/08 Q1018).";
             newGateName.ToolTip = "The name of the new gate (empty: the name of the VRP clicked).";
             longFinalBox.ToolTip = "Distance of the long final (NM): where LONG FIN starts.";
@@ -506,14 +494,9 @@ namespace ATCRoom.TwrTrainer
             Row("Variation", Inline(variationBox, new TextBlock { Text = "(E / W, for the radials)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
             variationBox.LostFocus += (_, _) => ApplyVariation();
 
-            heightsNote = Note("Heights of a class at this aerodrome, ft above the runway (empty: the class's). Close: also the overhead's downwind; break empty: the close height.");
-            Row("Class", heightClassBox);
-            heightClassBox.SelectionChanged += (_, _) => ShowHeights();
-            current.Children.Add(Labelled(("Conventional", conventionalHeight), ("Wide", wideHeight), ("Close", closeHeight)));
-            current.Children.Add(Labelled(("Initial (OVH)", initialHeight), ("Break (OVH)", breakHeight)));
-            // (The Low Key no more, the user 6 Nov: worked out each time, one vertical speed from the High Key.)
-            current.Children.Add(Labelled(("High Key (SFO)", highKeyHeight)));
-            Buttons(("Save heights", SaveHeights));
+            // (The user, 6 Nov: all the classes in one window, their performance and their heights at this aerodrome.)
+            Note("The classes of aircraft: their performance and their heights at this aerodrome.");
+            Buttons(("Aircraft classes...", OpenClasses));
 
             Row("Formation FS", separationRow);
             separationRow.Picked += full =>
@@ -1198,7 +1181,6 @@ namespace ATCRoom.TwrTrainer
                 newRunwayElevation.Text = airfield.ElevationFt.ToString("0", CultureInfo.InvariantCulture);
             }
             updating = false;
-            ShowHeights();
         }
 
         private void PlaceRunway()
@@ -1246,49 +1228,111 @@ namespace ATCRoom.TwrTrainer
             arrivalName.Text = $"{HeightWord} ft";
             heightName.Text = $"{HeightWord} ft";
             hkName.Text = $"HK {HeightWord.ToLowerInvariant()} ft";
-            heightsNote.Text = $"Heights of a class at this aerodrome, ft {(qfe ? "above the runway (QFE)" : "altitude (QNH)")} (empty: the class's). Close: also the overhead's downwind; break empty: the close height.";
             heightBox.ToolTip = qfe ? "Height above the runway (ft) for GO." : "Altitude (ft, QNH) for GO.";
-            ShowHeights();
         }
 
-        private void ShowHeights()
+        /// <summary>The row of the classes in New aircraft, made again (at the start, after the Aircraft classes window).</summary>
+        private void MakeClassRow(string? keep)
         {
-            ClassCircuit? heights = HeightsOf(heightClassBox.SelectedItem as string);
-            double offset = HeightOffset;
-            string Text(double? value) => value is double v ? (v + offset).ToString("0", CultureInfo.InvariantCulture) : "";
-            // (A file with one height for all the circuits: shown in each of them.)
-            conventionalHeight.Text = Text(heights?.ConventionalHeightFt ?? heights?.CircuitHeightFt);
-            wideHeight.Text = Text(heights?.WideHeightFt ?? heights?.CircuitHeightFt);
-            closeHeight.Text = Text(heights?.CloseHeightFt ?? heights?.CircuitHeightFt);
-            initialHeight.Text = Text(heights?.InitialHeightFt);
-            breakHeight.Text = Text(heights?.BreakHeightFt);
-            highKeyHeight.Text = Text(heights?.HighKeyFt);
+            classHolder.Children.Clear();
+            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its performance and its heights at this aerodrome: Settings › Circuits › Aircraft classes).");
+            // (The user, 4 Nov: the jet by default, the most used.)
+            classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, keep, StringComparison.OrdinalIgnoreCase))?.Name
+                ?? engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
+                ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
+            classHolder.Children.Add(classRow);
+            classRow.Picked += _ => ShowEntries();
         }
 
-        private void SaveHeights()
+        /// <summary>
+        /// The Aircraft classes window: the performance saved in performance.json (the other values of each class kept as they
+        /// are in the file), the heights in the aerodrome; then the classes of the engine and the row of New aircraft again.
+        /// </summary>
+        private void OpenClasses()
         {
-            if (airfield.Map == null || heightClassBox.SelectedItem is not string name) { Say("Open a map first."); return; }
-            double? Read(TextBox box)
+            bool map = airfield.Map != null;
+            ClassesWindow window = new(engine.Classes, map ? airfield.Circuits : null, HeightOffset, airfield.Circuits.Qfe ? "HGT" : "ALT") { Owner = this };
+            if (window.ShowDialog() != true || window.Result is not { } saved) return;
+            // The performance: into the file as it is (what this version does not know kept).
+            PerformanceFile file;
+            try
             {
-                string text = box.Text.Trim();
-                // (Written as shown: altitudes with QNH.)
-                return text.Length > 0 && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && value - HeightOffset > 0 ? value - HeightOffset : null;
+                file = File.Exists(Paths.Performance)
+                    ? System.Text.Json.JsonSerializer.Deserialize<PerformanceFile>(File.ReadAllText(Paths.Performance), PerformanceFile.JsonOptions) ?? new PerformanceFile()
+                    : new PerformanceFile();
             }
-            ClassCircuit heights = HeightsOf(name) ?? new ClassCircuit { Class = name };
-            heights.CircuitHeightFt = null;
-            heights.ConventionalHeightFt = Read(conventionalHeight);
-            heights.WideHeightFt = Read(wideHeight);
-            heights.CloseHeightFt = Read(closeHeight);
-            heights.InitialHeightFt = Read(initialHeight);
-            heights.BreakHeightFt = Read(breakHeight);
-            heights.HighKeyFt = Read(highKeyHeight);
-            airfield.Circuits.Classes.RemoveAll(c => string.Equals(c.Class, name, StringComparison.OrdinalIgnoreCase));
-            if (heights.ConventionalHeightFt != null || heights.WideHeightFt != null || heights.CloseHeightFt != null || heights.InitialHeightFt != null
-                || heights.BreakHeightFt != null || heights.HighKeyFt != null || heights.LowKeyFt != null || heights.Extra != null) airfield.Circuits.Classes.Add(heights);
-            string? error = airfield.Save();
-            engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
-            Say(error ?? $"Heights of {name} saved: for the aircraft added from now on.");
-            ShowHeights();
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                Say($"{PerformanceFile.FileName} could not be read: nothing saved ({ex.Message}).", Area.Aerodrome);
+                return;
+            }
+            if (file.FormatVersion > PerformanceFile.CurrentFormatVersion)
+            {
+                Say($"{PerformanceFile.FileName} was made by a newer version: it is not changed.", Area.Aerodrome);
+                return;
+            }
+            List<PerformanceClass> before = file.Classes ?? [];
+            List<PerformanceClass> after = [];
+            foreach (ClassesWindow.Saved item in saved)
+            {
+                PerformanceClass? old = item.OriginalName == null ? null
+                    : before.FirstOrDefault(c => c != null && string.Equals((c.Name ?? "").Trim(), item.OriginalName, StringComparison.OrdinalIgnoreCase));
+                PerformanceClass kind = old?.Copy() ?? item.Class.Copy();
+                kind.Name = item.Class.Name;
+                kind.MinSpeedKt = item.Class.MinSpeedKt;
+                kind.MaxSpeedKt = item.Class.MaxSpeedKt;
+                kind.ApproachSpeedKt = item.Class.ApproachSpeedKt;
+                kind.FinalSpeedKt = item.Class.FinalSpeedKt;
+                kind.MaxClimbFpm = item.Class.MaxClimbFpm;
+                kind.MaxDescentFpm = item.Class.MaxDescentFpm;
+                kind.MaxBankDegrees = item.Class.MaxBankDegrees;
+                kind.BrakingKtPerSecond = item.Class.BrakingKtPerSecond;
+                after.Add(kind);
+            }
+            file.Classes = after;
+            try
+            {
+                PerformanceFile.Write(Paths.Performance, file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Say($"{PerformanceFile.FileName} could not be written: nothing saved ({ex.Message}).", Area.Aerodrome);
+                return;
+            }
+            string? keep = classRow.Value;
+            (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
+            engine.SetPerformanceClasses(classes);
+            // The heights: each class in the aerodrome (its old name followed), what this version does not know kept.
+            string? error = null;
+            if (map)
+            {
+                List<ClassCircuit> heights = [];
+                foreach (ClassesWindow.Saved item in saved)
+                {
+                    string name = item.OriginalName ?? item.Class.Name;
+                    ClassCircuit? old = airfield.Circuits.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase))
+                        ?? airfield.Circuits.Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), item.Class.Name, StringComparison.OrdinalIgnoreCase));
+                    double?[] h = item.Heights;
+                    if (h.All(v => v == null) && old?.Extra == null) continue;
+                    heights.Add(new ClassCircuit
+                    {
+                        Class = item.Class.Name,
+                        ConventionalHeightFt = h[0], WideHeightFt = h[1], CloseHeightFt = h[2], InitialHeightFt = h[3], BreakHeightFt = h[4], HighKeyFt = h[5],
+                        Extra = old?.Extra
+                    });
+                }
+                // (Of a class no more here: kept only for what this version does not know.)
+                foreach (ClassCircuit other in airfield.Circuits.Classes)
+                    if (other?.Extra != null && !heights.Any(c => string.Equals(c.Class, (other.Class ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+                        && !saved.Any(item => string.Equals(item.OriginalName, (other.Class ?? "").Trim(), StringComparison.OrdinalIgnoreCase))) heights.Add(other);
+                airfield.Circuits.Classes.Clear();
+                airfield.Circuits.Classes.AddRange(heights);
+                error = airfield.Save();
+                engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
+            }
+            MakeClassRow(keep);
+            ShowEntries();
+            Say(error ?? note ?? "Aircraft classes saved: for the aircraft added from now on.", Area.Aerodrome);
         }
 
         private void ApplyMetar(bool quiet)
