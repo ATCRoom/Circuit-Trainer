@@ -741,6 +741,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   altitude. **Strip colour by type of flight** (the user, 6 Nov): arrivals one colour, transit and local the same colour,
   departures one colour. **Nothing of the instructor's actions** on the student's side (no leg, no commands, not in the strip,
   not in the student view of the player). No commands to the aircraft.
+- **Strips (the user, 6 Nov):** compact, about 26 px (line 1 callsign, ICAO type, V/I, entry short N / S / LF / RWY or exit
+  for a departure, altitude in hundreds; line 2 the student's notes, the last highlighted, empty until he writes). A strip
+  **goes** when its aircraft is off the runway after landing, or is removed from the simulation; a departure when the
+  simulation ends it (at its exit / end of its route), or removed.
 - **Student's notes on the strips** (the user, 6 Nov; proposal shown in a mock-up, to confirm): click a strip to choose it, quick
   buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, EXIT) and a free text box add a note at the end
   of its note line (the last highlighted); click a note to remove it; drag a strip to change its place. The notes stay with the
