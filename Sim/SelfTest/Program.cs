@@ -1545,7 +1545,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         Check(fin.All(st => st.Leg is not ("DOWNWIND" or "BASE")) && LandedOnRunway(fin), "From a gate: straight in to the final, lands");
         Check(ip.Any(st => st.Leg == "INITIAL") && ip.All(st => st.Circuit is CircuitType.Overhead or CircuitType.Close) && LandedOnRunway(ip),
             "From a gate to the IP: the overhead, lands");
-        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk) + " " + From(hk, "HIGH KEY", 5));
+        Check(hk.Any(st => st.Leg == "HOLD") && hk.Any(st => st.Leg == "LOW KEY") && LandedOnRunway(hk), "From a gate to the High Key: on hold, started, the SFO, lands", Legs(hk) + " " + From(hk, "HIGH KEY", 5) + " ROUTE " + string.Join(" ", hk.FirstOrDefault(st => st.Leg == "HIGH KEY")?.Route?.Select(rp =>
+            { AircraftState at = hk[0] with { X = rp.X, Y = rp.Y }; return $"<{Frame(at).Along:F2},{Frame(at).Lateral:F2}>"; }) ?? []));
         pictures.Add(("From a gate 6 NM out: 45° onto the downwind (Light)", dw));
         pictures.Add(("From a gate: straight to the base (Light)", bs));
         pictures.Add(("From a gate: straight in (Turboprop)", fin));
