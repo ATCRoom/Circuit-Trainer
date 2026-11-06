@@ -750,7 +750,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   once, as if coordinated (no countdown, nothing of the instructor). **In contact:** when the plan flies, its strip moves here
   (as if the radar unit had sent it to the tower frequency). The quick note buttons and the free note box at the bottom of the
   bay. Held plans (⏸) stay in Coordination (the user, 6 Nov: yes). **IVAO aircraft:** their strip in Coordination when in
-  range; the student moves it to In contact by hand when it really calls (the user, 6 Nov).
+  range; the student moves it to In contact by hand when it really calls (the user, 6 Nov). Simulated aircraft: moved to In contact
+  by themselves when they really start (the user, 6 Nov).
 - **Strip colours (the user, 6 Nov):** by type of flight, **changeable by the user**; default departures **white**, arrivals
   **yellow**, local and transit **pink**. (Set in Settings › Appearance.)
 - **Student's notes on the strips** (the user, 6 Nov; proposal shown in a mock-up, to confirm): click a strip to choose it, quick
@@ -774,8 +775,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   for IVAO aircraft too: callsign, ICAO type and rules from the flight plan, type of flight from departure / destination against
   the aerodrome (departure, arrival, else transit), entry gate and altitude empty (not known); **a field not given by IVAO
   can be filled in by hand by the student on the strip** (the user, 6 Nov; a field given by IVAO is not changed); a strip goes as for the simulated
-  ones (off the runway, or out of range / disconnected). A callsign used by both: warned (the simulated one renamed). In the log
-  and the recording: IVAO aircraft too (marked IVAO). On the instructor's view the simulated labels in another colour (as the
+  ones (off the runway, or out of range / disconnected). A callsign used by both: warned (the simulated one renamed). **In the log
+  and the recording: IVAO aircraft too (marked IVAO; the user, 6 Nov: required).** On the instructor's view the simulated labels in another colour (as the
   Trainer); nothing different for the student.
 - **New fields of an aircraft (New aircraft, plans, label, strip, log):** **flight rules VFR / IFR**; **ICAO type** free text
   (F16, TOR, EUFI, C172...; no list; the class stays for the performance).
