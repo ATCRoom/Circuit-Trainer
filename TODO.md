@@ -753,6 +753,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   15 ft takes about 3.5 s with the class vertical acceleration, no extra wait). A command of the controller (DCT TO to leave,
   heading...) during the hover does NOT cut it short: the hover ends first, then the command is obeyed. Strip and traffic list: departure from H1, H2... A hand-written
   file with a pad on a departure of another class: ignored.
+- **Settings: new section "Aircraft" (the user, 6 Nov night: "mettiamo Aircraft"):** next to Circuits; the button Aircraft
+  classes... leaves Circuits and goes there (tooltips "Settings › Circuits › Aircraft classes" updated). Other rows that could go
+  there: Formation FS (a behaviour of the aircraft, now in Circuits) - to be confirmed by the user.
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
