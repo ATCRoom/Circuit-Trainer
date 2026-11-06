@@ -760,8 +760,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   separation of the next aircraft"); tooltips: FULL = the next lands when the one ahead has left the runway, REDUCED = when it
   has rolled a third of the runway.
 - **PHOTO for the debriefing (the user, 6 Nov night; decided; the screenshot in the next build, the marker with the log):** a
-  button PHOTO on the bar of the map (next to the level), the **middle mouse button on the map**, and **Ctrl+P** (P = Photo;
-  F1 / F2 / Pause already used). It takes the picture of the map **with all the labels of the tracks** (the map view only, not
+  button PHOTO on the bar of the map (next to the level), the **middle mouse button on the map**, and **Ctrl+S** (S = Screenshot;
+  the user: Ctrl+P is too far on the Italian keyboard; F1 / F2 / Pause already used; Ctrl+S free). It takes the picture of the map **with all the labels of the tracks** (the map view only, not
   the other windows), at the moment of the click; the simulation does not stop. The file goes in `Photos\<one folder for each
   session: date and time of the start>\`, next to Maps / Logs (portable: the program folder; else the Trainer folder in
   AppData), named like `Photo-03_T+12m40s.png` (progressive number of the session, simulated time, not the clock); the number
