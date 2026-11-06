@@ -336,8 +336,19 @@ namespace ATCRoom.Sim
                 a.TargetAltitudeFt = Math.Clamp(altitudeFt, runwayElevation, MaxAltitude);
                 a.AltitudeGiven = true;
                 // In its circuit (flying its route): the height of this circuit (the user, 6 Nov), down as usual from the base.
-                if (a.Circuit is { Suspended: false, Departed: false, Transit: false, OnFinal: false } circuit && a.Navigation == NavigationMode.Route)
+                // (In a 180° turn, or a wingman waiting after the split, too.)
+                if (a.Circuit is { Suspended: false, Departed: false, Transit: false, OnFinal: false } circuit
+                    && (a.Navigation == NavigationMode.Route || circuit.Turning || circuit.DelayUntilStep > 0))
+                {
                     circuit.LapHeight = a.TargetAltitudeFt;
+                    // (On its way to the High Key: its SFO from there, the Low Key moved as much.)
+                    if (circuit.Type == CircuitType.Sfo && a.Route is { } way && a.RouteNext < way.Count && way[a.RouteNext].Name == "HIGH KEY")
+                    {
+                        a.Route = SfoRoute(a);
+                        a.RouteNext = 0;
+                        circuit.LegIndex = -1;
+                    }
+                }
                 else if (a.Circuit is { Spiral: true } spiral)
                     spiral.LapHeight = a.TargetAltitudeFt;
                 if (verticalRateFpm is double rate) a.SelectedVerticalRateFpm = Math.Clamp(Math.Abs(rate), MinVerticalRate, MaxVerticalRate);

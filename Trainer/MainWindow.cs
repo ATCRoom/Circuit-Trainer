@@ -1432,7 +1432,7 @@ namespace ATCRoom.TwrTrainer
             if (error != null) return error;
             PlanOfCircuits(plan, added);
             // (The SFO: the height written is its High Key, the user 6 Nov.)
-            if (!plan.Transit && plan.Circuit == CircuitType.Sfo && plan.HeightFt is double highKey) commands.Height(added, highKey);
+            if (!plan.Transit && plan.HeightFt is double highKey && engine.Get(added)?.Circuit == CircuitType.Sfo) commands.Height(added, highKey);
             if (plan.ToPad && PadOf(plan) is { } pad) commands.Helipad(added, pad.X, pad.Y);
             // (No pad yet, the user 5 Nov: it starts anyway, HPAD? on its label; none given by the final: the runway.)
             else if (plan.ToPad) commands.WantPad(added);

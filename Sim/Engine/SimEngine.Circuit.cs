@@ -609,6 +609,8 @@ namespace ATCRoom.Sim
                     a.Circuit.NextSide = side;
                     return;
                 }
+                // (Another circuit now: a height given for the old one no more.)
+                if (a.Circuit != null) a.Circuit.LapHeight = double.NaN;
                 // An aircraft new to the circuits (arriving): the heights of this aerodrome for its class.
                 if (a.Circuit == null && aerodrome != null) a.Class = aerodrome.Apply(a.Class);
                 CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
@@ -970,6 +972,13 @@ namespace ATCRoom.Sim
         public void ResumeRouteAltitude(string callsign) =>
             Instruct(callsign, Kind.Vertical, a =>
             {
+                // (Circling to the High Key: the class's High Key again.)
+                if (a.Circuit is { Spiral: true } circling)
+                {
+                    a.AltitudeGiven = false;
+                    circling.LapHeight = double.NaN;
+                    return;
+                }
                 // (Not flown by the instructor: its old route would give an old height.)
                 if (a.Route == null || !a.AltitudeGiven || a.Navigation != NavigationMode.Route || a.Circuit is { Suspended: true }) return;
                 a.AltitudeGiven = false;
