@@ -1830,7 +1830,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The callsign of a plan (with its formation) and the rest of its text.</summary>
-        private static (string Callsign, string Detail) PlanParts(TowerPlan p)
+        private (string Callsign, string Detail) PlanParts(TowerPlan p)
         {
             string callsign = (p.Callsign.Length > 0 ? p.Callsign : "(auto)") + (p.Formation > 1 ? $" F{p.Formation}" : "");
             string text = PlanText(p);
