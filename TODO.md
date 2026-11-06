@@ -739,6 +739,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   labels staggered. A click: its plan chosen in the Traffic List and loaded in New aircraft (as a click on its row). It goes when
   the plan starts (the aircraft takes its place) or is removed. Instructor only: not in the simulation, the log, the recording
   or the student's map. (Mock-up of the ones on the ground shown 6 Nov.)
+- **A button shows / hides them** (the user, 6 Nov): **WAITING** on the bar on the map (beside View L1 L2), lit = shown; the
+  choice saved in the settings (default: shown).
 
 ## Student console, link, log, replay (the user, 6 Nov evening) — DECIDED, design (mock-up of the student shown 6 Nov)
 - **One "snapshot" each second** (aircraft, runway, METAR/QNH/wind, time) used three times: sent on the link, written in the
