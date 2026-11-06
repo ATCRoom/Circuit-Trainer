@@ -746,11 +746,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   **goes** when its aircraft is off the runway after landing, or is removed from the simulation; a departure when the
   simulation ends it (at its exit / end of its route), or removed.
 - **Student's notes on the strips** (the user, 6 Nov; proposal shown in a mock-up, to confirm): click a strip to choose it, quick
-  buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, EXIT) and a free text box add a note at the end
+  buttons (DW, BASE, FINAL, OVH, BRK, SFO, ORBIT, T/G, LAND, L/A, L/P, G/A, TKOF, FRQ CNG) and a free text box add a note at the end
   of its note line (the last highlighted); click a note to remove it; drag a strip to change its place. The notes stay with the
   student; kept in the recording (with their time) for the debrief.
-  **The instructor does not see them during the simulation** (the user, 6 Nov: not graded live): only in the player. EXIT button:
-  its meaning asked to the user (leaving the circuit / the zone).
+  **The instructor does not see them during the simulation** (the user, 6 Nov: not graded live): only in the player. The EXIT
+  button is **FRQ CNG** instead (the user, 6 Nov): the aircraft was sent to the radar unit's frequency.
 - **Same PC:** the student console is a second window of the same program (for a second monitor), no network. **Two PCs:** the
   link of AuroraPAR v2 Trainer (public relays, session code, no IP / ports); the map sent in pieces at the start; fixed delay.
 - **Log of the flights:** one CSV per session (Logs folder): a row per event (added, take-off, each T/G, L/A or L/P, G/A,
