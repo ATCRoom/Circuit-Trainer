@@ -183,6 +183,9 @@ namespace ATCRoom.TwrTrainer
         private ChoiceRow<string> classRow = new([]);
         private readonly StackPanel classHolder = new();
         private readonly TextBox callsignBox = new() { Width = 90 };
+        // (The user, 6 Nov: the ICAO type, free text, and the flight rules: on the strips of the student and in the log.)
+        private readonly TextBox icaoTypeBox = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 8, ToolTip = "The ICAO type (F16, TOR, EUFI, C172...): free text, on the strips." };
+        private readonly ChoiceRow<bool> rulesRow = new([(false, "VFR"), (true, "IFR")], (ifr, _) => ifr ? "Flight rules IFR (on the strips: I)." : "Flight rules VFR (on the strips: V).");
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
@@ -202,7 +205,17 @@ namespace ATCRoom.TwrTrainer
         /// <summary>A row of the Traffic List being dragged (by its grip).</summary>
         private Border? dragRow;
         /// <summary>The four parts of the panel (in the column or floating).</summary>
-        private DockablePart settingsPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!;
+        private DockablePart settingsPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!, stripPart = null!;
+        // (The user, 6 Nov: the strip bay, here to see how it behaves; later the student's.)
+        private readonly StripBay stripBay = new() { Margin = new Thickness(4) };
+        private Button waitingButton = null!;
+        /// <summary>The colours a strip can have (the user, 6 Nov: changeable; default white, yellow, pink).</summary>
+        private static readonly (string Name, Color Colour)[] StripColours =
+        [
+            ("WHITE", Color.FromRgb(0xF4, 0xF4, 0xF0)), ("YELLOW", Color.FromRgb(0xF2, 0xE2, 0x8C)), ("PINK", Color.FromRgb(0xF2, 0xC4, 0xD6)),
+            ("GREEN", Color.FromRgb(0xCD, 0xE8, 0xC0)), ("BLUE", Color.FromRgb(0xC9, 0xDD, 0xF2)), ("ORANGE", Color.FromRgb(0xF5, 0xCF, 0xA0)),
+            ("GREY", Color.FromRgb(0xD6, 0xD9, 0xDC))
+        ];
         private readonly StackPanel settingsContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
         /// <summary>Where a message is shown: in the part it is about (the user, 3 Nov), one line each.</summary>
         private enum Area { Aerodrome, Simulation, New, Traffic, Selected }
@@ -303,6 +316,8 @@ namespace ATCRoom.TwrTrainer
             Content = root;
 
             view.SelectionChanged += _ => ShowSelected();
+            // (A plan waiting clicked on the map: into New aircraft, as a click on its row.)
+            view.WaitingClicked += tag => { if (tag is TowerPlan plan && plans.Contains(plan) && plan.Now != TowerPlan.State.Flying) EditPlan(plan); };
             view.FieldClicked += LabelField;
             view.FieldWheel += LabelWheel;
             view.SpeedChoices = SpeedChoices;
@@ -379,7 +394,8 @@ namespace ATCRoom.TwrTrainer
                 weatherSummary.Text = settings.Metar.Length > 0 ? MetarWind.WindAndQnh(settings.Metar) : "no METAR";
                 int waitingCount = plans.Count(p => p.Now != TowerPlan.State.Flying && !p.Quick);
                 trafficPart.SummaryText = $"{engine.Count} flying" + (waitingCount > 0 ? $" · {waitingCount} waiting" : "");
-                bool allFloating = new[] { settingsPart, newPart, trafficPart, selectedPart }.All(part => part.IsFloating);
+                bool allFloating = new[] { settingsPart, newPart, trafficPart, selectedPart, stripPart }.All(part => part.IsFloating);
+                RefreshStrips();
                 column.Visibility = allFloating ? Visibility.Collapsed : Visibility.Visible;
                 selectedPart.SummaryText = view.Selected ?? "";
             }
@@ -450,6 +466,25 @@ namespace ATCRoom.TwrTrainer
             // (The user, 3 Nov: the flight plans as a part of their own, named as in the PAR trainer.)
             trafficPart = new DockablePart("Traffic List", trafficContent, panel, layer, Placement("Traffic List"), settings.Save);
             selectedPart = new DockablePart("Selected aircraft", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
+            // (Floating by default, narrow, the user 6 Nov.)
+            if (!settings.Parts.ContainsKey("Strip bay")) settings.Parts["Strip bay"] = new PartPlacement { Floating = true, Width = 240, Height = 420 };
+            stripBay.ColourOf = StripBrush;
+            stripPart = new DockablePart("Strip bay", stripBay, panel, layer, Placement("Strip bay"), settings.Save);
+
+            // (The user, 6 Nov: the look of the panels and of the strips, at the top of Settings.)
+            current = Section("Appearance", null, false);
+            Row("Panels", panelsRow);
+            panelsRow.Show(Theme.Light);
+            panelsRow.Picked += light =>
+            {
+                settings.LightPanels = light;
+                settings.Save();
+                Say(light == Theme.Light ? "Panels as they are now." : $"Panels {(light ? "light" : "dark")} from the next start of TWR Trainer.");
+            };
+            Note("Strips (Strip bay): the colour of each kind of flight.");
+            StripColourRow("Departures", () => settings.StripDeparture, v => settings.StripDeparture = v);
+            StripColourRow("Arrivals", () => settings.StripArrival, v => settings.StripArrival = v);
+            StripColourRow("Local / transit", () => settings.StripLocal, v => settings.StripLocal = v);
 
             current = Section("Map", mapSummary, true);
             newRunwayName.ToolTip = "The name of the runway (for example 14).";
@@ -538,15 +573,6 @@ namespace ATCRoom.TwrTrainer
 
             current = Section("Map layers", null, false);
             current.Children.Add(layers);
-            // (The user, 6 Nov: the inside of the panels dark or light; the frames and the map stay dark.)
-            Row("Panels", panelsRow);
-            panelsRow.Show(Theme.Light);
-            panelsRow.Picked += light =>
-            {
-                settings.LightPanels = light;
-                settings.Save();
-                Say(light == Theme.Light ? "Panels as they are now." : $"Panels {(light ? "light" : "dark")} from the next start of TWR Trainer.");
-            };
             // The bar on the map: Run / Pause, the speed, the level.
             pauseButton.Click += (_, _) => TogglePause();
             pauseButton.Padding = new Thickness(10, 2, 10, 2);
@@ -570,6 +596,9 @@ namespace ATCRoom.TwrTrainer
             // (The user, 5 Nov: the class, the formation, then the type.)
             // (The user, 5 Nov: clearer names, a wider column for them.)
             Row("Type of AC", classHolder, null, LabelWidth);
+            Row("ICAO type", Inline(icaoTypeBox, new TextBlock { Text = "(free text: F16, TOR, C172...)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
+            Row("Rules", rulesRow, null, LabelWidth);
+            rulesRow.Show(false);
             Row("Formation", formationRow, null, LabelWidth);
             intervalLine = Row("Break interval", splitRow, null, LabelWidth);
             Row("Type of flight", typeRow, null, LabelWidth);
@@ -671,17 +700,31 @@ namespace ATCRoom.TwrTrainer
 
             current = trafficContent;
             // (As in the PAR trainer, the user 4 Nov: the aircraft flying, one thin row each, and the plans waiting.)
-            current.Children.Add(Caption("FLYING  (click: select · II freeze · ↺ its plan again · ✕ remove)"));
-            current.Children.Add(flyingList);
-            current.Children.Add(Caption("WAITING  (☐ GROUP · ▶ start · ⏸ hold · ⧉ duplicate · ✕ remove)"));
-            current.Children.Add(planList);
+            // (The user, 6 Nov: the buttons with the list they act on.)
             trafficPauseButton.Click += (_, _) => TogglePause();
-            // (One row; more only when the part is narrow: the user, 4 Nov.)
-            trafficPauseButton.Margin = new Thickness(0, 0, 4, 4);
-            WrapPanel trafficButtons = Wrap(trafficPauseButton, ActionButton("START ALL", StartAllPlans), ActionButton("REMOVE ALL", RemoveAllAircraft),
-                groupButton = ActionButton("GROUP", GroupOrUngroup), ActionButton("SAVE...", SaveScenario), ActionButton("LOAD...", LoadScenario), ActionButton("CLEAR ALL", ClearPlans));
-            trafficButtons.Margin = new Thickness(0, 6, 0, 0);
-            current.Children.Add(trafficButtons);
+            trafficPauseButton.Margin = new Thickness(0, 0, 4, 0);
+            Button removeAll = ActionButton("REMOVE ALL", RemoveAllAircraft);
+            removeAll.Margin = new Thickness(0);
+            current.Children.Add(Header(Caption("FLYING  (click: select · II freeze · ↺ its plan again · ✕ remove)"), trafficPauseButton, removeAll));
+            current.Children.Add(flyingList);
+            waitingButton = ActionButton("", ToggleWaiting);
+            waitingButton.Margin = new Thickness(0);
+            ShowWaitingButton();
+            current.Children.Add(Header(Caption("WAITING  (☐ GROUP · ▶ start · ⏸ hold · ⧉ duplicate · ✕ remove)"), waitingButton));
+            current.Children.Add(planList);
+            Button clearAll = ActionButton("CLEAR ALL", ClearPlans);
+            clearAll.Margin = new Thickness(0, 0, 0, 4);
+            DockPanel waitingButtons = new() { Margin = new Thickness(0, 6, 0, 0), LastChildFill = false };
+            DockPanel.SetDock(clearAll, Dock.Right);
+            waitingButtons.Children.Add(clearAll);
+            waitingButtons.Children.Add(ActionButton("START ALL", StartAllPlans));
+            waitingButtons.Children.Add(groupButton = ActionButton("GROUP", GroupOrUngroup));
+            current.Children.Add(waitingButtons);
+            // (Files, not the simulation: plain buttons.)
+            WrapPanel scenario = new() { Margin = new Thickness(0, 8, 0, 0) };
+            scenario.Children.Add(new TextBlock { Text = "Scenario", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 4) });
+            current.Children.Add(scenario);
+            Buttons(scenario, ("LOAD...", LoadScenario), ("SAVE...", SaveScenario));
 
             current = selectedContent;
             current.Children.Add(selectedText);
@@ -1539,6 +1582,8 @@ namespace ATCRoom.TwrTrainer
             {
                 Callsign = callsignBox.Text.Trim().ToUpperInvariant(),
                 Class = classRow.Value ?? "",
+                IcaoType = icaoTypeBox.Text.Trim().ToUpperInvariant(),
+                Ifr = rulesRow.HasValue && rulesRow.Value,
                 From = fromRow.Value ?? From.LongFinal,
                 Entry = entryRow.Value,
                 Circuit = circuitRow.Value,
@@ -1782,6 +1827,8 @@ namespace ATCRoom.TwrTrainer
             splitRow.Show(p.SplitSeconds is 3.0 or 4.0 or 5.0 or 10.0 ? p.SplitSeconds : 3.0);
             intervalLine.Visibility = p.Formation > 1 ? Visibility.Visible : Visibility.Collapsed;
             callsignBox.Text = p.Callsign;
+            icaoTypeBox.Text = p.IcaoType;
+            rulesRow.Show(p.Ifr);
             arrivalBox.Text = p.HeightFt is double h ? (h + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             hkBox.Text = p.HighKeyFt is double k ? (k + HeightOffset).ToString("0", CultureInfo.InvariantCulture) : "";
             delayBox.Text = p.DelayMinutes.ToString("0.#", CultureInfo.InvariantCulture);
@@ -1819,7 +1866,7 @@ namespace ATCRoom.TwrTrainer
             string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = (p.HeightFt is double hf ? $" {hf + HeightOffset:0} ft" : "") + (p.HighKeyFt is double hk ? $" HK {hk + HeightOffset:0} ft" : "");
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
-            string who = $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {p.Class}";
+            string who = $"{(p.Callsign.Length > 0 ? p.Callsign : "(auto)")}{team} {(p.IcaoType.Length > 0 ? p.IcaoType : p.Class)} {(p.Ifr ? "I" : "V")}";
             string delay = $"+{p.DelayMinutes:0.#}'";
             string way = p.Radial is double r ? $"R{r:000}°M {(p.TurnRight == false ? "L" : "R")}{(p.RadialFromX != null ? " (point)" : "")}" : "RWY HDG";
             if (p.Transit)
@@ -1962,6 +2009,145 @@ namespace ATCRoom.TwrTrainer
             string callsign = (p.Callsign.Length > 0 ? p.Callsign : "(auto)") + (p.Formation > 1 ? $" F{p.Formation}" : "");
             string text = PlanText(p);
             return (callsign, text.StartsWith(callsign, StringComparison.Ordinal) ? text[callsign.Length..].TrimStart() : text);
+        }
+
+        /// <summary>A caption with buttons on its right (the Traffic List, the user 6 Nov).</summary>
+        private static DockPanel Header(TextBlock caption, params Button[] buttons)
+        {
+            DockPanel header = new() { Margin = new Thickness(0, 6, 0, 2) };
+            StackPanel right = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom };
+            foreach (Button button in buttons) right.Children.Add(button);
+            DockPanel.SetDock(right, Dock.Right);
+            header.Children.Add(right);
+            caption.VerticalAlignment = VerticalAlignment.Bottom;
+            caption.Margin = new Thickness(0, 0, 6, 1);
+            header.Children.Add(caption);
+            return header;
+        }
+
+        /// <summary>WAITING TFC: the plans waiting on the map or not (saved).</summary>
+        private void ToggleWaiting()
+        {
+            settings.ShowWaiting = !settings.ShowWaiting;
+            settings.Save();
+            ShowWaitingButton();
+            RefreshStrips();
+        }
+
+        private void ShowWaitingButton()
+        {
+            waitingButton.Content = settings.ShowWaiting ? "👁 WAITING TFC" : "⊘ WAITING TFC";
+            waitingButton.Background = settings.ShowWaiting ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)) : Theme.OffBack;
+            waitingButton.Foreground = settings.ShowWaiting ? new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)) : Theme.OffText;
+            waitingButton.BorderBrush = waitingButton.Background;
+            waitingButton.ToolTip = settings.ShowWaiting
+                ? "The aircraft waiting are on the map, still, in grey (click one: it goes into New aircraft). Click: hide them."
+                : "The aircraft waiting are not on the map. Click: show them, still, where they will start.";
+        }
+
+        /// <summary>A colour row of the strips (Settings › Appearance).</summary>
+        private void StripColourRow(string label, Func<string> get, Action<string> set)
+        {
+            ChoiceRow<string> row = new(StripColours.Select(c => (c.Name, c.Name)), (name, _) => $"{label}: {name.ToLowerInvariant()} strips.");
+            row.Show(StripColours.Any(c => c.Name == get()) ? get() : StripColours[0].Name);
+            row.Picked += name =>
+            {
+                set(name);
+                settings.Save();
+                stripBay.Redraw();
+            };
+            Row(label, row);
+        }
+
+        private Brush StripBrush(StripKind kind)
+        {
+            string name = kind switch { StripKind.Departure => settings.StripDeparture, StripKind.Arrival => settings.StripArrival, _ => settings.StripLocal };
+            Color colour = StripColours.FirstOrDefault(c => c.Name == name).Colour;
+            if (colour == default) colour = kind switch { StripKind.Departure => StripColours[0].Colour, StripKind.Arrival => StripColours[1].Colour, _ => StripColours[2].Colour };
+            SolidColorBrush brush = new(colour);
+            brush.Freeze();
+            return brush;
+        }
+
+        /// <summary>What a plan's strip shows: kind of flight, entry (the exit of a departure), altitude in hundreds.</summary>
+        private (StripKind Kind, string Entry, string Altitude) StripOf(TowerPlan p)
+        {
+            StripKind kind = p.Departure ? StripKind.Departure : p.Local || p.Transit ? StripKind.Local : StripKind.Arrival;
+            string entry = p.Departure
+                ? (p.To.Length > 0 ? p.To : p.Radial is double r && !double.IsNaN(r) ? $"R{r:000}" : "RWY")
+                : p.From switch { From.LongFinal => "LF", From.Runway => "RWY", _ when From.IsInCircuit(p.From) => "CCT", _ => p.From };
+            string altitude = p.HeightFt is double h ? $"{Math.Max(0, Math.Round((h + HeightOffset) / 100)):000}" : "";
+            return (kind, entry, altitude);
+        }
+
+        /// <summary>
+        /// Each second: the strips (Coordination: the plans waiting; In contact: the aircraft of the plans flying, also those
+        /// split off a formation) and the plans waiting on the map (WAITING TFC).
+        /// </summary>
+        private void RefreshStrips()
+        {
+            List<StripData> coordination = [], contact = [];
+            List<WaitingMark> marks = [];
+            foreach (TowerPlan p in plans)
+            {
+                (StripKind kind, string entry, string altitude) = StripOf(p);
+                string type = p.IcaoType.Length > 0 ? p.IcaoType : p.Class.ToUpperInvariant();
+                if (p.Now == TowerPlan.State.Flying)
+                {
+                    if (p.Flying.Length > 0) stripBay.Started(p, p.Flying);
+                    foreach (string member in MembersFlying(p)) contact.Add(new StripData(member, member, type, p.Ifr, kind, entry, altitude));
+                    continue;
+                }
+                if (p.Quick) continue;
+                string name = (p.Callsign.Length > 0 ? p.Callsign : "(AUTO)") + (p.Formation > 1 ? $" F{p.Formation}" : "");
+                coordination.Add(new StripData(p, name, type, p.Ifr, kind, entry, altitude));
+                if (settings.ShowWaiting && WaitingPlace(p) is (double x, double y, bool ground))
+                {
+                    string state = p.Now switch
+                    {
+                        TowerPlan.State.Counting => $"{(int)(Math.Max(0, p.Due - engine.Time) / 60)}:{(int)(Math.Max(0, p.Due - engine.Time) % 60):00}",
+                        TowerPlan.State.Held => "HELD",
+                        _ => ""
+                    };
+                    string where = ground ? "GND" : altitude.Length > 0 ? altitude : entry;
+                    marks.Add(new WaitingMark(x, y, $"{name} {type}", $"{where} {state}".Trim(), p.Now == TowerPlan.State.Held,
+                        engine.Classes.FirstOrDefault(c => string.Equals(c.Name, p.Class, StringComparison.OrdinalIgnoreCase))?.CanHover == true, p.Formation > 1, p));
+                }
+            }
+            stripBay.Show(coordination, contact);
+            view.Waiting = marks;
+            view.InvalidateVisual();
+        }
+
+        /// <summary>Where a plan waiting will start (the plane, NM), and whether on the ground; null when not known (no runway, no gate).</summary>
+        private (double X, double Y, bool Ground)? WaitingPlace(TowerPlan p)
+        {
+            (double X, double Y)? At(CircuitStart start, CircuitType type) => engine.StartPoint(start, type, p.Side, p.Class.Length > 0 ? p.Class : null);
+            (double X, double Y)? point;
+            bool ground = false;
+            if (p.Departure || p.From == From.Runway)
+            {
+                point = At(CircuitStart.Runway, CircuitType.Conventional);
+                ground = true;
+            }
+            else if (p.From == From.LongFinal) point = At(p.Entry == CircuitEntry.Circling ? CircuitStart.Circling : CircuitStart.LongFinal, CircuitType.Conventional);
+            else if (From.IsInCircuit(p.From))
+            {
+                CircuitStart start = p.Entry switch
+                {
+                    CircuitEntry.InitialPoint => CircuitStart.InitialPoint,
+                    CircuitEntry.HighKey => CircuitStart.HighKey,
+                    CircuitEntry.Final => CircuitStart.LongFinal,
+                    _ => CircuitStart.Downwind
+                };
+                point = At(start, p.Circuit);
+            }
+            else
+            {
+                var gate = airfield.Gates.FirstOrDefault(g => string.Equals(g.Name, p.From, StringComparison.OrdinalIgnoreCase));
+                point = gate.Name != null ? (gate.X, gate.Y) : null;
+            }
+            return point is (double x, double y) ? (x, y, ground) : null;
         }
 
         /// <summary>The list of the plans waiting, built again.</summary>

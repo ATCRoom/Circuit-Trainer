@@ -24,6 +24,10 @@ namespace ATCRoom.TwrTrainer
         /// <summary>Empty: the next free callsign of the prefix.</summary>
         public string Callsign { get; set; } = "";
         public string Class { get; set; } = "";
+        /// <summary>The ICAO type (F16, TOR, EUFI, C172...; free text, the user 6 Nov; empty: none). The class stays for the performance.</summary>
+        public string IcaoType { get; set; } = "";
+        /// <summary>Flight rules IFR (else VFR; the user 6 Nov).</summary>
+        public bool Ifr { get; set; }
         /// <summary>The name of the gate, <see cref="From.Runway"/> or <see cref="From.InCircuit"/>.</summary>
         public string From { get; set; } = "";
         public CircuitEntry Entry { get; set; } = CircuitEntry.Downwind;
@@ -130,7 +134,7 @@ namespace ATCRoom.TwrTrainer
 
         public TowerPlan Copy() => new()
         {
-            Callsign = Callsign, Class = Class, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
+            Callsign = Callsign, Class = Class, IcaoType = IcaoType, Ifr = Ifr, From = From, Entry = Entry, Circuit = Circuit, Side = Side, End = End, HeightFt = HeightFt, Transit = Transit, To = To, Overhead = Overhead,
             Formation = Formation, Lands = Lands?.ToList(), SplitSeconds = SplitSeconds, Laps = Laps, Last = Last, OnFinal = OnFinal, GroupedFrom = GroupedFrom?.Select(g => g.Copy()).ToList(),
             HighKeyFt = HighKeyFt, ToPad = ToPad, PadName = PadName, PadX = PadX, PadY = PadY,
             Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,

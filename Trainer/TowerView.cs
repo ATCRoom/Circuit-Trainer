@@ -94,6 +94,13 @@ namespace ATCRoom.TwrTrainer
         /// <summary>What to do first (no map, no runway), in the middle of the view.</summary>
         public string Hint { get; set; } = "";
         public event Action<string?>? SelectionChanged;
+        /// <summary>A plan waiting clicked on the map (its tag).</summary>
+        public event Action<object>? WaitingClicked;
+        /// <summary>The plans waiting drawn on the map, still and faint (the user, 6 Nov; WAITING TFC), with their place on the screen.</summary>
+        public List<WaitingMark> Waiting { get; set; } = [];
+        private readonly List<(Rect Area, object Tag)> waitingRects = [];
+        private static readonly Brush WaitingBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x99, 0xC8, 0xD0, 0xD6)));
+        private static readonly Brush WaitingHeldBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xC0, 0xE0, 0xB8, 0x6A)));
         /// <summary>
         /// The circuit chosen with the wheel on the label and not yet ordered (shown with a "?"), or null.
         /// </summary>
@@ -268,6 +275,7 @@ namespace ATCRoom.TwrTrainer
             DrawGates(dc, dip);
             DrawExits(dc, dip);
             DrawHelipads(dc, dip);
+            DrawWaiting(dc, dip);
             DrawTraffic(dc, dip);
             if (Hint.Length > 0)
             {
@@ -416,6 +424,49 @@ namespace ATCRoom.TwrTrainer
                 if (d < best.Distance) best = (name, d);
             }
             return best.Distance <= 15 ? best.Name : null;
+        }
+
+        /// <summary>
+        /// The plans waiting: a hollow symbol at the place they will start, a small label (callsign, type; where and when). At
+        /// the same place (departures at the threshold) the labels one under the other, with a thin line to the symbol.
+        /// </summary>
+        private void DrawWaiting(DrawingContext dc, double dip)
+        {
+            waitingRects.Clear();
+            Dictionary<(int, int), int> taken = [];
+            foreach (WaitingMark mark in Waiting)
+            {
+                Point at = ToScreen(mark.X, mark.Y);
+                (int, int) cell = ((int)Math.Round(at.X / 6), (int)Math.Round(at.Y / 6));
+                int order = taken.TryGetValue(cell, out int seen) ? seen : 0;
+                taken[cell] = order + 1;
+                Pen pen = new(WaitingBrush, 1.3);
+                if (order == 0)
+                {
+                    if (mark.Helicopter)
+                    {
+                        StreamGeometry diamond = new();
+                        using (StreamGeometryContext c = diamond.Open())
+                        {
+                            c.BeginFigure(new Point(at.X, at.Y - 5), false, true);
+                            c.LineTo(new Point(at.X + 5, at.Y), true, false);
+                            c.LineTo(new Point(at.X, at.Y + 5), true, false);
+                            c.LineTo(new Point(at.X - 5, at.Y), true, false);
+                        }
+                        dc.DrawGeometry(null, pen, diamond);
+                    }
+                    else dc.DrawEllipse(null, pen, at, mark.Formation ? 7 : 4, mark.Formation ? 7 : 4);
+                }
+                FormattedText first = new(mark.Line1, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, WaitingBrush, dip);
+                FormattedText second = new(mark.Line2, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, mark.Held ? WaitingHeldBrush : WaitingBrush, dip);
+                Point text = new(at.X + 14, at.Y + 6 + order * 26);
+                if (order > 0) dc.DrawLine(new Pen(WaitingBrush, 0.6), at, new Point(text.X - 2, text.Y + 6));
+                dc.DrawText(first, text);
+                dc.DrawText(second, new Point(text.X, text.Y + first.Height));
+                double width = Math.Max(first.Width, second.Width);
+                waitingRects.Add((new Rect(text.X - 2, text.Y - 1, width + 4, first.Height + second.Height + 2), mark.Tag));
+                if (order == 0) waitingRects.Add((new Rect(at.X - 8, at.Y - 8, 16, 16), mark.Tag));
+            }
         }
 
         private void DrawTraffic(DrawingContext dc, double dip)
@@ -925,6 +976,13 @@ namespace ATCRoom.TwrTrainer
                 InvalidateVisual();
                 return;
             }
+            // (A plan waiting: into New aircraft, as a click on its row; aircraft flying first.)
+            (Rect Area, object Tag) waiting = waitingRects.LastOrDefault(w => w.Area.Contains(at));
+            if (AircraftAt(at) == null && waiting.Tag != null)
+            {
+                WaitingClicked?.Invoke(waiting.Tag);
+                return;
+            }
             Select(AircraftAt(at));
         }
 
@@ -956,4 +1014,7 @@ namespace ATCRoom.TwrTrainer
             }
         }
     }
+
+    /// <summary>A plan waiting on the instructor's map: where it will start (the plane, NM), its two lines, held, its tag (the plan).</summary>
+    internal sealed record WaitingMark(double X, double Y, string Line1, string Line2, bool Held, bool Helicopter, bool Formation, object Tag);
 }

@@ -65,6 +65,12 @@ namespace ATCRoom.TwrTrainer
         public bool AerodromeOpen { get; set; } = true;
         /// <summary>The inside of the panels light (from the next start; the frames and the map stay dark).</summary>
         public bool LightPanels { get; set; }
+        /// <summary>The plans waiting drawn on the map (WAITING TFC, the user 6 Nov).</summary>
+        public bool ShowWaiting { get; set; } = true;
+        /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
+        public string StripDeparture { get; set; } = "WHITE";
+        public string StripArrival { get; set; } = "YELLOW";
+        public string StripLocal { get; set; } = "PINK";
         public bool SimulationOpen { get; set; } = true;
         /// <summary>The parts of the panel: in the column or floating over the map, their place and size.</summary>
         public Dictionary<string, PartPlacement>? Parts { get; set; }

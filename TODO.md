@@ -796,9 +796,16 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
-## Next build (the user, 6 Nov) — TO DO
-- Settings: the row Panels DARK / LIGHT out of Map layers (it is not about the map): a new section **Appearance** at the top of
-  Settings, before Map, with only that row (from the next start, as now).
+## Build of 6 Nov evening (the user: "puoi farmi una build anche con il strip bay") — WRITTEN
+- Settings: the row Panels DARK / LIGHT out of Map layers: a new section **Appearance** at the top of Settings, with the colours
+  of the strips (departures, arrivals, local / transit; default white, yellow, pink).
+- New aircraft: **ICAO type** (free text) and **Rules** VFR / IFR (in the plans, the Traffic List text, the strips).
+- **Strip bay** (floating part, here on the instructor's screen to see how it behaves): Coordination (plans waiting) and In
+  contact (aircraft flying; a formation split: a strip each); quick notes and free note; colours by kind of flight. Not yet:
+  dragging strips, IVAO, the student's console.
+- **WAITING TFC** (👁) in the Traffic List: the plans waiting drawn still on the map (grey; held in ochre); a click: into
+  New aircraft. Traffic List buttons by section (FLYING: PAUSE, REMOVE ALL; WAITING: WAITING TFC; START ALL, GROUP, CLEAR ALL
+  apart; Scenario: LOAD, SAVE).
 
 ## Build of 6 Nov, runways.par (the user: "ok") — WRITTEN
 - Settings › Map › From runways.par...: the runways of the map's aerodrome (ICAO) from AuroraPAR's runways.par (the file chosen
