@@ -732,6 +732,19 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Next build (the user, 6 Nov night: "si alla prossima build") — TO DO
+- **Exit turn L / R** (no SHORT; the user, 6 Nov): row under Exit via / Exit to for departures and transits using the runway
+  (hidden with RWY HDG); lit by itself each time the way out changes, by the side of the runway axis the exit point (gate, R/D,
+  radial) is on, seen from the take-off; on the axis (about 0.3 NM) or the opposite radial: the aerodrome's circuit side (AD);
+  clicked by hand: kept until the way out changes. Engine: the turn side kept also to a gate / R/D point (today the shorter).
+- **Exit alt ft** (ALT / HGT): the altitude it climbs to when it leaves (empty: 3000 ft above the runway), apart from Height ft
+  (the entry); old lists: a departure's Height ft is its exit altitude.
+- **Fixes of the review of the R/D build:** (1) departures saved before kept their last gate in To: ignored (RWY HDG or their
+  radial as before); (2) a departure to a point taken off its way by the instructor: gone at 10 NM as the others; (3) a departure
+  with circuits to an empty R/D or a gate no more there: said, not started; (4) no gates: Start from falls back to LONG FIN, not
+  R/D; R/D text with the decimal point, radial 0-359; gate names R/D, RWY HDG, RADIAL, LONG FIN, RWY refused; hand-written files
+  (transit from LONG FIN without CIRCUITS, circuits ∞) handled safely.
+
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
   final at its distance, the threshold (departures, local), the helipad. Small label: callsign, ICAO type, starting altitude,
