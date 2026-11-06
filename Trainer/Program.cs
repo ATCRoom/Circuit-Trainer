@@ -16,6 +16,8 @@ namespace ATCRoom.TwrTrainer
                 e.Handled = true;
             };
             // (Every button: one look, readable under the mouse: the user, 4 Nov.)
+            // (The inside of the panels dark or light, from the settings: before anything is made, the user 6 Nov.)
+            Theme.Light = TrainerSettings.Load().LightPanels;
             app.Resources[typeof(System.Windows.Controls.Button)] = ButtonStyle.Make();
             app.Run(new MainWindow());
         }

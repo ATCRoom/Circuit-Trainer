@@ -34,8 +34,9 @@ namespace ATCRoom.TwrTrainer
             template.VisualTree = border;
 
             Trigger over = new() { Property = UIElement.IsMouseOverProperty, Value = true };
-            over.Setters.Add(new Setter(Border.BorderBrushProperty, Brushes.White, "bd"));
-            over.Setters.Add(new Setter(TextElement.ForegroundProperty, Brushes.White, "cp"));
+            over.Setters.Add(new Setter(Border.BorderBrushProperty, Theme.Over, "bd"));
+            // (Light panels: the text stays as it is, readable on its button.)
+            if (!Theme.Light) over.Setters.Add(new Setter(TextElement.ForegroundProperty, Brushes.White, "cp"));
             template.Triggers.Add(over);
             MultiTrigger chosenOver = new();
             chosenOver.Conditions.Add(new Condition(UIElement.IsMouseOverProperty, true));
@@ -51,9 +52,9 @@ namespace ATCRoom.TwrTrainer
 
             Style style = new(typeof(Button));
             style.Setters.Add(new Setter(Control.TemplateProperty, template));
-            style.Setters.Add(new Setter(Control.BackgroundProperty, Frozen(new SolidColorBrush(Color.FromRgb(0x2A, 0x33, 0x3C)))));
-            style.Setters.Add(new Setter(Control.ForegroundProperty, Frozen(new SolidColorBrush(Color.FromRgb(0xC8, 0xD4, 0xDE)))));
-            style.Setters.Add(new Setter(Control.BorderBrushProperty, Frozen(new SolidColorBrush(Color.FromRgb(0x5F, 0x6B, 0x75)))));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, Theme.OffBack));
+            style.Setters.Add(new Setter(Control.ForegroundProperty, Theme.ButtonText));
+            style.Setters.Add(new Setter(Control.BorderBrushProperty, Theme.OffEdge));
             style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 1, 6, 1)));
             style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Center));

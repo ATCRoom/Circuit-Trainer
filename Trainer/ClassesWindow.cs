@@ -16,11 +16,11 @@ namespace ATCRoom.TwrTrainer
     /// </summary>
     internal sealed class ClassesWindow : Window
     {
-        private static readonly Brush PanelBrush = new SolidColorBrush(Color.FromRgb(0x1A, 0x21, 0x28));
-        private static readonly Brush TextBrush = new SolidColorBrush(Color.FromRgb(0xD6, 0xE2, 0xEC));
-        private static readonly Brush DimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x98, 0xA4));
+        private static Brush PanelBrush => Theme.Panel;
+        private static Brush TextBrush => Theme.Text;
+        private static Brush DimBrush => Theme.Dim;
         private static readonly Brush GreyBrush = new SolidColorBrush(Color.FromRgb(0x90, 0x90, 0x90));
-        private static readonly Brush WarnBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x50));
+        private static Brush WarnBrush => Theme.Warn;
 
         /// <summary>The performance columns: header, unit, step of the wheel, limits.</summary>
         private static readonly (string Header, string Unit, double Step, double Low, double High)[] PerformanceColumns =
@@ -263,7 +263,7 @@ namespace ATCRoom.TwrTrainer
                     IsEnabled = !off
                 };
                 TextBlock grey = new() { Foreground = GreyBrush, TextAlignment = TextAlignment.Right, Margin = new Thickness(1, 1, 6, 1), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
-                Border back = new() { Background = off ? new SolidColorBrush(Color.FromRgb(0x2A, 0x31, 0x38)) : Brushes.White, Margin = new Thickness(1) };
+                Border back = new() { Background = off ? Theme.OffBack : Brushes.White, Margin = new Thickness(1) };
                 Grid cell = new();
                 cell.Children.Add(back);
                 cell.Children.Add(grey);

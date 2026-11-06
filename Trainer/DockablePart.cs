@@ -28,7 +28,8 @@ namespace ATCRoom.TwrTrainer
     internal sealed class DockablePart
     {
         private static readonly Brush BarBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x24, 0x31, 0x3D)));
-        private static readonly Brush BackBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x1A, 0x21, 0x28)));
+        // (The inside: dark or light; the bar, the edge and the title stay dark, the user 6 Nov.)
+        private static Brush BackBrush => Theme.Panel;
         private static readonly Brush EdgeBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x5D, 0x7A, 0x99)));
         private static readonly Brush TextBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xD6, 0xE2, 0xEC)));
         private static readonly Brush DimBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x8A, 0x98, 0xA4)));

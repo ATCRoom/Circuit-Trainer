@@ -61,6 +61,8 @@ namespace ATCRoom.TwrTrainer
         public double LongFinalNM { get; set; } = 10;
         /// <summary>The sections of the panel open (they close to their bar).</summary>
         public bool AerodromeOpen { get; set; } = true;
+        /// <summary>The inside of the panels light (from the next start; the frames and the map stay dark).</summary>
+        public bool LightPanels { get; set; }
         public bool SimulationOpen { get; set; } = true;
         /// <summary>The parts of the panel: in the column or floating over the map, their place and size.</summary>
         public Dictionary<string, PartPlacement>? Parts { get; set; }

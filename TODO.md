@@ -732,6 +732,18 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Build of 6 Nov, panels (the user: "intanto facciamo TWR trainer") — WRITTEN
+- Settings › Map layers › Panels: DARK / LIGHT, from the next start (settings LightPanels). Only the inside of the panels changes
+  (Settings, New aircraft, Traffic List, Selected aircraft, the bar on the map, Aircraft classes); their frames (bar with the title,
+  edge) and the map stay dark. Colours in Trainer/Theme.cs; buttons: blue commands, yellow chosen, the others light blue on LIGHT.
+
+## AuroraPAR v2 Trainer: panels LIGHT / DARK (the user, 6 Nov) — TO DO, in ATCRoom/AuroraPAR-v2
+- As in TWR Trainer, the other way round: there the frames are already dark and the inside light (Windows' own controls). A choice
+  Panels: LIGHT / DARK in Simulation settings (LIGHT by default: nothing changes for who uses it), from the next start.
+- DARK means a dark look for Windows' controls inside the panels: text boxes, buttons, combo boxes (their drop-down list too),
+  check and radio boxes, the table of Aircraft performance (headers, rows). The most delicate: combo boxes and the table.
+- First a mockup for the user; then on the usual test branch of AuroraPAR-v2 (not twr-pointer), an independent review, a look at it.
+
 ## Build of 6 Nov afternoon (the user: "vai") — WRITTEN
 - Aircraft classes window (Settings › Circuits › Aircraft classes...), as Aircraft performance of AuroraPAR v2 Trainer: a row per
   class; performance (min, max, initial, final speed, climb, descent, bank, brake) into performance.json (the other values of the

@@ -19,10 +19,11 @@ namespace ATCRoom.TwrTrainer
     /// </summary>
     internal sealed class MainWindow : Window
     {
-        private static readonly Brush PanelBrush = new SolidColorBrush(Color.FromRgb(0x1A, 0x21, 0x28));
-        private static readonly Brush TextBrush = new SolidColorBrush(Color.FromRgb(0xD6, 0xE2, 0xEC));
-        private static readonly Brush DimBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x98, 0xA4));
-        private static readonly Brush WarnBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x50));
+        // (The inside of the panels: dark or light, the user 6 Nov; see Theme.)
+        private static Brush PanelBrush => Theme.Panel;
+        private static Brush TextBrush => Theme.Text;
+        private static Brush DimBrush => Theme.Dim;
+        private static Brush WarnBrush => Theme.Warn;
 
         private readonly SimEngine engine = new();
         private readonly Airfield airfield = new();
@@ -62,6 +63,8 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<bool> metarShowRow = new([(false, "WHOLE"), (true, "WIND + QNH")], (only, _) => only
             ? "On the map only the station, the time, the wind and the QNH of the METAR." : "On the map the whole METAR.");
         private string appVersion = "";
+        private readonly ChoiceRow<bool> panelsRow = new([(false, "DARK"), (true, "LIGHT")], (light, _) => light
+            ? "The inside of the panels light (from the next start); their frames and the map stay dark." : "The inside of the panels dark, as the frames.");
         private readonly Button pauseButton = new();
         /// <summary>The same RUN / PAUSE in the Traffic List.</summary>
         private readonly Button trafficPauseButton = new() { Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 4, 0, 0) };
@@ -158,7 +161,7 @@ namespace ATCRoom.TwrTrainer
         private TowerPlan? editing;
         private Button toListButton = null!, cancelEditButton = null!, groupButton = null!;
         private string groupShown = "";
-        private static readonly Brush CallsignBrush = new SolidColorBrush(Color.FromRgb(0x8E, 0xC9, 0xF5));
+        private static Brush CallsignBrush => Theme.Callsign;
         private readonly List<(string Callsign, TextBlock Text, Button Freeze)> flyingRows = [];
         private readonly Dictionary<string, TextBlock> flyingCallsigns = [];
         private string flyingKey = "";
@@ -253,7 +256,7 @@ namespace ATCRoom.TwrTrainer
             mapBar = new Border
             {
                 Child = bar,
-                Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1A, 0x21, 0x28)),
+                Background = Theme.MapBar,
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x5D, 0x7A, 0x99)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
@@ -533,6 +536,15 @@ namespace ATCRoom.TwrTrainer
 
             current = Section("Map layers", null, false);
             current.Children.Add(layers);
+            // (The user, 6 Nov: the inside of the panels dark or light; the frames and the map stay dark.)
+            Row("Panels", panelsRow);
+            panelsRow.Show(Theme.Light);
+            panelsRow.Picked += light =>
+            {
+                settings.LightPanels = light;
+                settings.Save();
+                Say(light == Theme.Light ? "Panels as they are now." : $"Panels {(light ? "light" : "dark")} from the next start of TWR Trainer.");
+            };
             // The bar on the map: Run / Pause, the speed, the level.
             pauseButton.Click += (_, _) => TogglePause();
             pauseButton.Padding = new Thickness(10, 2, 10, 2);
@@ -839,7 +851,7 @@ namespace ATCRoom.TwrTrainer
             into.Children.Add(new Border
             {
                 Child = inside,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x46, 0x50)),
+                BorderBrush = Theme.Section,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(8, 6, 8, 6),
@@ -958,7 +970,7 @@ namespace ATCRoom.TwrTrainer
         };
 
         private static readonly Brush ActionBack = new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x86));
-        private static readonly Brush ActionText = new SolidColorBrush(Color.FromRgb(0xB9, 0xCB, 0xD6));
+        private static Brush ActionText => Theme.ActionText;
         private static readonly Brush LitBack = new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A));
         private static readonly Brush LitText = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A));
 
@@ -1813,7 +1825,7 @@ namespace ATCRoom.TwrTrainer
             foreach (Button button in buttons) right.Children.Add(button);
             Grid.SetColumn(right, 3);
             row.Children.Add(right);
-            Border holder = new() { Child = row, BorderBrush = Brushes.Gold, BorderThickness = new Thickness(0) };
+            Border holder = new() { Child = row, BorderBrush = Theme.Chosen, BorderThickness = new Thickness(0) };
             // Drag and drop by the grip (the user, 4 Nov): a gold line where it will go.
             grip.MouseLeftButtonDown += (_, e) =>
             {
@@ -1921,7 +1933,7 @@ namespace ATCRoom.TwrTrainer
                     clickable.ToolTip = "Click: change it in New aircraft (UPDATE).";
                     clickable.MouseLeftButtonUp += (_, _) => EditPlan(p);
                 }
-                if (ReferenceEquals(p, editing)) callsign.Foreground = text.Foreground = Brushes.Gold;
+                if (ReferenceEquals(p, editing)) callsign.Foreground = text.Foreground = Theme.Chosen;
                 planList.Children.Add(ThinRow(planList, MoveWaiting, callsign, text, tick, SmallButton("▶", () => StartPlan(p)), hold, SmallButton("⧉", () => DuplicatePlan(p)),
                     SmallButton("✕", () => { plans.Remove(p); ShowPlans(); })));
                 planRows.Add((p, text, hold));
@@ -2029,8 +2041,8 @@ namespace ATCRoom.TwrTrainer
                     Math.Max(0, Math.Round((a.AltitudeFt - airfield.ElevationFt + HeightOffset) / 100)), Math.Round(a.GroundSpeedKt), a.Frozen ? "FROZEN" : TowerView.LegText(a));
                 // (The selected one in yellow, as on the map.)
                 bool chosen = a.Callsign == view.Selected;
-                text.Foreground = chosen ? Brushes.Gold : TextBrush;
-                if (flyingCallsigns.TryGetValue(cs, out TextBlock? name)) name.Foreground = chosen ? Brushes.Gold : CallsignBrush;
+                text.Foreground = chosen ? Theme.Chosen : TextBrush;
+                if (flyingCallsigns.TryGetValue(cs, out TextBlock? name)) name.Foreground = chosen ? Theme.Chosen : CallsignBrush;
                 freeze.Content = a.Frozen ? "▶" : "II";
             }
         }
@@ -2713,7 +2725,7 @@ namespace ATCRoom.TwrTrainer
                 // (Orbiting on and on: a thick border, the user 4 Nov; a click: out of the orbit.)
                 orbitForeverButton.Content = "ORBIT ∞";
                 orbitForeverButton.ToolTip = Tips[a.OrbitForever ? "CONTINUE" : "ORBIT ∞"];
-                orbitForeverButton.BorderBrush = a.OrbitForever ? Brushes.Gold : Brushes.Transparent;
+                orbitForeverButton.BorderBrush = a.OrbitForever ? Theme.Chosen : Brushes.Transparent;
                 orbitForeverButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
                 goAroundButton.IsEnabled = leg == "FINAL";
                 sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
