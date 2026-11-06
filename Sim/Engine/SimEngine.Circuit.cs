@@ -1462,7 +1462,7 @@ namespace ATCRoom.Sim
                 // (Its turns a little wider than it turns at its bank: it can follow them.)
                 double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
                 double turnRadius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
-                sfo.InsertRange(0, ShortestToHighKey(plane, Math.Max(radius, turnRadius) * 1.2, highKey));
+                sfo.InsertRange(0, ShortestToHighKey(plane, Math.Max(radius, turnRadius * 1.5), highKey));
                 GiveRoute(plane, sfo);
             }
         }
@@ -1832,12 +1832,13 @@ namespace ATCRoom.Sim
 
         /// <summary>
         /// The shortest way from where the aircraft is, on its heading, to the High Key on the runway course (a turn of the given
-        /// radius, a straight line, a turn): its points every 30° of the turns (the High Key itself not included).
+        /// radius, a straight line, a turn to the runway track before it): its points (the High Key itself not included).
         /// </summary>
         private List<RoutePoint> ShortestToHighKey(SimAircraft plane, double radius, double altitudeFt)
         {
             static (double X, double Y) Dir(double degrees) => (Math.Sin(degrees * Math.PI / 180), Math.Cos(degrees * Math.PI / 180));
-            (double tx, double ty) = FromRunway(HighKeyAlong(), 0, plane.Circuit!.Side);
+            // (To a point on the runway track before the High Key, two turns' width before it: lined up there.)
+            (double tx, double ty) = FromRunway(HighKeyAlong() - 2 * radius, 0, plane.Circuit!.Side);
             double h = plane.HeadingTrue, ht = glidePathCourse;
             // A turn to the right (+1) or to the left (-1): its centre, and the point on it flying on a heading.
             (double X, double Y) Centre(double x, double y, double heading, int turn) { var d = Dir(heading + 90 * turn); return (x + radius * d.X, y + radius * d.Y); }
@@ -1863,9 +1864,13 @@ namespace ATCRoom.Sim
                     if (length >= best) continue;
                     best = length;
                     way = [];
-                    for (double a = 30; a < a1; a += 30) { var q = On(c1, h + first * a, first); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
+                    // (Points a quarter of a turn apart at most: each one far enough to be turned to.)
+                    for (double a = 90; a < a1 - 45; a += 90) { var q = On(c1, h + first * a, first); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
                     way.Add(new RoutePoint(p1.X, p1.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY"));
-                    for (double a = 0; a < a2 - 15; a += 30) { var q = On(c2, straightOn + last * a, last); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
+                    way.Add(new RoutePoint(p2.X, p2.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY"));
+                    int pieces = (int)Math.Ceiling(a2 / 90);
+                    for (int k = 1; k < pieces; k++) { var q = On(c2, straightOn + last * a2 * k / pieces, last); way.Add(new RoutePoint(q.X, q.Y, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY")); }
+                    way.Add(new RoutePoint(tx, ty, altitudeFt, plane.Class.BestGlideKt, "HIGH KEY"));
                 }
             return way;
         }
