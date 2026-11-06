@@ -732,6 +732,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (no AUTO); the next circuit (touch and go, go-around) the class's again; AUTO at once. Out of the circuit (MANUAL) as
   before. New aircraft with Pattern type SFO: Height ft is its High Key. Test 53.
 
+## Build of 6 Nov, runways.par (the user: "ok") — WRITTEN
+- Settings › Map › From runways.par...: the runways of the map's aerodrome (ICAO) from AuroraPAR's runways.par (the file chosen
+  each time, the last one proposed; not copied into this repository). Each runway once (its glide paths "14 3.0", "14 2.5"
+  together); both ways in the file: the two thresholds are its ends; one way: the other end along the true heading by the length.
+  Each threshold its own elevation. Asked before (a runway already placed is moved). Aerodromes not in the file: on the map by hand.
+
 ## Build of 6 Nov, panels (the user: "intanto facciamo TWR trainer") — WRITTEN
 - Settings › Map layers › Panels: DARK / LIGHT, from the next start (settings LightPanels). Only the inside of the panels changes
   (Settings, New aircraft, Traffic List, Selected aircraft, the bar on the map, Aircraft classes); their frames (bar with the title,

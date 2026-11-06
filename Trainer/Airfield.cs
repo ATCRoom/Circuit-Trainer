@@ -80,7 +80,7 @@ namespace ATCRoom.TwrTrainer
         /// A new runway (or its place given again) from two points of the plane (the threshold, the end), with its elevation,
         /// and the same runway the other way when its name is a runway number and it is not there yet. Saved at once.
         /// </summary>
-        public void PlaceRunway(string name, (double X, double Y) threshold, (double X, double Y) end, double elevationFt)
+        public void PlaceRunway(string name, (double X, double Y) threshold, (double X, double Y) end, double elevationFt, double? backElevationFt = null)
         {
             (double tLat, double tLon) = Plane.ToGeo(threshold.X, threshold.Y);
             (double eLat, double eLon) = Plane.ToGeo(end.X, end.Y);
@@ -99,7 +99,8 @@ namespace ATCRoom.TwrTrainer
                 back.ThresholdLongitude = eLon;
                 back.EndLatitude = tLat;
                 back.EndLongitude = tLon;
-                back.ElevationFt = elevationFt;
+                // (Its own elevation when known: runways.par gives each threshold its own.)
+                back.ElevationFt = backElevationFt ?? elevationFt;
                 if (!existed)
                 {
                     back.Side = runway.Side;

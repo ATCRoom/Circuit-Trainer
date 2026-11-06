@@ -469,6 +469,8 @@ namespace ATCRoom.TwrTrainer
             Note("New runway (or its place again): its name and elevation, then click its threshold and its end on the map.");
             Row("Name / elevation ft", Inline(newRunwayName, newRunwayElevation));
             Buttons(("Place on the map", PlaceRunway), ("Remove runway", RemoveRunway));
+            // (The user, 6 Nov: the thresholds of runways.par of AuroraPAR, no clicks.)
+            Buttons(("From runways.par...", RunwaysFromPar));
             // (The user, 6 Nov: altitudes (QNH) or heights above the runway (QFE), for this aerodrome.)
             Row("Pressure", pressureRow);
             pressureRow.Show(false);
@@ -1215,6 +1217,62 @@ namespace ATCRoom.TwrTrainer
                     Say(airfield.Save());
                     UseRunway(name, ask: false);
                 }));
+        }
+
+        /// <summary>
+        /// The runways of this aerodrome from the runway file of AuroraPAR (chosen each time, the last one proposed): each
+        /// runway once (its glide paths together); with both ways in the file, their thresholds are its two ends; with one, the
+        /// other end along its true heading by its length. Each threshold with its own elevation.
+        /// </summary>
+        private void RunwaysFromPar()
+        {
+            if (airfield.Map == null) { Say("Open a map first."); return; }
+            if (airfield.Code.Length == 0) { Say("The map has no aerodrome code (ICAO): place the runway on the map."); return; }
+            string last = settings.RunwaysParPath;
+            Microsoft.Win32.OpenFileDialog dialog = new()
+            {
+                Filter = "AuroraPAR runway file (runways.par)|runways.par|All files (*.*)|*.*",
+                InitialDirectory = last.Length > 0 && Directory.Exists(Path.GetDirectoryName(last)) ? Path.GetDirectoryName(last)! : "",
+                FileName = last.Length > 0 ? Path.GetFileName(last) : "runways.par",
+                Title = "The runway file of AuroraPAR (runways.par, in the folder of AuroraPAR)"
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            settings.RunwaysParPath = dialog.FileName;
+            settings.Save();
+            List<RunwaysPar.Threshold> thresholds;
+            try
+            {
+                thresholds = RunwaysPar.Read(dialog.FileName, airfield.Code);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Say($"runways.par could not be read: {ex.Message}");
+                return;
+            }
+            if (thresholds.Count == 0) { Say($"No runway of {airfield.Code} in runways.par: place it on the map."); return; }
+            // Each runway with the other way (when the file has it).
+            List<(RunwaysPar.Threshold One, RunwaysPar.Threshold? Other)> runways = [];
+            foreach (RunwaysPar.Threshold t in thresholds)
+            {
+                if (runways.Any(r => r.One == t || r.Other == t)) continue;
+                string? back = RunwayCircuit.Reciprocal(t.Runway);
+                runways.Add((t, thresholds.FirstOrDefault(o => back != null && o.Runway == back)));
+            }
+            string names = string.Join(", ", runways.Select(r => r.Other != null ? $"{r.One.Runway}/{r.Other.Runway}" : r.One.Runway));
+            string flying = engine.Count > 0 ? "\n\nThe aircraft flying now are removed." : "";
+            if (MessageBox.Show(this, $"Place runway {names} of {airfield.Code} from runways.par? A runway already placed with that name is moved there.{flying}",
+                "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            foreach ((RunwaysPar.Threshold one, RunwaysPar.Threshold? other) in runways)
+            {
+                (double tx, double ty) = airfield.Plane.FromGeo(one.Latitude, one.Longitude);
+                (double ex, double ey) = other != null ? airfield.Plane.FromGeo(other.Latitude, other.Longitude)
+                    : (tx + one.LengthM / 1852 * Math.Sin(one.HeadingTrue * Math.PI / 180), ty + one.LengthM / 1852 * Math.Cos(one.HeadingTrue * Math.PI / 180));
+                if (Math.Sqrt((ex - tx) * (ex - tx) + (ey - ty) * (ey - ty)) < 0.05) { Say($"Runway {one.Runway} in runways.par is too short: not placed."); continue; }
+                airfield.PlaceRunway(one.Runway, (tx, ty), (ex, ey), one.ElevationFt, other?.ElevationFt);
+            }
+            string? error = airfield.Save();
+            UseRunway(airfield.Runway?.Runway ?? runways[0].One.Runway, ask: false);
+            Say(error ?? $"Runway {names} placed from runways.par.");
         }
 
         private void RemoveRunway()

@@ -47,6 +47,8 @@ namespace ATCRoom.TwrTrainer
 
         /// <summary>The map opened last (full path).</summary>
         public string MapPath { get; set; } = "";
+        /// <summary>The runway file of AuroraPAR (runways.par) last used to place the runways (the user, 6 Nov).</summary>
+        public string RunwaysParPath { get; set; } = "";
         /// <summary>The runway in use last.</summary>
         public string Runway { get; set; } = "";
         /// <summary>The last METAR line given (for the wind).</summary>
