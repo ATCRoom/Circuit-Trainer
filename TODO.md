@@ -746,6 +746,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (transit from LONG FIN without CIRCUITS, circuits ∞) handled safely.
 - **360 = 0** (the user, 6 Nov): every radial box (R/D start, R/D exit, Radial °M) takes 360 as north, the same as 0; shown as
   written (R360/10).
+- **Helicopter departing from a helipad (the user, 6 Nov night; decided, to build with the "vai"):** New aircraft, a helicopter
+  departure: the row Helipad (the registered ones, POINT) as for the arrivals; empty/none = from the runway as now. It starts
+  still on the pad, hover of 15 ft (about 3 m) above it, then it departs "like a Light": it rolls along the runway in use and
+  flies the departure chosen (Exit to / Exit via, circuits, turn, exit altitude). Any other command of the controller (DCT TO to
+  leave, heading...) is obeyed at once, from the hover too. Strip and traffic list: departure from H1, H2... A hand-written
+  file with a pad on a departure of another class: ignored.
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
