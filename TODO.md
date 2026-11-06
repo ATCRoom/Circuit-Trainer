@@ -755,7 +755,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   file with a pad on a departure of another class: ignored.
 - **Settings: new section "Aircraft" (the user, 6 Nov night: "mettiamo Aircraft"):** next to Circuits; the button Aircraft
   classes... leaves Circuits and goes there (tooltips "Settings › Circuits › Aircraft classes" updated). Other rows that could go
-  there: Formation FS (a behaviour of the aircraft, now in Circuits) - to be confirmed by the user.
+  there: Formation FS (a behaviour of the aircraft, now in Circuits) - DECIDED (the user, 6 Nov night): it moves to Aircraft and
+  is renamed **Formation separation** | FULL | REDUCED |, with a note above the row ("Formation landing to a full stop:
+  separation of the next aircraft"); tooltips: FULL = the next lands when the one ahead has left the runway, REDUCED = when it
+  has rolled a third of the runway.
+- **IDEA (the user, 6 Nov night; analysed, not yet decided): two aircraft on the runway at once = both tracks red**, except
+  two aircraft of the same formation when the separation is REDUCED. Problems found: see the analysis (runway rectangle without
+  a width in runways.par; helicopters / helipads on the strip; aircraft turning off by an exit; formation members become
+  separate aircraft after the split; landing on an occupied runway only seen at the touchdown; student console; log; IVAO).
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
