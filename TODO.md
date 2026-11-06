@@ -739,8 +739,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   labels staggered. A click: its plan chosen in the Traffic List and loaded in New aircraft (as a click on its row). It goes when
   the plan starts (the aircraft takes its place) or is removed. Instructor only: not in the simulation, the log, the recording
   or the student's map. (Mock-up of the ones on the ground shown 6 Nov.)
-- **A button shows / hides them** (the user, 6 Nov): in the **Traffic List** panel (with its buttons PAUSE, START ALL...),
-  e.g. **SHOW ON MAP**, lit = shown; the choice saved in the settings (default: shown).
+- **A button shows / hides them** (the user, 6 Nov): **👁 WAITING TFC** in the Traffic List, lit = shown (yellow), off = grey
+  with the eye crossed out; the choice saved in the settings (default: shown).
+- **Traffic List buttons by section (mock-up 6 Nov, to confirm):** FLYING header: ⏸ PAUSE, ✕ REMOVE ALL (the aircraft flying);
+  WAITING header: 👁 WAITING TFC; under the WAITING rows: ▶ START ALL, ☐ GROUP, and on the right ✕ CLEAR ALL (apart, it empties
+  the list); at the bottom a line "Scenario": LOAD..., SAVE... (plain buttons, not blue).
 
 ## Student console, link, log, replay (the user, 6 Nov evening) — DECIDED, design (mock-up of the student shown 6 Nov)
 - **One "snapshot" each second** (aircraft, runway, METAR/QNH/wind, time) used three times: sent on the link, written in the
