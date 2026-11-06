@@ -764,7 +764,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   TWR Trainer has no Aurora link). Simulated aircraft never go to IVAO. Proposal (to confirm): the student gets IVAO from his own
   Aurora, the simulated aircraft from the link (as decided for AuroraPAR v2 Trainer); on one PC both from the same program. Strips
   for IVAO aircraft too: callsign, ICAO type and rules from the flight plan, type of flight from departure / destination against
-  the aerodrome (departure, arrival, else transit), entry gate and altitude empty (not known); a strip goes as for the simulated
+  the aerodrome (departure, arrival, else transit), entry gate and altitude empty (not known); **a field not given by IVAO
+  can be filled in by hand by the student on the strip** (the user, 6 Nov; a field given by IVAO is not changed); a strip goes as for the simulated
   ones (off the runway, or out of range / disconnected). A callsign used by both: warned (the simulated one renamed). In the log
   and the recording: IVAO aircraft too (marked IVAO). On the instructor's view the simulated labels in another colour (as the
   Trainer); nothing different for the student.
