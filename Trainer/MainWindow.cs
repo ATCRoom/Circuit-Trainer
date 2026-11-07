@@ -597,6 +597,8 @@ namespace ATCRoom.TwrTrainer
             pressureRow.Show(false);
             pressureRow.Picked += qfe =>
             {
+                // (The altitudes written in Settings › Circuits and not saved yet: saved first, in the old reference.)
+                heightsTable.CommitAll();
                 // (What is typed already, in the new reference: the same height.)
                 double before = HeightOffset;
                 airfield.Circuits.Qfe = qfe;

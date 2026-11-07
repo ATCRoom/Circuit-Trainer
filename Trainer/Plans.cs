@@ -116,6 +116,12 @@ namespace ATCRoom.TwrTrainer
                 // always: that gate ignored, its runway heading or its radial as then.)
                 if (Departure && To is not (ExitWay.RunwayHeading or ExitWay.Radial or global::ATCRoom.TwrTrainer.From.Point) && TurnRight != null)
                     To = Radial != null ? ExitWay.Radial : ExitWay.RunwayHeading;
+                // (An SFO of the first lists of 6 Nov kept its High Key in Height ft: there again, the review of 6 Nov.)
+                if (Circuit == CircuitType.Sfo && HighKeyFt == null && HeightFt != null)
+                {
+                    HighKeyFt = HeightFt;
+                    HeightFt = null;
+                }
                 // (Its Height ft was its exit altitude, the user 6 Nov.)
                 if ((Departure || TransitCircuits) && ExitAltFt == null)
                 {

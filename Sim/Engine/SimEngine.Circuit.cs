@@ -1573,9 +1573,12 @@ namespace ATCRoom.Sim
                 // flame out starts lined up.
                 // (Its turns a little wider than it turns at its bank: it can follow them.)
                 double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
-                double turnRadius = Math.Max(30, plane.GroundSpeedKt) / 3600 / (rate * Math.PI / 180);
+                // (At the fastest it goes over the ground in the turn, with the wind behind: not too tight with a strong wind,
+                // the review of 6 Nov.)
+                double fastest = Math.Max(30, Math.Max(plane.GroundSpeedKt, plane.SpeedKt + windSpeed));
+                double turnRadius = fastest / 3600 / (rate * Math.PI / 180);
                 // (And what it flies while it rolls into a turn.)
-                double rollIn = Math.Max(30, plane.GroundSpeedKt) / 3600 * (rate / TurnRateChange);
+                double rollIn = fastest / 3600 * (rate / TurnRateChange);
                 List<RoutePoint> way = ShortestToHighKey(plane, Math.Max(radius, turnRadius * 1.5 + rollIn * 1.5), highKey, out double wayLength);
                 // On its circle already: on round it to the High Key when that is shorter (never more than the rest of the circle).
                 int turn = circuit.Side == CircuitSide.Right ? 1 : -1;

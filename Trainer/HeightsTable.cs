@@ -49,6 +49,12 @@ namespace ATCRoom.TwrTrainer
         /// <summary>A message for the panel (null: none).</summary>
         public Action<string?>? Say { get; set; }
 
+        /// <summary>Every line written and not saved yet: saved now (before QNH / QFE changes, the review of 6 Nov).</summary>
+        public void CommitAll()
+        {
+            foreach (Line line in lines.ToList()) Commit(line);
+        }
+
         /// <summary>The table again: the classes, the aerodrome (null: no map), the elevation of the runway in use, QFE.</summary>
         public void Show(IReadOnlyList<PerformanceClass> classes, AerodromeCircuits? aerodrome, double elevationFt, bool qfe)
         {
