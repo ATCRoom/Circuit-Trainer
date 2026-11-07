@@ -810,10 +810,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   keeps the heights above the runway: a missing value of the aerodrome = the class altitude minus the elevation, at least 300 ft
   above the runway (the minimum of the engine); QFE aerodromes show the height (altitude - elevation). The values written by hand
   in an aerodrome file stay as they are (above the threshold). Not altitudes: the roll-out height (250 ft...) and the rules
-  "500 above the circuit". To decide: the numbers of the defaults (the present ones fit the aerodromes near sea level: at 657 ft
-  the low ones all fall on the minimum) and the default exit altitude (3000 ft above the runway: QNH too?).
-- **Import of the heights of other aerodromes:** so as not to write them by hand each time. Source to decide: the table of another
-  aerodrome of the program (the Maps folder), or a text / CSV file of the user.
+  "500 above the circuit". The numbers of the defaults stay as they are (they fit the aerodromes near
+  sea level; each aerodrome gets its own, the import below helps). The default exit altitude is **3000 ft QNH** too (not above the
+  runway; at least 1000 ft above it). The user, 7 Nov: "da ora tutto deve essere ragionato per usare il QNH, chi usa il QFE sono pochi
+  nel mondo": QNH is the first thought everywhere (labels, tooltips, defaults); QFE stays as the option.
+- **Import of the heights of other aerodromes — DECIDED (7 Nov): from another aerodrome of the program.** In the Aircraft classes
+  window a button **Import heights...**: the list of the maps (the Maps folder), the table of the chosen aerodrome is copied into
+  this one; the **altitudes stay the same** (1700 stays 1700; the heights above the runway follow this elevation). Nothing else of
+  the other aerodrome is copied; the heights not written there stay empty (the defaults). Asks before replacing.
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
