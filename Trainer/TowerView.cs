@@ -706,6 +706,7 @@ namespace ATCRoom.TwrTrainer
             y += titleText.Height + lineGap;
             void Draw(List<((string Field, string Text, Look Look) Piece, FormattedText Text)> line, double x)
             {
+                bool first = true;
                 foreach (((string field, string _, Look look), FormattedText text) in line)
                 {
                     double w = look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : text.Width + 10;
@@ -714,7 +715,9 @@ namespace ATCRoom.TwrTrainer
                     {
                         case Look.Tag:
                         case Look.Text:
-                            dc.DrawText(text, new Point(x, y + (rowHeight - text.Height) / 2));
+                            // (A name in the middle of a row, SPEED: against the field after it, the user 7 Nov.)
+                            double left = look == Look.Tag && !first ? x + w - text.Width - 2 : x;
+                            dc.DrawText(text, new Point(left, y + (rowHeight - text.Height) / 2));
                             break;
                         default:
                             Brush? fill = look switch { Look.On => SelectedBrush, Look.Command or Look.Thick => CommandBack, _ => null };
@@ -733,6 +736,7 @@ namespace ATCRoom.TwrTrainer
                             break;
                     }
                     x += w + gap;
+                    first = false;
                 }
                 y += rowHeight + lineGap;
             }

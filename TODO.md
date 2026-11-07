@@ -772,6 +772,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the player, click = go there); to add when the log / the recording exist. The student console takes no photo (instructor
   only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
+## Next group (local commits, with the next build)
+- **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;
+  a name in the middle of a row is now against the field after it (right-aligned in its place). WRITTEN.
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
