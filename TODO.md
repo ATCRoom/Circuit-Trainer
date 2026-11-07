@@ -772,6 +772,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the player, click = go there); to add when the log / the recording exist. The student console takes no photo (instructor
   only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
+## Ideas for a next build (the user, 7 Nov)
+- **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
+  horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
+  To decide: the threshold of the runway in use on the left or on the right (or the side of the tower); the labels and
+  the texts stay upright; L1 / L2 and the views kept on them in both; the photos as on the screen.
+
 ## Build of 7 Nov afternoon (the user: "procedi con la build") — WRITTEN (tests 60-61)
 - The three sections below, as decided. Choices made while writing them (simple, to check with the build):
   - The class altitudes become heights at the aerodrome at least 300 ft above the runway; the initial (IP) and the High Key
