@@ -814,6 +814,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   sea level; each aerodrome gets its own, the import below helps). The default exit altitude is **3000 ft QNH** too (not above the
   runway; at least 1000 ft above it). The user, 7 Nov: "da ora tutto deve essere ragionato per usare il QNH, chi usa il QFE sono pochi
   nel mondo": QNH is the first thought everywhere (labels, tooltips, defaults); QFE stays as the option.
+- **The heights table leaves the Aircraft classes window (the user, 7 Nov: "si esatto, intendevo questo"):** Aircraft classes keeps
+  only the performance (speeds, climb, descent, bank, brake: all aerodromes); the table of the heights of this aerodrome (a row
+  for each class: Conv, Wide, Close, IP, Break, HK; ALT = QNH) goes to **Settings › Circuits**, with the button Import heights.
+  The file of the aerodrome does not change for this (the same fields).
 - **Import of the heights of other aerodromes — DECIDED (7 Nov): from another aerodrome of the program.** In the Aircraft classes
   window a button **Import heights...**: the list of the maps (the Maps folder), the table of the chosen aerodrome is copied into
   this one; the **altitudes stay the same** (1700 stays 1700; the heights above the runway follow this elevation). Nothing else of
