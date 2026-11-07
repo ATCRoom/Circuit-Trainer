@@ -803,6 +803,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Callsign number**: not already in the simulation (the engine already skips the callsigns flying, the reserved ones of the
   plans waiting and those flying outside; the counter goes on, a number is not given twice).
 
+## Default heights as altitudes (QNH) and import of the heights of other aerodromes (the user, 7 Nov) — NOTED, to confirm
+- **IMPORTANT (the user: "la stragrande maggioranza degli aeroporti lavora sulle altitudini"):** the defaults of the heights
+  (circuits, IP, break, HK...) are today heights above the aerodrome (500 / 1000 / 1500 ft...), shown as altitude with the
+  elevation added (LIBN, elevation 657: 1157, 1657, 2657...). From now on the defaults refer to QNH: the altitudes shown are the
+  defaults, round numbers. To decide: (1) round the elevation + height to 100 ft (1200, 1700, 2700) or (2) the same fixed altitude
+  in every aerodrome, in the class data (e.g. 1500 ft QNH). QFE aerodromes: the heights above the runway as now.
+- **Import of the heights of other aerodromes:** so as not to write them by hand each time. Source to decide: the table of another
+  aerodrome of the program (the Maps folder), or a text / CSV file of the user.
+
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
   final at its distance, the threshold (departures, local), the helipad. Small label: callsign, ICAO type, starting altitude,
