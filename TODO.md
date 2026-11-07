@@ -818,8 +818,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   runway, pattern, event, detail. Events: ADDED, TAKE-OFF, TOUCH AND GO, LANDING, GO AROUND, LOW APPROACH, LOW PASS, OUT OF
   THE CIRCUIT, GONE; the instructor's orders (DCT TO, circuit, break, orbit, heading / altitude / speed, G/A, remove...);
   PHOTO n; IVAO IN RANGE / OUT OF RANGE; NETWORK CONNECTED / DISCONNECTED. At the end: a summary per aircraft.
-  **Open: the VID** (the network number of the instructor and of the student): Aurora's link does not give it as far as known;
-  to find out how (typed once in Settings?). For now empty.
+  **The VID (the user, 7 Nov: "se è automatico è meglio, altrimenti lo scrive manualmente l'istruttore") — DECIDED, to write:**
+  Aurora's link gives only the callsign (#CONN; checked in IVAO's documentation for 3rd parties). Automatic: the callsign
+  looked up in IVAO's public list of who is connected (Whazzup API v2, refreshed every 15 s by IVAO; asked rarely, at the
+  connection) → its VID. Not found (no internet, not listed): the VID typed by the instructor in Settings (kept), else empty.
+  The student's: sent by his console (later). Also seen: Aurora gives the flight plan (#FP;CALLSIGN): for the IVAO strips.
 - **IVAO traffic from Aurora (the user, 7 Nov) — WRITTEN, to test by the user (no Aurora here):** IVAO on the bar of the map
   (off at first, kept): Aurora on this PC (port 1130, as AuroraPAR v2; Aurora.cs copied), asked every 2 s; the traffic
   within 60 NM on the map in light blue (square, one minute ahead, callsign, A + hundreds of ft, speed), only shown, nothing
