@@ -398,7 +398,9 @@ namespace ATCRoom.TwrTrainer
             Closing += (_, _) =>
             {
                 settings.Save();
-                flightLog.Close(engine.Time);
+                timer.Stop();
+                networkTimer.Stop();
+                flightLog.Close(engine.Time, final: true);
                 aurora.Close();
             };
             // (The user, 7 Nov: the orders of the instructor in the log of the flights.)
@@ -445,11 +447,12 @@ namespace ATCRoom.TwrTrainer
             flightLog.Aerodrome = airfield.Code;
             flightLog.Runway = airfield.Runway?.Runway ?? "";
             flightLog.Observe(traffic, engine.Time, FlightInfo);
-            if (flightLog.Error is string logError && !logErrorSaid)
+            if (flightLog.Error is string logError)
             {
+                if (!logErrorSaid) Say(logError);
                 logErrorSaid = true;
-                Say(logError);
             }
+            else logErrorSaid = false;
             view.Status = view.Picking ? view.Status : engine.Paused ? "PAUSED" : "";
             if (view.PendingCircuit is CircuitType chosen && now - pendingSince > 1.2)
             {
@@ -2654,14 +2657,17 @@ namespace ATCRoom.TwrTrainer
                 if (DateTime.UtcNow - networkCallsignAt > TimeSpan.FromSeconds(30))
                 {
                     networkCallsignAt = DateTime.UtcNow;
-                    networkCallsign = await aurora.GetConnectedCallsign() ?? "";
+                    string callsign = await aurora.GetConnectedCallsign() ?? "";
+                    // (Turned off meanwhile: nothing more, the review of 7 Nov.)
+                    if (!settings.ShowIvao) return;
+                    networkCallsign = callsign;
                     flightLog.SetNetwork(networkCallsign.Length > 0, networkCallsign, engine.Time);
                 }
                 string code = airfield.Code.Trim().ToUpperInvariant();
                 if (airfield.Map != null && code.Length == 4 && DateTime.UtcNow - networkMetarAt > TimeSpan.FromMinutes(1))
                 {
                     networkMetarAt = DateTime.UtcNow;
-                    if (await aurora.GetMetar(code) is string metar && metar != settings.Metar.Trim())
+                    if (await aurora.GetMetar(code) is string metar && settings.ShowIvao && metar != settings.Metar.Trim())
                     {
                         metarBox.Text = metar;
                         ApplyMetar(quiet: true);
@@ -2685,6 +2691,10 @@ namespace ATCRoom.TwrTrainer
                 view.Network = shown;
                 flightLog.ObserveNetwork(near, engine.Time);
                 view.InvalidateVisual();
+            }
+            catch (Exception)
+            {
+                // (Anything unexpected from the network: tried again at the next turn, the program goes on.)
             }
             finally
             {

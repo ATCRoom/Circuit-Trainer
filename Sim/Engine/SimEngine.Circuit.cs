@@ -2082,8 +2082,8 @@ namespace ATCRoom.Sim
                 // Then towards the IP: the corner on the runway track beyond it by what the turn onto the initial needs, so it
                 // rolls out at the IP (about 45° from the conventional, 60° from the wide).
                 double angle = Math.Atan2(away, -initialPoint - turnInAlong) * 180 / Math.PI;
-                double lead = Math.Min(1.5, turnRadius * Math.Tan(angle / 2 * Math.PI / 180) + rollIn);
-                route.Add(Point(-initialPoint - lead, 0, side, height, speed, "JOIN"));
+                double ipLead = Math.Min(1.5, turnRadius * Math.Tan(angle / 2 * Math.PI / 180) + rollIn);
+                route.Add(Point(-initialPoint - ipLead, 0, side, height, speed, "JOIN"));
                 route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
                 return route;
             }

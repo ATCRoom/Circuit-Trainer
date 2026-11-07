@@ -57,7 +57,7 @@ namespace ATCRoom.TwrTrainer
 
         private void Line(params string[] fields)
         {
-            if (Error != null) return;
+            if (Error != null || ended) return;
             try
             {
                 if (writer == null)
@@ -132,7 +132,18 @@ namespace ATCRoom.TwrTrainer
                 if (!seen.TryGetValue(s.Callsign, out Seen? was))
                 {
                     (string type, string rules) = info(s.Callsign);
-                    was = new Seen { Contact = s.Contact, Leg = s.Leg, InCircuit = s.Circuit != null, Flown = s.Contact == GroundContact.Airborne, Type = type, Rules = rules };
+                    // (Removed and added again in the session: its counts go on, the review of 7 Nov.)
+                    if (flights.TryGetValue(s.Callsign, out Seen? before))
+                    {
+                        was = before;
+                        was.Contact = s.Contact;
+                        was.Leg = s.Leg;
+                        was.InCircuit = s.Circuit != null;
+                        was.TouchedDown = false;
+                        if (type.Length > 0) was.Type = type;
+                        if (rules.Length > 0) was.Rules = rules;
+                    }
+                    else was = new Seen { Contact = s.Contact, Leg = s.Leg, InCircuit = s.Circuit != null, Flown = s.Contact == GroundContact.Airborne, Type = type, Rules = rules };
                     seen[s.Callsign] = was;
                     flights[s.Callsign] = was;
                     Event(time, "ADDED", s.Callsign, $"{s.PerformanceClass}, {Math.Round(s.AltitudeFt):0} ft", pattern: pattern);
@@ -156,9 +167,10 @@ namespace ATCRoom.TwrTrainer
                         default: was.GoArounds++; Event(time, "GO AROUND", s.Callsign, pattern: pattern); break;
                     }
                 }
+                string legBefore = was.Leg;
                 was.Leg = s.Leg;
                 bool inCircuit = s.Circuit != null;
-                if (was.InCircuit && !inCircuit && s.Contact == GroundContact.Airborne) Event(time, "OUT OF THE CIRCUIT", s.Callsign, s.Leg);
+                if (was.InCircuit && !inCircuit && s.Contact == GroundContact.Airborne) Event(time, "OUT OF THE CIRCUIT", s.Callsign, legBefore.Length > 0 ? $"from {legBefore}" : "");
                 was.InCircuit = inCircuit;
             }
             foreach (string gone in seen.Keys.Where(cs => !now.Contains(cs)).ToList())
@@ -186,9 +198,16 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
-        /// <summary>The end of the session: the summary per aircraft, the file closed (the next event makes a new one).</summary>
-        public void Close(double time)
+        /// <summary>No more rows (the program closing, the review of 7 Nov).</summary>
+        private bool ended;
+
+        /// <summary>
+        /// The end of the session: the summary per aircraft, the file closed (the next event makes a new one; <paramref
+        /// name="final"/>: none, the program closes).
+        /// </summary>
+        public void Close(double time, bool final = false)
         {
+            if (final) ended = true;
             if (writer != null)
             {
                 try

@@ -980,7 +980,8 @@ namespace ATCRoom.TwrTrainer
             dragCallsign = null;
             dragMark = null;
             drag = Drag.Map;
-            if (pick == null && MarkAt(at) is string mark && (Selected == null || FieldAt(at) == null))
+            // (An aircraft under it first, the review of 7 Nov.)
+            if (pick == null && SymbolAt(at) == null && MarkAt(at) is string mark && (Selected == null || FieldAt(at) == null))
             {
                 drag = Drag.Mark;
                 dragMark = mark;

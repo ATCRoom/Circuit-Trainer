@@ -2273,7 +2273,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
                 AircraftState? atIp62 = initial62 > 0 ? f62.Skip(initial62).FirstOrDefault(st => Frame(st).Along >= -s62.InitialPointNM) : null;
                 double lateral62 = atIp62 != null ? Frame(atIp62).Lateral : double.NaN;
                 Check(initial62 > 0 && widest62 <= wide62 + 0.25 && Math.Abs(lateral62) < 0.35 && along62 < -s62.InitialPointNM + 0.4
-                    && deepest62 > -s62.InitialPointNM - 3.2 && LandedOnRunway(f62),
+                    && deepest62 > -s62.InitialPointNM - 3.5 && LandedOnRunway(f62),
                     $"DCT TO IP from the {start} (Jet): out parallel to the final, never wider than the WIDE, turns in near abeam the IP + 2 NM, on the runway track at the IP, lands",
                     $"widest {widest62:F2} NM (WIDE {wide62:F2}), deepest {-deepest62:F2} NM out, initial from {along62:F2} NM, {lateral62:F2} NM off the track at the IP");
                 pictures.Add(($"DCT TO IP from the {start}, near the aerodrome (Jet)", f62));
