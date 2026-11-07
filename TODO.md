@@ -780,6 +780,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   in, the pattern is only for the circuits after it. FINAL with F/S (or a transit OUT): Pattern type and Pattern side
   hidden; CIRCLING: Pattern type hidden (always conventional), the side kept; with circuits after it: both shown, OVH and
   SFO grey. WRITTEN.
+- **Advanced (the user, 7 Nov):** Callsign under ICAO type; Height ft and Delay min always in sight at the bottom, no "More…"
+  to open. WRITTEN.
 - **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle) — DECIDED, to write on the go:** today, before the
   IP and near the runway track, it goes out to the WIDE downwind abeam where it is, then diagonally to the axis. New: out
   parallel to the final on its own side, at its distance from the axis (at least the conventional downwind, at most the

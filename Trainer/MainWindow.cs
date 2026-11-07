@@ -681,6 +681,7 @@ namespace ATCRoom.TwrTrainer
             // (The user, 5 Nov: clearer names, a wider column for them.)
             Row("Type of AC", classHolder, null, LabelWidth);
             Row("ICAO type", Inline(icaoTypeBox, new TextBlock { Text = "(free text: F16, TOR, C172...)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
+            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
             Row("Rules", rulesRow, null, LabelWidth);
             rulesRow.Show(false);
             Row("Formation", formationRow, null, LabelWidth);
@@ -787,13 +788,10 @@ namespace ATCRoom.TwrTrainer
             circuitRow.Show(CircuitType.Conventional);
             sideRow.Show(null);
             RebuildFrom();
-            // The rest when wanted (the user, 4 Nov): closed.
-            StackPanel more = new();
-            current.Children.Add(new Expander { Header = "More…", Content = more, Foreground = TextBrush, Margin = new Thickness(0, 4, 0, 2), IsExpanded = false });
-            Row("Callsign", Inline(callsignBox, new TextBlock { Text = "(optional; a formation: ending with its number, VIPER01)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
-            arrivalName = (TextBlock)Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth).Children[0];
+            // (The user, 7 Nov: the rows of "More…" always in sight, at the bottom; the callsign under the ICAO type.)
+            arrivalName = (TextBlock)Row("Height ft", Inline(arrivalBox, new TextBlock { Text = "(at the gate / of the crossing; empty: 500 above the circuit)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth).Children[0];
             arrivalBox.ToolTip = "The height it arrives at, at the gate (empty: 500 ft above its circuit); it reaches the circuit height before the circuit. A crossing: its height. (A departure: Exit altitude.)";
-            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), more, LabelWidth);
+            Row("Delay min", Inline(delayBox, new TextBlock { Text = "(for the Traffic List: after START ALL)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
             toListButton = ActionButton("TO LIST", AddPlan);
             cancelEditButton = ActionButton("CANCEL", CancelEdit);
             cancelEditButton.Visibility = Visibility.Collapsed;
