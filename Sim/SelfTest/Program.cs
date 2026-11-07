@@ -2249,30 +2249,33 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         }
 
         // 62. DCT TO IP near the aerodrome (the user, 7 Nov): out parallel to the final on its side (never wider than the WIDE),
-        // then 45° onto the runway track before the IP, on the initial at the IP, the overhead, lands. From the conventional
-        // downwind, early and late (towards the base).
+        // the turn in abeam the IP + 2 NM, on the initial at the IP, the overhead, lands. From the conventional downwind, early
+        // and late (towards the base), and from the wide one.
         {
             SimEngine w62 = NewCircuitEngine();
             string wc62 = w62.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
             w62.RunFor(20);
             double wide62 = Math.Abs(Frame(w62.Get(wc62)!).Lateral);
-            foreach (double after in new[] { 15.0, 75.0 })
+            foreach ((CircuitType type62, double after) in new[] { (CircuitType.Conventional, 15.0), (CircuitType.Conventional, 75.0), (CircuitType.Wide, 15.0) })
             {
                 SimEngine s62 = NewCircuitEngine();
-                string c62 = s62.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+                string c62 = s62.AddInCircuit(CircuitStart.Downwind, type62, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
                 s62.RunFor(after);
-                string start = $"{s62.Get(c62)!.Leg} ({after:0} s)";
+                string start = $"{type62} {s62.Get(c62)!.Leg} ({after:0} s)";
                 s62.DirectTo(c62, DirectPoint.InitialPoint, CircuitSide.Left);
                 List<AircraftState> f62 = Fly(s62, c62, 1200);
                 int initial62 = f62.FindIndex(st => st.Leg == "INITIAL");
                 double widest62 = initial62 > 0 ? f62.Take(initial62).Max(st => Math.Abs(Frame(st).Lateral)) : double.NaN;
                 double along62 = initial62 > 0 ? Frame(f62[initial62]).Along : double.NaN;
+                // (The user, 7 Nov: the turn in abeam the IP + 2 NM, not farther out; the turn itself on top.)
+                double deepest62 = initial62 > 0 ? f62.Take(initial62).Min(st => Frame(st).Along) : double.NaN;
                 // (At the IP: on the runway track.)
                 AircraftState? atIp62 = initial62 > 0 ? f62.Skip(initial62).FirstOrDefault(st => Frame(st).Along >= -s62.InitialPointNM) : null;
                 double lateral62 = atIp62 != null ? Frame(atIp62).Lateral : double.NaN;
-                Check(initial62 > 0 && widest62 <= wide62 + 0.25 && Math.Abs(lateral62) < 0.35 && along62 < -s62.InitialPointNM + 0.4 && LandedOnRunway(f62),
-                    $"DCT TO IP from the {start} (Jet): out parallel to the final, never wider than the WIDE, onto the runway track before the IP, lands",
-                    $"widest {widest62:F2} NM (WIDE {wide62:F2}), initial from {along62:F2} NM, {lateral62:F2} NM off the track at the IP");
+                Check(initial62 > 0 && widest62 <= wide62 + 0.25 && Math.Abs(lateral62) < 0.35 && along62 < -s62.InitialPointNM + 0.4
+                    && deepest62 > -s62.InitialPointNM - 3.2 && LandedOnRunway(f62),
+                    $"DCT TO IP from the {start} (Jet): out parallel to the final, never wider than the WIDE, turns in near abeam the IP + 2 NM, on the runway track at the IP, lands",
+                    $"widest {widest62:F2} NM (WIDE {wide62:F2}), deepest {-deepest62:F2} NM out, initial from {along62:F2} NM, {lateral62:F2} NM off the track at the IP");
                 pictures.Add(($"DCT TO IP from the {start}, near the aerodrome (Jet)", f62));
             }
         }

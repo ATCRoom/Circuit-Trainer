@@ -787,6 +787,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   callsign given is kept in the plan (one aircraft). WRITTEN.
 - **Tab (the user, 7 Nov):** Tab selects the next aircraft, Shift+Tab the one before, in the order of FLYING (round); none
   selected: the first; in a text box Tab stays the next box. WRITTEN.
+- **DCT TO IP: the turn in abeam the IP + 2 NM (the user, 7 Nov, pictures from the WIDE and the CONV; "IP + 2NM"):** the
+  45° turn in made the way out longer the wider it was (from the WIDE to about 7.5 NM). Now out parallel to abeam the IP
+  + 2 NM, then towards the IP rolling out on the initial at the IP (about 45° from the CONV, 60° from the WIDE). Test 62
+  from the CONV and the WIDE. WRITTEN, next group.
 - **Range rings (the user, 7 Nov; "5NM va bene") — WRITTEN:** instructor only (not in the student console).
   Centre: the middle of the runway in use (the user: "dal centro dell'aeroporto (pista)"). Proposed: spacing 1 / 2 / 5 / 10
   NM in Settings › Map (per aerodrome, default 5 NM, up to 30 NM), thin and faint, the distance written small on each;
