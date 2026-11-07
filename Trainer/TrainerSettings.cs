@@ -72,6 +72,8 @@ namespace ATCRoom.TwrTrainer
         public bool ShowWaiting { get; set; } = true;
         /// <summary>Traffic generation on its Quick tab (else Advanced; the user, 7 Nov).</summary>
         public bool QuickTab { get; set; } = true;
+        /// <summary>The range rings on the instructor's map (the user, 7 Nov; spacing per aerodrome, Settings › Map).</summary>
+        public bool ShowRings { get; set; } = true;
         /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
         public string StripDeparture { get; set; } = "WHITE";
         public string StripArrival { get; set; } = "YELLOW";

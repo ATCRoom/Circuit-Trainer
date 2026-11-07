@@ -245,6 +245,9 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<bool> tabRow = new([(true, "QUICK"), (false, "ADVANCED")], (quick, _) => quick
             ? "One click, one aircraft at once: the base traffic of this aerodrome (Settings › Aircraft)." : "Every choice of a flight: ADD NOW, or TO LIST for the Traffic List; the scenarios.");
         private readonly StackPanel quickContent = new(), advancedContent = new();
+        /// <summary>The range rings (the user, 7 Nov): their spacing per aerodrome, the button on the bar of the map.</summary>
+        private readonly ChoiceRow<double> ringsRow = new([(1, "1"), (2, "2"), (5, "5"), (10, "10")], (nm, _) => $"Range rings every {nm:0} NM around the middle of the runway (up to 30 NM).");
+        private Button ringsButton = null!;
         private readonly TextBlock quickBase = new() { Foreground = DimBrush, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) };
         /// <summary>Where a message is shown: in the part it is about (the user, 3 Nov), one line each.</summary>
         private enum Area { Aerodrome, Simulation, New, Traffic, Selected }
@@ -295,6 +298,10 @@ namespace ATCRoom.TwrTrainer
             bar.Children.Add(speedRow);
             bar.Children.Add(new TextBlock { Text = "View", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
             bar.Children.Add(levelRow);
+            // (The user, 7 Nov: range rings, the instructor's map only.)
+            ringsButton = ActionButton("", ToggleRings);
+            ringsButton.Margin = new Thickness(12, 0, 0, 4);
+            bar.Children.Add(ringsButton);
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
@@ -570,6 +577,15 @@ namespace ATCRoom.TwrTrainer
             Buttons(("Place on the map", PlaceRunway), ("Remove runway", RemoveRunway));
             // (The user, 6 Nov: the thresholds of runways.par of AuroraPAR, no clicks.)
             Buttons(("From runways.par...", RunwaysFromPar));
+            Row("Range rings NM", ringsRow);
+            ringsRow.Picked += nm =>
+            {
+                if (airfield.Map == null) { Say("Open a map first: the range rings are kept with its aerodrome."); ShowRings(); return; }
+                airfield.Circuits.RingsNM = nm == 5 ? null : nm;
+                Say(airfield.Save());
+                if (!settings.ShowRings) { settings.ShowRings = true; settings.Save(); }
+                ShowRings();
+            };
             // (The user, 6 Nov: altitudes (QNH) or heights above the runway (QFE), for this aerodrome.)
             Row("Pressure", pressureRow);
             pressureRow.Show(false);
@@ -1449,6 +1465,7 @@ namespace ATCRoom.TwrTrainer
             }
             ShowBaseTraffic();
             ShowHeights();
+            ShowRings();
             updating = false;
         }
 
@@ -2528,6 +2545,31 @@ namespace ATCRoom.TwrTrainer
             caption.Margin = new Thickness(0, 0, 6, 1);
             header.Children.Add(caption);
             return header;
+        }
+
+        /// <summary>RINGS on the bar of the map: the range rings shown or not (saved).</summary>
+        private void ToggleRings()
+        {
+            settings.ShowRings = !settings.ShowRings;
+            settings.Save();
+            ShowRings();
+        }
+
+        /// <summary>The range rings on the map (their spacing: the aerodrome's, 5 NM when not chosen), the row and the button.</summary>
+        private void ShowRings()
+        {
+            double spacing = airfield.Circuits.RingsNM is double nm && nm is 1 or 2 or 5 or 10 ? nm : 5;
+            ringsRow.Show(spacing);
+            view.RingsNM = settings.ShowRings ? spacing : 0;
+            view.InvalidateVisual();
+            if (ringsButton == null) return;
+            ringsButton.Content = "RINGS";
+            ringsButton.Background = settings.ShowRings ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)) : Theme.OffBack;
+            ringsButton.Foreground = settings.ShowRings ? new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)) : Theme.OffText;
+            ringsButton.BorderBrush = ringsButton.Background;
+            ringsButton.Tag = settings.ShowRings ? "on" : null;
+            ringsButton.ToolTip = (settings.ShowRings ? "Range rings shown" : "Range rings hidden") + $" (every {spacing:0} NM around the middle of the runway; Settings › Map). Click: "
+                + (settings.ShowRings ? "hide them." : "show them.");
         }
 
         /// <summary>WAITING TFC: the plans waiting on the map or not (saved).</summary>

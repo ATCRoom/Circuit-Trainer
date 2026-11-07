@@ -787,10 +787,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   callsign given is kept in the plan (one aircraft). WRITTEN.
 - **Tab (the user, 7 Nov):** Tab selects the next aircraft, Shift+Tab the one before, in the order of FLYING (round); none
   selected: the first; in a text box Tab stays the next box. WRITTEN.
-- **Range rings (the user, 7 Nov) — DECIDED in part, to write on the go:** instructor only (not in the student console).
+- **Range rings (the user, 7 Nov; "5NM va bene") — WRITTEN:** instructor only (not in the student console).
   Centre: the middle of the runway in use (the user: "dal centro dell'aeroporto (pista)"). Proposed: spacing 1 / 2 / 5 / 10
   NM in Settings › Map (per aerodrome, default 5 NM, up to 30 NM), thin and faint, the distance written small on each;
-  a RINGS button on the bar of the map (kept in the settings). Spacing default to confirm.
+  a RINGS button on the bar of the map (kept in the settings), on at first; a spacing chosen lights it.
 - **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle) — DECIDED, to write on the go:** today, before the
   IP and near the runway track, it goes out to the WIDE downwind abeam where it is, then diagonally to the axis. New: out
   parallel to the final on its own side, at its distance from the axis (at least the conventional downwind, at most the

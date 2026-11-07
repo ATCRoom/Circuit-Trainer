@@ -76,6 +76,9 @@ namespace ATCRoom.TwrTrainer
         public double HeightOffset => Qfe ? 0 : ElevationFt;
         /// <summary>Distance of the extended centreline drawn (NM).</summary>
         public double CentrelineNM { get; set; } = 10;
+        /// <summary>The spacing of the range rings around the middle of the runway (NM; 0: none), up to 30 NM (the user, 7 Nov; instructor only).</summary>
+        public double RingsNM { get; set; }
+        private static readonly Brush RingBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x70, 0x8A, 0x98, 0xA4)));
         /// <summary>The entry gates of the aerodrome (the plane, NM).</summary>
         public IReadOnlyList<(string Name, double X, double Y)> Gates { get; set; } = [];
         /// <summary>The runway exits (the plane, NM).</summary>
@@ -271,6 +274,7 @@ namespace ATCRoom.TwrTrainer
             if (width < 20 || height < 20) return;
             double dip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             DrawMap(dc, dip);
+            DrawRings(dc, dip);
             DrawRunway(dc);
             DrawGates(dc, dip);
             DrawExits(dc, dip);
@@ -343,6 +347,22 @@ namespace ATCRoom.TwrTrainer
             {
                 dc.DrawEllipse(brush, null, at, 2, 2);
                 if (names && name.Length > 0) dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, brush, dip), new Point(at.X + 4, at.Y - 6));
+            }
+        }
+
+        /// <summary>The range rings: thin circles around the middle of the runway in use, their distance written on top.</summary>
+        private void DrawRings(DrawingContext dc, double dip)
+        {
+            if (RingsNM <= 0 || double.IsNaN(Course)) return;
+            (double mx, double my) = Along(LengthNM / 2, 0);
+            Point middle = ToScreen(mx, my);
+            Pen pen = new(RingBrush, 0.8);
+            for (int n = 1; n * RingsNM <= 30 + 1e-9; n++)
+            {
+                double radius = n * RingsNM * scale;
+                dc.DrawEllipse(null, pen, middle, radius, radius);
+                FormattedText text = new((n * RingsNM).ToString("0.#", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, RingBrush, dip);
+                dc.DrawText(text, new Point(middle.X - text.Width / 2, middle.Y - radius - text.Height - 1));
             }
         }
 

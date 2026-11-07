@@ -58,6 +58,8 @@ namespace ATCRoom.Sim
         public string? CallsignPrefix { get; set; }
         public string? IcaoType { get; set; }
         public string? DefaultClass { get; set; }
+        /// <summary>The spacing of the range rings of the instructor's map (NM, the user 7 Nov; null: 5).</summary>
+        public double? RingsNM { get; set; }
         /// <summary>The views of L1 and L2 kept by the instructor (the user, 4 Nov: programmable); null: the default ones.</summary>
         public SavedView? View1 { get; set; }
         public SavedView? View2 { get; set; }
