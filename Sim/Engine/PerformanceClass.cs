@@ -29,7 +29,9 @@ namespace ATCRoom.Sim
         /// <summary>Bank angle limit for the turns (degrees): the turn rate is lower at high speed.</summary>
         public double MaxBankDegrees { get; set; }
 
-        // ----- The circuit (TWR Trainer). Heights above the threshold; 0 or missing: the value of the class name, see CircuitDefaults.
+        // ----- The circuit (TWR Trainer). The heights of the class (circuits, initial, break, High and Low Key) are altitudes, ft
+        // QNH (the user, 7 Nov: most aerodromes work with altitudes): at an aerodrome they become heights above its runway, see
+        // AerodromeCircuits.Apply. 0 or missing: the value of the class name, see CircuitDefaults.
         /// <summary>Height of the circuit (ft above the threshold).</summary>
         public double CircuitHeightFt { get; set; }
         /// <summary>
@@ -67,6 +69,13 @@ namespace ATCRoom.Sim
         public double ArrivalSpeedKt { get; set; }
         /// <summary>A helicopter: it can hover (minimum speed 0) and hold its place over the ground.</summary>
         public bool CanHover { get; set; }
+
+        /// <summary>
+        /// The class made for an aerodrome (<see cref="AerodromeCircuits.Apply"/>): its heights are above the runway now, so it is
+        /// not made again (not saved).
+        /// </summary>
+        [JsonIgnore]
+        public bool AtAerodrome { get; set; }
 
         /// <summary>Fields of a newer version of the file, kept as they are.</summary>
         [JsonExtensionData]

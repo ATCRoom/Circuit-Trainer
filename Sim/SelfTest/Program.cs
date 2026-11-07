@@ -824,7 +824,8 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
 // --- Circuits (TWR Trainer): flown by the engine, checked, and drawn into circuits.html for the user ---------------
 
 {
-    const double CircuitCourse = 140, CircuitElevation = 200, CircuitLength = 1.0;
+    // (Elevation 0: the heights of the classes are altitudes QNH since 7 Nov, the same as heights at sea level; test 60: higher.)
+    const double CircuitCourse = 140, CircuitElevation = 0, CircuitLength = 1.0;
     List<(string Title, List<AircraftState> Track)> pictures = [];
 
     SimEngine NewCircuitEngine()
@@ -2188,6 +2189,63 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             AircraftState l59 = f59[^1];
             Check(Math.Abs(SimEngine.Wrap(l59.HeadingTrue - (CircuitCourse + 90))) < 3 && Height(l59) > 100,
                 "Helicopter from a helipad: the heading given in the hover flown after it", $"heading {l59.HeadingTrue:F0}, {Height(l59):F0} ft");
+        }
+
+        // 60. The heights of the classes are altitudes (QNH, the user 7 Nov): at an aerodrome 1200 ft high they become heights
+        // above its runway, at least 300 ft; the heights written in the aerodrome stay above the threshold; made once only;
+        // the departure climbs to 3000 ft QNH (at least 1000 ft above the runway); Import heights keeps the altitudes.
+        {
+            AerodromeCircuits a60 = AerodromeCircuits.Parse("{ \"Airport\": \"LIXX\", \"Runways\": [ { \"Runway\": \"14\", \"Side\": \"Left\", \"ElevationFt\": 1200 } ], "
+                + "\"Classes\": [ { \"Class\": \"Jet\", \"ConventionalHeightFt\": 1000 } ], \"CallsignPrefix\": \"IBLA\", \"IcaoType\": \"C172\", \"DefaultClass\": \"Light\" }");
+            PerformanceClass light60 = a60.Apply(PerformanceClass.Defaults().First(k => k.Name == "Light"), 1200);
+            PerformanceClass jet60 = a60.Apply(PerformanceClass.Defaults().First(k => k.Name == "Jet"), 1200);
+            PerformanceClass twice60 = a60.Apply(jet60, 1200);
+            Check(light60 is { ConventionalHeightFt: 300, OverheadHeightFt: 500, HighKeyFt: 1300 } && jet60 is { ConventionalHeightFt: 1000, WideHeightFt: 300, OverheadHeightFt: 500 }
+                && jet60.ArrivalHeightFt >= 1500 && twice60.ConventionalHeightFt == 1000 && twice60.HighKeyFt == jet60.HighKeyFt,
+                "Class altitudes at a 1200 ft aerodrome: heights above the runway (at least 300 ft, the initial 500), the aerodrome's kept, made once",
+                $"Light {light60.ConventionalHeightFt:F0}/{light60.OverheadHeightFt:F0}/{light60.HighKeyFt:F0}, Jet {jet60.ConventionalHeightFt:F0}/{jet60.WideHeightFt:F0}, arrival {jet60.ArrivalHeightFt:F0}");
+            string again60 = JsonSerializer.Serialize(a60, AerodromeCircuits.JsonOptions);
+            Check(a60.CallsignPrefix == "IBLA" && a60.IcaoType == "C172" && a60.DefaultClass == "Light" && again60.Contains("\"CallsignPrefix\"")
+                && !JsonSerializer.Serialize(new AerodromeCircuits(), AerodromeCircuits.JsonOptions).Contains("CallsignPrefix"),
+                "Aerodrome file: the base traffic (callsign, ICAO type, class), written only when given");
+
+            SimEngine s60 = new();
+            s60.SetGlidePath(CircuitCourse, 3, 1200, CircuitLength);
+            s60.SetAerodrome(a60, "14");
+            string d60 = s60.AddDeparture(double.NaN, null, null, null, null, performanceClass: "Light");
+            List<AircraftState> f60 = Fly(s60, d60, 400);
+            SimEngine h60 = new();
+            h60.SetGlidePath(CircuitCourse, 3, 2500, CircuitLength);
+            string e60 = h60.AddDeparture(double.NaN, null, null, null, null, performanceClass: "Turboprop");
+            List<AircraftState> g60 = Fly(h60, e60, 400);
+            Check(f60.Count > 0 && Near(f60.Max(st => st.AltitudeFt), 3000, 60) && g60.Count > 0 && Near(g60.Max(st => st.AltitudeFt), 3500, 60),
+                "Departure without an exit altitude: 3000 ft QNH (1200 ft aerodrome), at least 1000 ft above a high one (2500 ft: 3500)",
+                $"{(f60.Count > 0 ? f60.Max(st => st.AltitudeFt) : double.NaN):F0} / {(g60.Count > 0 ? g60.Max(st => st.AltitudeFt) : double.NaN):F0} ft");
+
+            AerodromeCircuits other60 = AerodromeCircuits.Parse("{ \"Classes\": [ { \"Class\": \"Light\", \"ConventionalHeightFt\": 1400, \"HighKeyFt\": 2000 } ] }");
+            AerodromeCircuits mine60 = AerodromeCircuits.Parse("{ \"Classes\": [ { \"Class\": \"Jet\", \"WideHeightFt\": 900, \"Tower\": \"kept\" }, { \"Class\": \"Light\", \"WideHeightFt\": 900 } ] }");
+            mine60.CopyHeightsFrom(other60, 100, 400);
+            ClassCircuit? l60 = mine60.Classes.FirstOrDefault(c => c.Class == "Light");
+            ClassCircuit? j60 = mine60.Classes.FirstOrDefault(c => c.Class == "Jet");
+            Check(l60 is { ConventionalHeightFt: 1100, HighKeyFt: 1700, WideHeightFt: null } && j60 is { WideHeightFt: null } && j60.Extra != null,
+                "Import heights: the same altitudes (100 → 400 ft: 300 lower), the others emptied, unknown fields kept",
+                $"Light {l60?.ConventionalHeightFt}/{l60?.HighKeyFt}/{l60?.WideHeightFt}, Jet {j60?.WideHeightFt}");
+        }
+
+        // 61. Quick INBOUND IP (the user, 7 Nov): from the long final point on the axis, at the initial height of its class, kept
+        // to the initial point, then the overhead and a landing.
+        {
+            SimEngine s61 = NewCircuitEngine();
+            string c61 = s61.AddInboundIp(null, EndAction.FullStop, performanceClass: "Light");
+            AircraftState first61 = s61.Get(c61)!;
+            List<AircraftState> f61 = [first61];
+            f61.AddRange(Fly(s61, c61, 1500));
+            List<AircraftState> before61 = f61.Where(st => Frame(st).Along < -s61.InitialPointNM - 0.2).ToList();
+            Check(Near(Frame(first61).Along, -s61.LongFinalNM, 0.05) && Math.Abs(Frame(first61).Lateral) < 0.05 && Near(Height(first61), 1500, 5)
+                && before61.Count > 10 && before61.All(st => Near(Height(st), 1500, 60)) && f61.Any(st => st.Leg == "INITIAL") && LandedOnRunway(f61),
+                "Quick INBOUND IP: from the long final at the initial height (1500), kept to the IP, the overhead, lands",
+                $"start {Frame(first61).Along:F1} NM {Height(first61):F0} ft; {Legs(f61)}");
+            pictures.Add(("Quick INBOUND IP: from the long final at 1500 ft, the overhead (Light)", f61));
         }
 
         // START SFO a little before the High Key, on its circle: on round it, not a way back to the runway track.

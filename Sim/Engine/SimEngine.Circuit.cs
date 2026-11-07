@@ -216,9 +216,12 @@ namespace ATCRoom.Sim
         private const double GoAroundShortFinal = 0.7;
         /// <summary>The waveoff of the jet circuits: above this height (ft above the threshold) it turns to the downwind at once, climbing.</summary>
         private const double WaveoffTurnHeight = 400;
-        /// <summary>A departure is gone this far from the aerodrome (NM, the user 5 Nov), and climbs to this height (ft) when none is given.</summary>
+        /// <summary>
+        /// A departure is gone this far from the aerodrome (NM, the user 5 Nov), and climbs to this altitude (ft QNH, the user 7 Nov)
+        /// when none is given, at least <see cref="DepartureMinimumHeight"/> above the runway.
+        /// </summary>
         public const double DepartureGoneNM = 10;
-        private const double DepartureHeight = 3000;
+        private const double DepartureAltitude = 3000, DepartureMinimumHeight = 1000;
         /// <summary>Seconds of the roll after a touchdown before the aircraft accelerates again.</summary>
         private const double TouchAndGoRoll = 3;
 
@@ -234,6 +237,13 @@ namespace ATCRoom.Sim
         private double initialPoint = 3;
         private AerodromeCircuits? aerodrome;
         private string aerodromeRunway = "";
+        private static readonly AerodromeCircuits NoAerodrome = new();
+
+        /// <summary>
+        /// A class at this aerodrome: its altitudes (QNH, the user 7 Nov) as heights above the runway in use, then the heights of
+        /// the aerodrome (<see cref="SetAerodrome"/>). Already made: the same.
+        /// </summary>
+        private PerformanceClass Here(PerformanceClass kind) => (aerodrome ?? NoAerodrome).Apply(kind, runwayElevation);
 
         /// <summary>
         /// The circuits of the aerodrome and the runway in use (from now on: the aircraft added later): the side of the
@@ -373,7 +383,7 @@ namespace ATCRoom.Sim
             CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
             PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                 ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
-            PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
+            PerformanceClass kind = Here(classKind);
             (double along, double lateral) = start switch
             {
                 CircuitStart.LongFinal => (-longFinal, 0),
@@ -390,7 +400,7 @@ namespace ATCRoom.Sim
         /// A departure with no circuit (the user, 5 Nov): the take-off, then on along the runway heading (<paramref name="radialTrue"/>
         /// NaN) or, above 400 ft, a turn (left or right: <paramref name="turnRight"/>; null: the shorter) to intercept the radial
         /// (degrees true, outbound) from the point (the plane, NM; null: the middle of the runway), then along it. Climbs to
-        /// <paramref name="heightFt"/> above the runway (null: 3000 ft); gone <see cref="DepartureGoneNM"/> from the aerodrome.
+        /// <paramref name="heightFt"/> above the runway (null: 3000 ft QNH, at least 1000 ft above the runway); gone <see cref="DepartureGoneNM"/> from the aerodrome.
         /// </summary>
         public string AddDeparture(double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt, string? callsign = null,
             string? performanceClass = null, Func<string, bool>? takenElsewhere = null, double exitX = double.NaN, double exitY = double.NaN)
@@ -425,7 +435,7 @@ namespace ATCRoom.Sim
         /// <summary>The way out of a departure: its height, its radial (NaN: the runway heading) from its point, its turn.</summary>
         private void DepartureWay(CircuitState circuit, double radialTrue, bool? turnRight, double? fromX, double? fromY, double? heightFt)
         {
-            circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : DepartureHeight);
+            circuit.DepartHeight = runwayElevation + (heightFt is double h && double.IsFinite(h) && h > 0 ? Math.Min(h, MaxAltitude) : Math.Max(DepartureMinimumHeight, DepartureAltitude - runwayElevation));
             // (To a gate or a point, the user 6 Nov: its turn kept, L or R; none given: the shorter, as before.)
             circuit.DepartTurn = turnRight switch { true => TurnDirection.Right, false => TurnDirection.Left, _ => TurnDirection.Shortest };
             if (!double.IsFinite(radialTrue)) return;
@@ -656,7 +666,7 @@ namespace ATCRoom.Sim
                 // (Another circuit now: a height given for the old one no more.)
                 if (a.Circuit != null) a.Circuit.LapHeight = double.NaN;
                 // An aircraft new to the circuits (arriving): the heights of this aerodrome for its class.
-                if (a.Circuit == null && aerodrome != null) a.Class = aerodrome.Apply(a.Class);
+                if (a.Circuit == null) a.Class = Here(a.Class);
                 CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
                 circuit.NextType = null;
                 circuit.Type = type;
@@ -960,7 +970,7 @@ namespace ATCRoom.Sim
                 CircuitSide side = sideGiven ?? aerodrome?.SideOf(aerodromeRunway, type) ?? CircuitSide.Left;
                 PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                     ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
-                PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
+                PerformanceClass kind = Here(classKind);
                 // Heading to the middle of the runway.
                 (double mx, double my) = FromRunway(Math.Max(runwayLength, 0.3) / 2, 0, side);
                 double heading = Normalize(Math.Atan2(mx - x, my - y) * 180 / Math.PI);
@@ -979,6 +989,23 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
+        /// Quick traffic INBOUND IP (the user, 7 Nov): from the long final point, on the extended centreline, at the height of the
+        /// initial of its class at this aerodrome, kept to the initial point, then the overhead pattern.
+        /// </summary>
+        public string AddInboundIp(CircuitSide? sideGiven, EndAction end, string? callsign = null, string? performanceClass = null, Func<string, bool>? takenElsewhere = null)
+        {
+            lock (sync)
+            {
+                if (double.IsNaN(glidePathCourse)) throw new InvalidOperationException("No runway: a circuit needs the runway in use.");
+                PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
+                    ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
+                PerformanceClass kind = Here(classKind);
+                (double x, double y) = FromRunway(-longFinal, 0, CircuitSide.Left);
+                return AddAtGate(x, y, CircuitEntry.InitialPoint, CircuitType.Overhead, sideGiven, end, callsign, performanceClass, takenElsewhere, kind.OverheadHeightFt);
+            }
+        }
+
+        /// <summary>
         /// Adds an aircraft crossing the zone: from an entry gate to an exit gate (the plane, NM), over the field or straight,
         /// at a height above the threshold (null: 500 ft above the highest circuit of its class), never landing: gone at the
         /// exit gate. It can be given orbits, a heading (then MANUAL) and taken back onto its way (<see cref="ResumeTransit"/>).
@@ -990,7 +1017,7 @@ namespace ATCRoom.Sim
             {
                 PerformanceClass classKind = (classes.FirstOrDefault(c => Same(c.Name, performanceClass ?? ""))
                     ?? classes.FirstOrDefault(c => Same(c.Name, PerformanceClass.DefaultName)) ?? classes[0]);
-                PerformanceClass kind = aerodrome?.Apply(classKind) ?? classKind.Copy();
+                PerformanceClass kind = Here(classKind);
                 double highest = new[] { CircuitType.Conventional, CircuitType.Wide, CircuitType.Close }.Max(t => CircuitHeight(t, kind));
                 double height = runwayElevation + (heightFt is double given && double.IsFinite(given) && given > 0 ? Math.Min(given, MaxAltitude) : highest + 500);
                 double speed = kind.ArrivalSpeedKt > 0 ? kind.ArrivalSpeedKt : kind.CircuitSpeedKt;
@@ -1056,6 +1083,8 @@ namespace ATCRoom.Sim
             Instruct(callsign, Kind.Heading, a =>
             {
                 if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
+                // (An aircraft new to the circuits: its class at this aerodrome, the review of 7 Nov.)
+                if (a.Circuit == null) a.Class = Here(a.Class);
                 a.Circuit ??= new CircuitState { End = EndAction.FullStop };
                 a.Circuit.Suspended = true;
                 Join(a, entry, type, side);
@@ -1168,7 +1197,7 @@ namespace ATCRoom.Sim
             {
                 if (!a.Class.CanHover || a.Contact != GroundContact.Airborne || !double.IsFinite(x) || !double.IsFinite(y)) return;
                 EndOrbit(a);
-                if (a.Circuit == null && aerodrome != null) a.Class = aerodrome.Apply(a.Class);
+                if (a.Circuit == null) a.Class = Here(a.Class);
                 CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
                 circuit.NextType = null;
                 circuit.Turning = circuit.Spiral = circuit.StraightIn = circuit.Extended = circuit.Hold = false;

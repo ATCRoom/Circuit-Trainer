@@ -772,14 +772,28 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the player, click = go there); to add when the log / the recording exist. The student console takes no photo (instructor
   only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
-## Next build (the user, 7 Nov) — NOTED, to do with the next go
+## Build of 7 Nov afternoon (the user: "procedi con la build") — WRITTEN (tests 60-61)
+- The three sections below, as decided. Choices made while writing them (simple, to check with the build):
+  - The class altitudes become heights at the aerodrome at least 300 ft above the runway; the initial (IP) and the High Key
+    keep the engine's minimum of 500 ft. The arrival from a gate stays at least 500 ft above the conventional circuit flown
+    there. A class made for an aerodrome is not made again (no double correction).
+  - Settings › Circuits: the table of the altitudes (a row per class: Conv, Wide, Close, IP, Break, HK); a box is saved when
+    left, with Enter or with the mouse wheel (no Save button). Without a runway placed the boxes are grey (the elevation is
+    needed). Import heights...: a menu of the other aerodromes of TWR Trainer (the folder Aerodromes), then asked before replacing.
+  - Quick: the class of the aerodrome (Settings › Aircraft); none chosen there: the class chosen in Advanced. A plan clicked
+    in the Traffic List (or on the map) opens the Advanced tab. The tab chosen is kept.
+  - The callsign prefix in the aerodrome file (CallsignPrefix, IcaoType, DefaultClass; missing: SIM, none, none).
+  - Fixed on the way: ⧉ (duplicate) now keeps the exit altitude, the helipad of a departure and its way out.
+  - The self-test circuits fly at an elevation of 0 (the class altitudes = heights there); test 60 at 1200 ft.
+
+## Next build (the user, 7 Nov) — WRITTEN 7 Nov afternoon (the user: "procedi con la build")
 - **The runway on the map (the user, 7 Nov: "mi piace la 1"):** today the tower draws its own light grey strip (B8C0C6, 0.03 NM
   wide, from the threshold, the length placed) over the map, covering the black runway of the Map Creator (only the ends past
   the thresholds show). Change: draw only a **thin line along the runway axis** (1-2 px, grey or white), from the threshold to
   the end; the black runway of the map shows all. The centreline before the threshold and its ticks stay. Without a runway on
   the map the thin line still shows the runway placed.
 
-## Traffic generation, defaults and Quick (the user, 7 Nov afternoon) — NOTED, to confirm and to do with the next go
+## Traffic generation, defaults and Quick (the user, 7 Nov afternoon) — WRITTEN 7 Nov afternoon
 - **Names of the panels as in AuroraPAR Trainer:** New aircraft -> **Traffic generation**; Selected aircraft -> **Aircraft control**
   (titles, tooltips and messages that name them; the saved places of the panels keep working: the key of the place is kept or moved).
 - **Scenario / flight plans LOAD...: SAVE... in Traffic generation** (in AuroraPAR Trainer they are in Traffic generation, Advanced;
@@ -803,7 +817,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Callsign number**: not already in the simulation (the engine already skips the callsigns flying, the reserved ones of the
   plans waiting and those flying outside; the counter goes on, a number is not given twice).
 
-## Default heights as altitudes (QNH) and import of the heights of other aerodromes (the user, 7 Nov) — NOTED, to confirm
+## Default heights as altitudes (QNH) and import of the heights of other aerodromes (the user, 7 Nov) — WRITTEN 7 Nov afternoon
 - **IMPORTANT (the user: "la stragrande maggioranza degli aeroporti lavora sulle altitudini") — DECIDED (7 Nov):** the default
   values of the classes (circuit Conv / Wide / Close, IP, Break, HK, LK) are from now **altitudes ft QNH**, not heights above the
   aerodrome: a new aerodrome shows them as they are, with no correction (today: elevation + 500 / 1000 / 1500...). The engine

@@ -51,6 +51,13 @@ namespace ATCRoom.Sim
         public double? InitialPointNM { get; set; }
         /// <summary>The magnetic variation (degrees, east positive; the user 5 Nov: for the radials of the departures); null: 0.</summary>
         public double? MagneticVariation { get; set; }
+        /// <summary>
+        /// The base traffic of this aerodrome (the user, 7 Nov; Settings › Aircraft): the start of the callsigns given by
+        /// themselves (null: SIM), the ICAO type of the aircraft without one, the class of the Quick traffic (null: none).
+        /// </summary>
+        public string? CallsignPrefix { get; set; }
+        public string? IcaoType { get; set; }
+        public string? DefaultClass { get; set; }
         /// <summary>The views of L1 and L2 kept by the instructor (the user, 4 Nov: programmable); null: the default ones.</summary>
         public SavedView? View1 { get; set; }
         public SavedView? View2 { get; set; }
@@ -78,31 +85,104 @@ namespace ATCRoom.Sim
             return own ?? found.Side;
         }
 
+        /// <summary>The lowest height above the runway a class altitude becomes (ft; the user, 7 Nov).</summary>
+        public const double MinimumHeightFt = 300;
+
+        /// <summary>An altitude of a class (ft QNH) as a height above a runway at this elevation: at least <see cref="MinimumHeightFt"/>.</summary>
+        public static double Above(double altitudeFt, double elevationFt) =>
+            Math.Max(MinimumHeightFt, altitudeFt - (double.IsFinite(elevationFt) ? elevationFt : 0));
+
         /// <summary>
-        /// A copy of a class with the heights this aerodrome gives it (the class unchanged when the file says nothing of it).
+        /// A copy of a class for this aerodrome, the runway at this elevation (ft): the altitudes of the class (QNH, the user 7 Nov)
+        /// as heights above the runway (at least 300 ft), then the heights this aerodrome gives it (written above the threshold,
+        /// kept as they are). The arrival from a gate at least 500 ft above its conventional circuit. A class already made for an
+        /// aerodrome: a plain copy.
         /// </summary>
-        public PerformanceClass Apply(PerformanceClass kind)
+        public PerformanceClass Apply(PerformanceClass kind, double elevationFt = 0)
         {
             PerformanceClass copy = kind.Copy();
+            if (kind.AtAerodrome) return copy;
+            // (The arrival of the class: written, or "500 above its circuit", the rule kept above the circuit flown here.)
+            bool ownArrival = kind.ArrivalHeightFt > 0 && double.IsFinite(kind.ArrivalHeightFt)
+                && kind.ArrivalHeightFt != Math.Max(kind.ConventionalHeightFt, kind.CircuitHeightFt) + 500;
+            // (Every value given first: a class written by hand without its heights gets those of its name, as altitudes.)
+            copy.Normalize();
+            kind = copy.Copy();
+            copy.AtAerodrome = true;
+            copy.CircuitHeightFt = Above(kind.CircuitHeightFt, elevationFt);
+            copy.ConventionalHeightFt = Above(kind.ConventionalHeightFt, elevationFt);
+            copy.WideHeightFt = Above(kind.WideHeightFt, elevationFt);
+            copy.CloseHeightFt = Above(kind.CloseHeightFt, elevationFt);
+            copy.OverheadHeightFt = Above(kind.OverheadHeightFt, elevationFt);
+            copy.BreakHeightFt = Above(kind.BreakHeightFt, elevationFt);
+            copy.HighKeyFt = Above(kind.HighKeyFt, elevationFt);
+            copy.LowKeyFt = Above(kind.LowKeyFt, elevationFt);
+            copy.ArrivalHeightFt = Above(kind.ArrivalHeightFt, elevationFt);
             ClassCircuit? here = Classes.FirstOrDefault(c => c != null && string.Equals((c.Class ?? "").Trim(), kind.Name, StringComparison.OrdinalIgnoreCase));
-            if (here == null) return copy;
-            // One height for all its circuits (the first files), then the height of each circuit.
-            if (here.CircuitHeightFt is double circuit)
+            if (here != null)
             {
-                copy.CircuitHeightFt = copy.ConventionalHeightFt = copy.WideHeightFt = copy.CloseHeightFt = circuit;
+                // One height for all its circuits (the first files), then the height of each circuit.
+                if (here.CircuitHeightFt is double circuit)
+                {
+                    copy.CircuitHeightFt = copy.ConventionalHeightFt = copy.WideHeightFt = copy.CloseHeightFt = circuit;
+                }
+                if (here.ConventionalHeightFt is double conventional) copy.ConventionalHeightFt = conventional;
+                if (here.WideHeightFt is double wide) copy.WideHeightFt = wide;
+                if (here.CloseHeightFt is double close) copy.CloseHeightFt = close;
+                if (here.InitialHeightFt is double initial) copy.OverheadHeightFt = initial;
+                // The break: given, else the height of the close pattern of this aerodrome (when given), else the class's.
+                if (here.BreakHeightFt is double breakHeight) copy.BreakHeightFt = breakHeight;
+                else if (here.CloseHeightFt is double closeHere) copy.BreakHeightFt = closeHere;
+                else if (here.CircuitHeightFt is double circuitHere) copy.BreakHeightFt = circuitHere;
+                if (here.HighKeyFt is double highKey) copy.HighKeyFt = highKey;
+                if (here.LowKeyFt is double lowKey) copy.LowKeyFt = lowKey;
             }
-            if (here.ConventionalHeightFt is double conventional) copy.ConventionalHeightFt = conventional;
-            if (here.WideHeightFt is double wide) copy.WideHeightFt = wide;
-            if (here.CloseHeightFt is double close) copy.CloseHeightFt = close;
-            if (here.InitialHeightFt is double initial) copy.OverheadHeightFt = initial;
-            // The break: given, else the height of the close pattern of this aerodrome (when given), else the class's.
-            if (here.BreakHeightFt is double breakHeight) copy.BreakHeightFt = breakHeight;
-            else if (here.CloseHeightFt is double closeHere) copy.BreakHeightFt = closeHere;
-            else if (here.CircuitHeightFt is double circuitHere) copy.BreakHeightFt = circuitHere;
-            if (here.HighKeyFt is double highKey) copy.HighKeyFt = highKey;
-            if (here.LowKeyFt is double lowKey) copy.LowKeyFt = lowKey;
+            // ("500 above the circuit" stays a rule above the circuit flown here.)
+            copy.ArrivalHeightFt = ownArrival ? Math.Max(copy.ArrivalHeightFt, copy.ConventionalHeightFt + 500) : copy.ConventionalHeightFt + 500;
             copy.Normalize();
             return copy;
+        }
+
+        /// <summary>
+        /// The heights of the classes of another aerodrome copied here (the user, 7 Nov: Import heights): the same altitudes, so
+        /// each height + the other runway's elevation - this one's (at least 300 ft above the runway). The heights of this
+        /// aerodrome are replaced (those not written there: empty, the class's); nothing else is copied.
+        /// </summary>
+        public void CopyHeightsFrom(AerodromeCircuits other, double otherElevationFt, double elevationFt)
+        {
+            double shift = (double.IsFinite(otherElevationFt) ? otherElevationFt : 0) - (double.IsFinite(elevationFt) ? elevationFt : 0);
+            // (Within the limits of each height: the initial and the High Key at least 500 ft.)
+            double? Moved(double? height, double low = MinimumHeightFt, double high = 5000) =>
+                height is double h && double.IsFinite(h) ? Math.Clamp(Math.Round(h + shift), low, high) : null;
+            foreach (ClassCircuit mine in Classes)
+            {
+                mine.CircuitHeightFt = mine.ConventionalHeightFt = mine.WideHeightFt = mine.CloseHeightFt = null;
+                mine.InitialHeightFt = mine.BreakHeightFt = mine.HighKeyFt = mine.LowKeyFt = null;
+            }
+            foreach (ClassCircuit theirs in other.Classes.Where(c => c != null && (c.Class ?? "").Trim().Length > 0))
+            {
+                ClassCircuit? mine = Classes.FirstOrDefault(c => string.Equals((c.Class ?? "").Trim(), theirs.Class.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (mine == null) Classes.Add(mine = new ClassCircuit { Class = theirs.Class.Trim() });
+                mine.CircuitHeightFt = Moved(theirs.CircuitHeightFt);
+                mine.ConventionalHeightFt = Moved(theirs.ConventionalHeightFt);
+                mine.WideHeightFt = Moved(theirs.WideHeightFt);
+                mine.CloseHeightFt = Moved(theirs.CloseHeightFt);
+                mine.InitialHeightFt = Moved(theirs.InitialHeightFt, 500);
+                mine.BreakHeightFt = Moved(theirs.BreakHeightFt);
+                mine.HighKeyFt = Moved(theirs.HighKeyFt, 500, 15000);
+                mine.LowKeyFt = Moved(theirs.LowKeyFt, MinimumHeightFt, 15000);
+            }
+            // (An entry left with nothing, and nothing of a newer version: gone.)
+            Classes.RemoveAll(c => c is { CircuitHeightFt: null, ConventionalHeightFt: null, WideHeightFt: null, CloseHeightFt: null, InitialHeightFt: null,
+                BreakHeightFt: null, HighKeyFt: null, LowKeyFt: null, Extra: null });
+        }
+
+        /// <summary>The elevation of the runways of this file (ft; the first one placed with one), or null: none placed.</summary>
+        public double? Elevation(string? runway = null)
+        {
+            RunwayCircuit? found = Runways.FirstOrDefault(r => r != null && r.ElevationFt != null && string.Equals((r.Runway ?? "").Trim(), (runway ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? Runways.FirstOrDefault(r => r != null && r.ElevationFt != null && r.HasPlace) ?? Runways.FirstOrDefault(r => r != null && r.ElevationFt != null);
+            return found?.ElevationFt;
         }
 
         /// <summary>Reads a file. Throws (with a readable message) when it is not one.</summary>
@@ -203,7 +283,7 @@ namespace ATCRoom.Sim
         public Dictionary<string, JsonElement>? Extra { get; set; }
     }
 
-    /// <summary>The heights (ft above the threshold) of one class at an aerodrome; a missing one: the class's.</summary>
+    /// <summary>The heights (ft above the threshold) of one class at an aerodrome; a missing one: the class's (an altitude, QNH).</summary>
     public sealed class ClassCircuit
     {
         public string Class { get; set; } = "";

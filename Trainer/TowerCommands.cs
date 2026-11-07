@@ -49,7 +49,7 @@ namespace ATCRoom.TwrTrainer
         public string? Add(CircuitStart start, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, bool hold, out string added)
         {
             added = "";
-            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
+            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Settings › Map).";
             try
             {
                 added = engine.AddInCircuit(start, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, hold: hold);
@@ -65,10 +65,26 @@ namespace ATCRoom.TwrTrainer
         public string? AddAtGate(double x, double y, CircuitEntry entry, CircuitType type, CircuitSide? side, EndAction end, string? performanceClass, string? callsign, double? heightFt, out string added)
         {
             added = "";
-            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
+            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Settings › Map).";
             try
             {
                 added = engine.AddAtGate(x, y, entry, type, side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, arrivalHeightFt: heightFt);
+                return null;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                return ex.Message;
+            }
+        }
+
+        /// <summary>Quick INBOUND IP (the user, 7 Nov): from the long final at the initial's altitude of its class, kept to the IP, then the overhead.</summary>
+        public string? AddInboundIp(CircuitSide? side, EndAction end, string? performanceClass, string? callsign, out string added)
+        {
+            added = "";
+            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Settings › Map).";
+            try
+            {
+                added = engine.AddInboundIp(side, end, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass);
                 return null;
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
@@ -141,7 +157,7 @@ namespace ATCRoom.TwrTrainer
             double exitX = double.NaN, double exitY = double.NaN)
         {
             added = "";
-            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Aerodrome, above).";
+            if (double.IsNaN(airfield.Course)) return "There is no runway in use yet: place it on the map first (Settings › Map).";
             try
             {
                 added = engine.AddDeparture(radialTrue, turnRight, fromX, fromY, heightFt, string.IsNullOrWhiteSpace(callsign) ? null : callsign.Trim(), performanceClass, null, exitX, exitY);

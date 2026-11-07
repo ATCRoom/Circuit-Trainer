@@ -96,7 +96,7 @@ namespace ATCRoom.TwrTrainer
         public int? Circuits { get; set; }
         public const int Forever = -1;
         /// <summary>
-        /// The altitude it climbs to when it leaves (the user, 6 Nov; ft above the runway; null: 3000 ft), apart from <see
+        /// The altitude it climbs to when it leaves (the user, 6 Nov; ft above the runway; null: 3000 ft QNH), apart from <see
         /// cref="HeightFt"/> (the entry): departures and transits using the runway.
         /// </summary>
         public double? ExitAltFt { get; set; }
@@ -184,6 +184,7 @@ namespace ATCRoom.TwrTrainer
             Local = Local, TransitCircuits = TransitCircuits, Circuits = Circuits,
             FromRadial = FromRadial, FromDistance = FromDistance, ToRadial = ToRadial, ToDistance = ToDistance,
             Departure = Departure, Radial = Radial, TurnRight = TurnRight, RadialFromX = RadialFromX, RadialFromY = RadialFromY,
+            ExitAltFt = ExitAltFt, FromPad = FromPad, WayOut = WayOut,
             DelayMinutes = DelayMinutes, Extra = Extra == null ? null : new Dictionary<string, JsonElement>(Extra)
         };
     }

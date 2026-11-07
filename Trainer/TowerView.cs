@@ -350,7 +350,8 @@ namespace ATCRoom.TwrTrainer
         {
             if (double.IsNaN(Course)) return;
             (double ex, double ey) = Along(LengthNM, 0);
-            Pen runway = new(RunwayBrush, Math.Max(3, 0.03 * scale)) { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat };
+            // (The user, 7 Nov: a thin line along the axis, not a strip: the runway of the map shows all.)
+            Pen runway = new(RunwayBrush, 1.5) { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat };
             dc.DrawLine(runway, ToScreen(0, 0), ToScreen(ex, ey));
             // The extended centreline before the threshold, a tick every NM (longer every 5).
             (double fx, double fy) = Along(-CentrelineNM, 0);
@@ -980,7 +981,7 @@ namespace ATCRoom.TwrTrainer
                 InvalidateVisual();
                 return;
             }
-            // (A plan waiting: into New aircraft, as a click on its row; aircraft flying first.)
+            // (A plan waiting: into Traffic generation, as a click on its row; aircraft flying first.)
             (Rect Area, object Tag) waiting = waitingRects.LastOrDefault(w => w.Area.Contains(at));
             if (AircraftAt(at) == null && waiting.Tag != null)
             {

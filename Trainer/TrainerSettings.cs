@@ -70,6 +70,8 @@ namespace ATCRoom.TwrTrainer
         public bool LightPanels { get; set; }
         /// <summary>The plans waiting drawn on the map (WAITING TFC, the user 6 Nov).</summary>
         public bool ShowWaiting { get; set; } = true;
+        /// <summary>Traffic generation on its Quick tab (else Advanced; the user, 7 Nov).</summary>
+        public bool QuickTab { get; set; } = true;
         /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
         public string StripDeparture { get; set; } = "WHITE";
         public string StripArrival { get; set; } = "YELLOW";

@@ -14,9 +14,9 @@ using ATCRoom.Sim;
 namespace ATCRoom.TwrTrainer
 {
     /// <summary>
-    /// The instructor's window (step 4a): the top view of the aerodrome and, on the right, the panel: the aerodrome (map,
-    /// runway in use and where it is, its circuit side, the heights of the classes, the wind), the simulation (pause,
-    /// speed, levels of the view, map layers), a new aircraft, and the commands of the selected aircraft.
+    /// The instructor's window (step 4a): the top view of the aerodrome and, on the right, the panels: Settings (map,
+    /// runway in use and where it is, its circuit side, the altitudes of the classes, the wind, ...), Traffic generation
+    /// (Quick | Advanced), the Traffic List, Aircraft control (the commands of the selected aircraft), the Strip bay.
     /// </summary>
     internal sealed class MainWindow : Window
     {
@@ -74,7 +74,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox longFinalBox = new() { Width = 45 };
         private readonly TextBox initialPointBox = new() { Width = 45 };
         private readonly StackPanel layers = new();
-        // New aircraft: rows of buttons (the choices kept for the next one).
+        // Traffic generation: rows of buttons (the choices kept for the next one).
         /// <summary>Where it starts: an entry gate, the runway, or already in the circuit (tests); rebuilt with the gates.</summary>
         private ChoiceRow<string> fromRow = new([]);
         private readonly StackPanel fromHolder = new();
@@ -103,7 +103,7 @@ namespace ATCRoom.TwrTrainer
         private readonly ChoiceRow<bool> departTurnRow = new([(false, "L"), (true, "R")], (right, _) =>
             $"After the take-off the turn to its way out to the {(right ? "right" : "left")} (lit by itself by where the exit is; click to change it).");
         private Grid exitTurnLine = null!, exitAltLine = null!;
-        /// <summary>The altitude it climbs to when it leaves (the user, 6 Nov; empty: 3000 ft above the runway).</summary>
+        /// <summary>The altitude it climbs to when it leaves (the user, 6 Nov; empty: 3000 ft QNH, the user 7 Nov).</summary>
         private readonly TextBox exitAltBox = new() { Width = 55 };
         private TextBlock exitAltName = null!;
         private readonly TextBox radialBox = new() { Width = 45 };
@@ -121,7 +121,7 @@ namespace ATCRoom.TwrTrainer
             _ => "Crossing straight from gate to gate."
         });
         private readonly TextBox arrivalBox = new() { Width = 55 };
-        /// <summary>The High Key of an SFO in New aircraft (the user, 6 Nov; empty: the aerodrome's, Settings).</summary>
+        /// <summary>The High Key of an SFO in Traffic generation (the user, 6 Nov; empty: the aerodrome's, Settings).</summary>
         private readonly TextBox hkBox = new() { Width = 55 };
         private Grid hkLine = null!;
         /// <summary>A formation (the user, 4 Nov): how many, which of them land together, the seconds between them at the split.</summary>
@@ -136,16 +136,16 @@ namespace ATCRoom.TwrTrainer
             ? "Circuits on and on, each final as in On Final (until you change it)." : $"{n} circuit(s) (arrivals and locals: more than the first one; departures and crossings: before they leave).");
         private Grid toLine = null!, viaLine = null!, intervalLine = null!, fromPointLine = null!, toPointLine = null!;
         private TextBlock toName = null!;
-        /// <summary>The R/D points of New aircraft (the user, 6 Nov): radial °M and distance NM from the middle of the runway.</summary>
+        /// <summary>The R/D points of Traffic generation (the user, 6 Nov): radial °M and distance NM from the middle of the runway.</summary>
         private readonly TextBox fromRadialBox = new() { Width = 45 }, fromDistanceBox = new() { Width = 40 }, toRadialBox = new() { Width = 45 }, toDistanceBox = new() { Width = 40 };
-        /// <summary>The rows of New aircraft hidden when they do not apply (the user, 5 Nov: not grey, hidden).</summary>
+        /// <summary>The rows of Traffic generation hidden when they do not apply (the user, 5 Nov: not grey, hidden).</summary>
         private Grid patternLine = null!, entryLine = null!, sideLine = null!, onFinalLine = null!, circuitsLine = null!;
         /// <summary>What every final does (the user, 5 Nov): F/S lands at the first one (arrivals and locals); T/G, L/A, L/P then the next circuit.</summary>
         private readonly ChoiceRow<EndAction> onFinalRow = new([(EndAction.FullStop, "F/S"), (EndAction.TouchAndGo, "T/G"), (EndAction.GoAround, "L/A"), (EndAction.LowPass, "L/P"), (PadEnd, "HPAD")],
             (_, t) => t == "HPAD" ? "Helicopter: it lands on a helipad (Helipad, below)." : "On each final: " + ChoiceTip(t));
         /// <summary>On Final HPAD (the user, 5 Nov; helicopters): a full stop on a helipad; a value of the row only, not of the engine.</summary>
         private const EndAction PadEnd = (EndAction)100;
-        /// <summary>The helipad of New aircraft: a registered one, or POINT (clicked on the map).</summary>
+        /// <summary>The helipad of Traffic generation: a registered one, or POINT (clicked on the map).</summary>
         private ChoiceRow<string> padRow = new([]);
         private readonly StackPanel padHolder = new();
         private (double X, double Y)? padPoint;
@@ -154,7 +154,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The pad row of a helicopter departure: from the runway (the user, 6 Nov: as now).</summary>
         private const string PadRunwayName = "RWY";
         private bool wasPadDeparture;
-        /// <summary>The width of the names of the rows of New aircraft (the user, 5 Nov: longer, clearer names).</summary>
+        /// <summary>The width of the names of the rows of Traffic generation (the user, 5 Nov: longer, clearer names).</summary>
         private const double LabelWidth = 112;
         private readonly ChoiceRow<double> splitRow = new([(3.0, "3s"), (4.0, "4s"), (5.0, "5s"), (10.0, "10s")], (v, _) => $"At the split each one {v:0} s after the one before.");
         private readonly TextBox newGateName = new() { Width = 70 };
@@ -174,7 +174,7 @@ namespace ATCRoom.TwrTrainer
         private readonly List<TowerPlan> plans = [];
         private readonly StackPanel planList = new();
         private readonly StackPanel flyingList = new();
-        /// <summary>The plan of the Traffic List being changed in New aircraft (the user, 4 Nov), or null; its buttons.</summary>
+        /// <summary>The plan of the Traffic List being changed in Traffic generation (the user, 4 Nov), or null; its buttons.</summary>
         private TowerPlan? editing;
         private Button toListButton = null!, cancelEditButton = null!, groupButton = null!;
         private string groupShown = "";
@@ -201,7 +201,7 @@ namespace ATCRoom.TwrTrainer
         private readonly StackPanel classHolder = new();
         private readonly TextBox callsignBox = new() { Width = 90 };
         // (The user, 6 Nov: the ICAO type, free text, and the flight rules: on the strips of the student and in the log.)
-        private readonly TextBox icaoTypeBox = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 8, ToolTip = "The ICAO type (F16, TOR, EUFI, C172...): free text, on the strips." };
+        private readonly TextBox icaoTypeBox = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 8, ToolTip = "The ICAO type (F16, TOR, EUFI, C172...): free text, on the strips (empty: the aerodrome's, Settings › Aircraft)." };
         private readonly ChoiceRow<bool> rulesRow = new([(false, "VFR"), (true, "IFR")], (ifr, _) => ifr ? "Flight rules IFR (on the strips: I)." : "Flight rules VFR (on the strips: V).");
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
@@ -234,6 +234,18 @@ namespace ATCRoom.TwrTrainer
             ("GREY", Color.FromRgb(0xD6, 0xD9, 0xDC))
         ];
         private readonly StackPanel settingsContent = new(), newContent = new(), trafficContent = new(), selectedContent = new();
+        /// <summary>The heights of the classes at this aerodrome (Settings › Circuits, the user 7 Nov).</summary>
+        private readonly HeightsTable heightsTable = new() { Margin = new Thickness(0, 2, 0, 2) };
+        /// <summary>The base traffic of this aerodrome (Settings › Aircraft, the user 7 Nov): callsign prefix, ICAO type, class.</summary>
+        private readonly TextBox prefixBox = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 6 };
+        private readonly TextBox defaultTypeBox = new() { Width = 70, CharacterCasing = CharacterCasing.Upper, MaxLength = 8 };
+        private ChoiceRow<string> defaultClassRow = new([]);
+        private readonly StackPanel defaultClassHolder = new();
+        /// <summary>Traffic generation: the Quick and the Advanced tabs (the user, 7 Nov, as in AuroraPAR Trainer).</summary>
+        private readonly ChoiceRow<bool> tabRow = new([(true, "QUICK"), (false, "ADVANCED")], (quick, _) => quick
+            ? "One click, one aircraft at once: the base traffic of this aerodrome (Settings › Aircraft)." : "Every choice of a flight: ADD NOW, or TO LIST for the Traffic List; the scenarios.");
+        private readonly StackPanel quickContent = new(), advancedContent = new();
+        private readonly TextBlock quickBase = new() { Foreground = DimBrush, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4) };
         /// <summary>Where a message is shown: in the part it is about (the user, 3 Nov), one line each.</summary>
         private enum Area { Aerodrome, Simulation, New, Traffic, Selected }
         private readonly Dictionary<Area, TextBlock> messages = Enum.GetValues<Area>().ToDictionary(area => area,
@@ -350,7 +362,7 @@ namespace ATCRoom.TwrTrainer
             Content = root;
 
             view.SelectionChanged += _ => ShowSelected();
-            // (A plan waiting clicked on the map: into New aircraft, as a click on its row.)
+            // (A plan waiting clicked on the map: into Traffic generation, as a click on its row.)
             view.WaitingClicked += tag => { if (tag is TowerPlan plan && plans.Contains(plan) && plan.Now != TowerPlan.State.Flying) EditPlan(plan); };
             view.FieldClicked += LabelField;
             view.FieldWheel += LabelWheel;
@@ -497,10 +509,11 @@ namespace ATCRoom.TwrTrainer
             // (The user, 4 Nov: Aerodrome and Simulation one part, Settings, where Aerodrome was.)
             if (!settings.Parts.ContainsKey("Settings") && settings.Parts.TryGetValue("Aerodrome", out PartPlacement? old)) settings.Parts["Settings"] = old;
             settingsPart = new DockablePart("Settings", settingsContent, panel, layer, Placement("Settings"), settings.Save);
-            newPart = new DockablePart("New aircraft", newContent, panel, layer, Placement("New aircraft"), settings.Save);
+            // (The user, 7 Nov: the names of AuroraPAR Trainer; the places saved under the old names kept.)
+            newPart = new DockablePart("Traffic generation", newContent, panel, layer, Placement("New aircraft"), settings.Save);
             // (The user, 3 Nov: the flight plans as a part of their own, named as in the PAR trainer.)
             trafficPart = new DockablePart("Traffic List", trafficContent, panel, layer, Placement("Traffic List"), settings.Save);
-            selectedPart = new DockablePart("Selected aircraft", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
+            selectedPart = new DockablePart("Aircraft control", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
             // (Floating by default, narrow, the user 6 Nov.)
             if (!settings.Parts.ContainsKey("Strip bay")) settings.Parts["Strip bay"] = new PartPlacement { Floating = true, Width = 260, Height = 420, Left = 380, Top = 60 };
             stripBay.ColourOf = StripBrush;
@@ -523,15 +536,15 @@ namespace ATCRoom.TwrTrainer
 
             current = Section("Map", mapSummary, true);
             newRunwayName.ToolTip = "The name of the runway (for example 14).";
-            newRunwayElevation.ToolTip = "The elevation of its threshold (ft): the heights of the labels are above it.";
+            newRunwayElevation.ToolTip = "The elevation of its threshold (ft): the altitudes (QNH) of the labels and of the classes are reckoned with it.";
             metarBox.ToolTip = "A METAR line (or Get METAR): its wind is used and it is shown on the map (for example LIPI 031250Z 06012KT CAVOK 15/08 Q1018).";
             newGateName.ToolTip = "The name of the new gate (empty: the name of the VRP clicked).";
             longFinalBox.ToolTip = "Distance of the long final (NM): where LONG FIN starts.";
             initialPointBox.ToolTip = "Distance of the initial point before the threshold (NM).";
-            callsignBox.ToolTip = "Empty: the next free callsign.";
+            callsignBox.ToolTip = "Empty: the next free callsign of the aerodrome's prefix (Settings › Aircraft).";
             delayBox.ToolTip = "For the Traffic List: minutes after START ALL.";
             headingBox.ToolTip = "Heading (degrees true) for GO.";
-            heightBox.ToolTip = "Height above the runway (ft) for GO.";
+            heightBox.ToolTip = "Altitude (ft, QNH) for GO.";
             speedKtBox.ToolTip = "Speed (kt) for GO.";
             current.Children.Add(mapText);
             Buttons(("Open map...", ChooseMap));
@@ -568,11 +581,33 @@ namespace ATCRoom.TwrTrainer
             variationBox.ToolTip = "The magnetic variation of this aerodrome (for example 3E or 2W; empty: 0): the radials of the departures are magnetic.";
             Row("Variation", Inline(variationBox, new TextBlock { Text = "(E / W, for the radials)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
             variationBox.LostFocus += (_, _) => ApplyVariation();
+            // (The user, 7 Nov: the heights of the classes here, out of the Aircraft classes window; altitudes QNH first.)
+            Note("The altitudes of each class here (QNH; QFE: heights above the runway). White: of this aerodrome; grey: the class's (an empty box). Saved at once.");
+            current.Children.Add(heightsTable);
+            heightsTable.Say = text => Say(text);
+            heightsTable.Save = () =>
+            {
+                string? error = airfield.Save();
+                engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
+                return error;
+            };
+            Buttons(("Import heights...", ImportHeights));
 
             // (The user, 6 Nov night: the aircraft in a section of their own, out of Circuits.)
             current = Section("Aircraft", null, false);
-            // (The user, 6 Nov: all the classes in one window, their performance and their heights at this aerodrome.)
-            Note("The classes of aircraft: their performance and their heights at this aerodrome.");
+            // (The user, 7 Nov: the base traffic of this aerodrome, kept in its file.)
+            Note("The base traffic of this aerodrome: Quick, and the aircraft added without a callsign or an ICAO type.");
+            prefixBox.ToolTip = "The start of the callsigns given by themselves (1 to 6 letters or digits; empty: SIM): IBLA → IBLA1, IBLA2... (a number not flying).";
+            defaultTypeBox.ToolTip = "The ICAO type of the aircraft added without one (C172, F16...; free text, on the strips).";
+            Row("Callsign prefix", Inline(prefixBox, new TextBlock { Text = "(empty: SIM)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
+            Row("Class", defaultClassHolder);
+            Row("ICAO type", defaultTypeBox);
+            prefixBox.LostFocus += (_, _) => ApplyBaseTraffic();
+            defaultTypeBox.LostFocus += (_, _) => ApplyBaseTraffic();
+            prefixBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyBaseTraffic(); };
+            defaultTypeBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyBaseTraffic(); };
+            // (The user, 6 Nov: all the classes in one window, their performance; their altitudes here: Circuits.)
+            Note("The classes of aircraft: their performance (all aerodromes). Their altitudes here: Settings › Circuits.");
             Buttons(("Aircraft classes...", OpenClasses));
             Note("Formation landing to a full stop: separation of the next aircraft.");
             Row("Formation separation", separationRow);
@@ -628,7 +663,19 @@ namespace ATCRoom.TwrTrainer
                 button.ToolTip = (n == 1 ? "Level 1 (F1)" : "Level 2 (F2)") + ". Right click: keep the view of now on it (for this aerodrome), or the default one.";
             }
 
-            current = newContent;
+            // Traffic generation (the user, 7 Nov: named as in AuroraPAR Trainer, its tabs Quick | Advanced).
+            newContent.Children.Add(tabRow);
+            newContent.Children.Add(quickContent);
+            newContent.Children.Add(advancedContent);
+            tabRow.Picked += quick =>
+            {
+                settings.QuickTab = quick;
+                settings.Save();
+                ShowTab();
+            };
+            ShowTab();
+            BuildQuick();
+            current = advancedContent;
             Note("ARRIVAL: from a gate or the long final, it lands. LOCAL: from the runway, its circuits, it lands. DEPARTURE: from the runway, away (at once or after its circuits). TRANSIT: from gate to gate. Then ADD NOW, or TO LIST for the Traffic List. AD: the aerodrome's side (Settings › Circuits).");
             // (The user, 5 Nov: the class, the formation, then the type.)
             // (The user, 5 Nov: clearer names, a wider column for them.)
@@ -659,9 +706,9 @@ namespace ATCRoom.TwrTrainer
                 radialFromText), null, LabelWidth);
             // (The user, 6 Nov: the turn to the way out, L / R by itself; the exit altitude apart from the entry height.)
             exitTurnLine = Row("Exit turn", departTurnRow, null, LabelWidth);
-            exitAltLine = Row("Exit altitude ft", Inline(exitAltBox, new TextBlock { Text = "(empty: 3000 above the runway)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
+            exitAltLine = Row("Exit altitude ft", Inline(exitAltBox, new TextBlock { Text = "(empty: 3000 ft QNH)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }), null, LabelWidth);
             exitAltName = (TextBlock)exitAltLine.Children[0];
-            exitAltBox.ToolTip = "The altitude it climbs to when it leaves (empty: 3000 ft above the runway).";
+            exitAltBox.ToolTip = "The altitude it climbs to when it leaves (empty: 3000 ft QNH, at least 1000 ft above the runway).";
             viaLine = Row("Via", viaRow, null, LabelWidth);
             typeRow.Show(Flight.Arrival);
             viaRow.Show(Via.Overhead);
@@ -751,6 +798,11 @@ namespace ATCRoom.TwrTrainer
             WrapPanel newButtons = Wrap(ActionButton("ADD NOW", AddAircraft), toListButton, cancelEditButton);
             newButtons.Margin = new Thickness(0, 2, 0, 0);
             current.Children.Add(newButtons);
+            // (The user, 7 Nov: the scenarios here, as in AuroraPAR Trainer; files, not the simulation: plain buttons.)
+            WrapPanel scenario = new() { Margin = new Thickness(0, 8, 0, 0) };
+            scenario.Children.Add(new TextBlock { Text = "Scenario", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 4) });
+            current.Children.Add(scenario);
+            Buttons(scenario, ("LOAD...", LoadScenario), ("SAVE...", SaveScenario));
 
             current = trafficContent;
             // (As in the PAR trainer, the user 4 Nov: the aircraft flying, one thin row each, and the plans waiting.)
@@ -776,11 +828,6 @@ namespace ATCRoom.TwrTrainer
             waitingButtons.Children.Add(ActionButton("START ALL", StartAllPlans));
             waitingButtons.Children.Add(groupButton = ActionButton("GROUP", GroupOrUngroup));
             current.Children.Add(waitingButtons);
-            // (Files, not the simulation: plain buttons.)
-            WrapPanel scenario = new() { Margin = new Thickness(0, 8, 0, 0) };
-            scenario.Children.Add(new TextBlock { Text = "Scenario", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 4) });
-            current.Children.Add(scenario);
-            Buttons(scenario, ("LOAD...", LoadScenario), ("SAVE...", SaveScenario));
 
             current = selectedContent;
             current.Children.Add(selectedText);
@@ -856,7 +903,7 @@ namespace ATCRoom.TwrTrainer
             expTaxiButton = Order("EXP TAXI", commands.ExpediteTaxi);
             Row("Runway", Inline(expTaxiButton), now, 62);
 
-            StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, height above the runway, speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
+            StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, altitude (QNH; QFE: height), speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
             Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
             heightName = (TextBlock)Row("Height ft", Inline(heightBox, ActionButton("GO", () => WithSelected(cs => Number(heightBox, "a height or an altitude in feet", v => commands.Height(cs, v - HeightOffset))))), outside, 62).Children[0];
             Row("Speed kt", Inline(speedKtBox, ActionButton("GO", () => WithSelected(cs => Number(speedKtBox, "a speed in knots", v => commands.Speed(cs, v))))), outside, 62);
@@ -1025,7 +1072,8 @@ namespace ATCRoom.TwrTrainer
             ["Open map..."] = "Open a map made with ATCRoom Map Creator (the maps folder shared by the programs).",
             ["Place on the map"] = "Write the name and the elevation of the runway, then click its threshold and its end on the map.",
             ["Remove runway"] = "Remove the runway in use (and the same runway the other way) from the aerodrome file.",
-            ["Save heights"] = "Save the heights of this class at this aerodrome (for the aircraft added from now on).",
+            ["Import heights..."] = "The altitudes of the classes of another aerodrome of TWR Trainer copied here (the same altitudes, QNH); asked before replacing.",
+            ["Aircraft classes..."] = "The classes of aircraft and their performance (all aerodromes); their altitudes here: Settings › Circuits.",
             ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
             ["REMOVE ALL"] = "Every aircraft out of the simulation (the rows stay, back to waiting).",
@@ -1383,6 +1431,8 @@ namespace ATCRoom.TwrTrainer
                 newRunwayName.Text = airfield.Runway.Runway;
                 newRunwayElevation.Text = airfield.ElevationFt.ToString("0", CultureInfo.InvariantCulture);
             }
+            ShowBaseTraffic();
+            ShowHeights();
             updating = false;
         }
 
@@ -1483,6 +1533,7 @@ namespace ATCRoom.TwrTrainer
             bool qfe = airfield.Circuits.Qfe;
             pressureRow.Show(qfe);
             view.Qfe = qfe;
+            ShowHeights();
             if (arrivalName == null) return;
             arrivalName.Text = $"{HeightWord} ft";
             exitAltName.Text = $"Exit {HeightWord.ToLowerInvariant()} ft";
@@ -1491,22 +1542,142 @@ namespace ATCRoom.TwrTrainer
             heightBox.ToolTip = qfe ? "Height above the runway (ft) for GO." : "Altitude (ft, QNH) for GO.";
         }
 
-        /// <summary>The row of the classes in New aircraft, made again (at the start, after the Aircraft classes window).</summary>
+        /// <summary>The row of the classes in Traffic generation, made again (at the start, after the Aircraft classes window).</summary>
         private void MakeClassRow(string? keep)
         {
             classHolder.Children.Clear();
-            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())), (name, _) => $"Class {name} (its performance and its heights at this aerodrome: Settings › Aircraft › Aircraft classes).");
+            classRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())),
+                (name, _) => $"Class {name} (its performance: Settings › Aircraft › Aircraft classes; its altitudes here: Settings › Circuits).");
             // (The user, 4 Nov: the jet by default, the most used.)
             classRow.Show(engine.Classes.FirstOrDefault(c => string.Equals(c.Name, keep, StringComparison.OrdinalIgnoreCase))?.Name
                 ?? engine.Classes.FirstOrDefault(c => string.Equals(c.Name, "Jet", StringComparison.OrdinalIgnoreCase))?.Name
                 ?? (engine.Classes.Any(c => c.Name == PerformanceClass.DefaultName) ? PerformanceClass.DefaultName : engine.Classes[0].Name));
             classHolder.Children.Add(classRow);
-            classRow.Picked += _ => ShowEntries();
+            classRow.Picked += _ => { ShowEntries(); ShowBaseTraffic(); };
+            // (The class of the base traffic of this aerodrome, Settings › Aircraft, the user 7 Nov.)
+            defaultClassHolder.Children.Clear();
+            defaultClassRow = new ChoiceRow<string>(engine.Classes.Select(c => (c.Name, c.Name.ToUpperInvariant())),
+                (name, _) => $"The class of the Quick traffic of this aerodrome: {name} (the ICAO type is only its name on the strips).");
+            defaultClassRow.Picked += name =>
+            {
+                if (airfield.Map == null) { Say("Open a map first: the base traffic is kept with its aerodrome."); ShowBaseTraffic(); return; }
+                airfield.Circuits.DefaultClass = name;
+                Say(airfield.Save());
+                ShowBaseTraffic();
+            };
+            defaultClassHolder.Children.Add(defaultClassRow);
+            ShowBaseTraffic();
+            ShowHeights();
+        }
+
+        /// <summary>The heights table of Settings › Circuits again (the classes, this aerodrome with its runway in use, QNH / QFE).</summary>
+        private void ShowHeights() =>
+            heightsTable.Show(engine.Classes, airfield.Map != null && airfield.Runway != null ? airfield.Circuits : null, airfield.ElevationFt, airfield.Circuits.Qfe);
+
+        /// <summary>
+        /// The base traffic of this aerodrome shown (Settings › Aircraft and the Quick tab) and given to the engine: the callsign
+        /// prefix (missing: SIM), the ICAO type, the class.
+        /// </summary>
+        private void ShowBaseTraffic()
+        {
+            AerodromeCircuits here = airfield.Circuits;
+            string prefix = (here.CallsignPrefix ?? "").Trim().ToUpperInvariant();
+            try { engine.CallsignPrefix = prefix.Length > 0 ? prefix : "SIM"; }
+            catch (ArgumentException) { engine.CallsignPrefix = "SIM"; prefix = ""; }
+            prefixBox.Text = prefix;
+            defaultTypeBox.Text = (here.IcaoType ?? "").Trim().ToUpperInvariant();
+            string? kind = QuickClass(out bool own);
+            if (own && kind != null) defaultClassRow.Show(kind);
+            else defaultClassRow.Show("");
+            quickBase.Text = $"Base traffic: {engine.CallsignPrefix}1, {engine.CallsignPrefix}2...  ·  {(defaultTypeBox.Text.Length > 0 ? defaultTypeBox.Text : "no ICAO type")}  ·  "
+                + $"{(kind ?? "?").ToUpperInvariant()}{(own ? "" : " (as in Advanced)")}  ·  VFR. Settings › Aircraft.";
+        }
+
+        /// <summary>The class of the Quick traffic: the aerodrome's (own true), else the one chosen in Advanced; null: none.</summary>
+        private string? QuickClass(out bool own)
+        {
+            string? kind = engine.Classes.FirstOrDefault(c => string.Equals(c.Name, airfield.Circuits.DefaultClass, StringComparison.OrdinalIgnoreCase))?.Name;
+            own = kind != null;
+            return kind ?? (classRow.HasValue ? classRow.Value : null);
+        }
+
+        /// <summary>The callsign prefix and the ICAO type of the base traffic written (Settings › Aircraft): kept with the aerodrome.</summary>
+        private void ApplyBaseTraffic()
+        {
+            string prefix = prefixBox.Text.Trim().ToUpperInvariant();
+            string type = defaultTypeBox.Text.Trim().ToUpperInvariant();
+            string? newPrefix = prefix.Length > 0 ? prefix : null, newType = type.Length > 0 ? type : null;
+            if (newPrefix == airfield.Circuits.CallsignPrefix && newType == airfield.Circuits.IcaoType) return;
+            if (airfield.Map == null) { Say("Open a map first: the base traffic is kept with its aerodrome."); ShowBaseTraffic(); return; }
+            if (prefix.Length > 0 && (prefix.Length > 6 || !prefix.All(char.IsAsciiLetterOrDigit)))
+            {
+                Say("The callsign prefix: 1 to 6 letters or digits (empty: SIM).");
+                ShowBaseTraffic();
+                return;
+            }
+            airfield.Circuits.CallsignPrefix = newPrefix;
+            airfield.Circuits.IcaoType = newType;
+            string? error = airfield.Save();
+            ShowBaseTraffic();
+            Say(error ?? $"Base traffic of {airfield.Code}: {engine.CallsignPrefix}1, {engine.CallsignPrefix}2...{(newType != null ? $", {newType}" : "")}.");
+        }
+
+        /// <summary>
+        /// Import heights (the user, 7 Nov): the altitudes of the classes of another aerodrome of this program (a menu of them),
+        /// the same altitudes here (the heights above the runway follow the elevations); asked before replacing.
+        /// </summary>
+        private void ImportHeights()
+        {
+            if (airfield.Map == null || airfield.Runway == null) { Say("Open a map and place its runway first: the altitudes are reckoned with its elevation."); return; }
+            List<(string Code, string Path)> files = [];
+            try
+            {
+                if (Directory.Exists(Paths.AerodromesFolder))
+                    foreach (string path in Directory.EnumerateFiles(Paths.AerodromesFolder, "*.json"))
+                    {
+                        string code = Path.GetFileNameWithoutExtension(path).ToUpperInvariant();
+                        if (!string.Equals(code, airfield.Code, StringComparison.OrdinalIgnoreCase)) files.Add((code, path));
+                    }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // (Not readable: none.)
+            }
+            if (files.Count == 0) { Say("No other aerodrome yet: TWR Trainer keeps one for each map opened (with its runways placed)."); return; }
+            OpenMenu(files.OrderBy(f => f.Code, StringComparer.Ordinal).Select(f => Item(f.Code, () => ImportHeightsFrom(f.Code, f.Path))).ToList());
+        }
+
+        private void ImportHeightsFrom(string code, string path)
+        {
+            AerodromeCircuits other;
+            try
+            {
+                other = AerodromeCircuits.Load(path);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                Say($"The file of {code} could not be read: nothing imported.");
+                return;
+            }
+            if (other.Elevation() is not double otherElevation) { Say($"{code} has no elevation: open its map and place its runways first (Settings › Map)."); return; }
+            if (!other.Classes.Any(c => c != null && (c.CircuitHeightFt ?? c.ConventionalHeightFt ?? c.WideHeightFt ?? c.CloseHeightFt ?? c.InitialHeightFt ?? c.BreakHeightFt ?? c.HighKeyFt ?? c.LowKeyFt) != null))
+            {
+                Say($"{code} has no altitudes of its own (all are the classes' ones): nothing to import.");
+                return;
+            }
+            if (MessageBox.Show(this, $"Replace the altitudes of the classes at {airfield.Code} with those of {code}?\n\nThe same altitudes (QNH); those not written at {code}: the classes' ones.",
+                "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            airfield.Circuits.CopyHeightsFrom(other, otherElevation, airfield.ElevationFt);
+            string? error = airfield.Save();
+            engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
+            ShowHeights();
+            Say(error ?? $"The altitudes of {code} imported: for the aircraft added from now on.");
         }
 
         /// <summary>
         /// The Aircraft classes window: the performance saved in performance.json (the other values of each class kept as they
-        /// are in the file), the heights in the aerodrome; then the classes of the engine and the row of New aircraft again.
+        /// are in the file); the altitudes of the aerodrome follow the classes renamed or removed; then the classes of the engine
+        /// and the row of Traffic generation again.
         /// </summary>
         private void OpenClasses()
         {
@@ -1529,7 +1700,7 @@ namespace ATCRoom.TwrTrainer
                 Say($"{PerformanceFile.FileName} was made by a newer version of TWR Trainer: the classes can't be changed with this one.", Area.Aerodrome);
                 return;
             }
-            ClassesWindow window = new(engine.Classes, map ? airfield.Circuits : null, HeightOffset, airfield.Circuits.Qfe ? "HGT" : "ALT") { Owner = this };
+            ClassesWindow window = new(engine.Classes) { Owner = this };
             if (window.ShowDialog() != true || window.Result is not { } saved) return;
             List<PerformanceClass> before = file.Classes ?? [];
             List<PerformanceClass> after = [];
@@ -1552,36 +1723,26 @@ namespace ATCRoom.TwrTrainer
                 Say($"{PerformanceFile.FileName} could not be written: nothing saved ({ex.Message}).", Area.Aerodrome);
                 return;
             }
-            // (The class chosen in New aircraft followed, also renamed.)
+            // (The class chosen in Traffic generation followed, also renamed.)
             string? keep = saved.FirstOrDefault(item => string.Equals(item.OriginalName, classRow.Value, StringComparison.OrdinalIgnoreCase))?.Class.Name ?? classRow.Value;
             (List<PerformanceClass> classes, _, string? note) = PerformanceFile.Load(Paths.Performance);
             engine.SetPerformanceClasses(classes);
-            // The heights: each class in the aerodrome (its old name followed), what this version does not know kept.
+            // The altitudes of this aerodrome (Settings › Circuits) follow a class renamed; those of a class removed go (what this
+            // version does not know kept). The base traffic's class follows too.
             string? error = null;
             if (map)
             {
-                // Every entry kept (classes this copy does not know too), but those of the classes removed in the window; of
-                // each class saved only the boxes that could be changed (a helicopter's overhead and SFO, its Low Key kept).
                 List<ClassCircuit> heights = airfield.Circuits.Classes.Where(c => c != null).ToList();
                 ClassCircuit? Find(string? name) => name == null ? null : heights.FirstOrDefault(c => string.Equals((c.Class ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase));
                 foreach (string removed in window.OpenedWith.Where(name => !saved.Any(item => string.Equals(item.OriginalName, name, StringComparison.OrdinalIgnoreCase))))
-                    if (Find(removed) is ClassCircuit gone && gone.Extra == null) heights.Remove(gone);
-                foreach (ClassesWindow.Saved item in saved)
                 {
-                    ClassCircuit entry = Find(item.OriginalName) ?? Find(item.Class.Name) ?? new ClassCircuit();
-                    if (!heights.Contains(entry)) heights.Add(entry);
-                    double?[] h = item.Heights;
-                    bool[] e = item.Editable;
-                    entry.Class = item.Class.Name;
-                    if (e[0] || e[1] || e[2]) entry.CircuitHeightFt = null;
-                    if (e[0]) entry.ConventionalHeightFt = h[0];
-                    if (e[1]) entry.WideHeightFt = h[1];
-                    if (e[2]) entry.CloseHeightFt = h[2];
-                    if (e[3]) entry.InitialHeightFt = h[3];
-                    if (e[4]) entry.BreakHeightFt = h[4];
-                    if (e[5]) entry.HighKeyFt = h[5];
-                    if (entry is { CircuitHeightFt: null, ConventionalHeightFt: null, WideHeightFt: null, CloseHeightFt: null, InitialHeightFt: null, BreakHeightFt: null,
-                        HighKeyFt: null, LowKeyFt: null, Extra: null }) heights.Remove(entry);
+                    if (Find(removed) is ClassCircuit gone && gone.Extra == null) heights.Remove(gone);
+                    if (string.Equals(airfield.Circuits.DefaultClass, removed, StringComparison.OrdinalIgnoreCase)) airfield.Circuits.DefaultClass = null;
+                }
+                foreach (ClassesWindow.Saved item in saved.Where(item => item.OriginalName != null && !string.Equals(item.OriginalName, item.Class.Name, StringComparison.Ordinal)))
+                {
+                    if (Find(item.OriginalName) is ClassCircuit renamed) renamed.Class = item.Class.Name;
+                    if (string.Equals(airfield.Circuits.DefaultClass, item.OriginalName, StringComparison.OrdinalIgnoreCase)) airfield.Circuits.DefaultClass = item.Class.Name;
                 }
                 airfield.Circuits.Classes.Clear();
                 airfield.Circuits.Classes.AddRange(heights);
@@ -1590,6 +1751,7 @@ namespace ATCRoom.TwrTrainer
             }
             MakeClassRow(keep);
             ShowEntries();
+            ShowBaseTraffic();
             Say(error ?? note ?? "Aircraft classes saved: for the aircraft added from now on.", Area.Aerodrome);
         }
 
@@ -1724,7 +1886,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>
-        /// The side of the runway axis (seen from the take-off) the exit of New aircraft is on (the user, 6 Nov): right true;
+        /// The side of the runway axis (seen from the take-off) the exit of Traffic generation is on (the user, 6 Nov): right true;
         /// on the axis (0.3 NM) or the opposite radial: the aerodrome's circuit side; null: none (RWY HDG, nothing written).
         /// </summary>
         private bool? ExitSideRight()
@@ -1761,7 +1923,8 @@ namespace ATCRoom.TwrTrainer
             {
                 Callsign = callsignBox.Text.Trim().ToUpperInvariant(),
                 Class = classRow.Value ?? "",
-                IcaoType = icaoTypeBox.Text.Trim().ToUpperInvariant(),
+                // (None written: the aerodrome's base traffic, Settings › Aircraft, the user 7 Nov.)
+                IcaoType = icaoTypeBox.Text.Trim().Length > 0 ? icaoTypeBox.Text.Trim().ToUpperInvariant() : (airfield.Circuits.IcaoType ?? "").Trim().ToUpperInvariant(),
                 Ifr = rulesRow.HasValue && rulesRow.Value,
                 From = fromRow.Value ?? From.LongFinal,
                 Entry = entryRow.Value,
@@ -1807,19 +1970,90 @@ namespace ATCRoom.TwrTrainer
         private void AddAircraft()
         {
             TowerPlan plan = PlanOfRows();
+            if (StartNow(plan) is not string added) return;
+            Say(plan.ToPad && PadOf(plan) == null ? "No helipad yet: choose it in flight with HPAD, else it lands on the runway."
+                : plan.FromPad && plan.Departure && PadOf(plan) == null ? "No helipad clicked: it takes off from the runway." : null, Area.New);
+            callsignBox.Text = "";
+        }
+
+        /// <summary>A plan flown at once (ADD NOW, Quick): its aircraft added, selected; null when it could not start (said).</summary>
+        private string? StartNow(TowerPlan plan)
+        {
             string? error = Launch(plan, out string added);
-            Say(error ?? (plan.ToPad && PadOf(plan) == null ? "No helipad yet: choose it in flight with HPAD, else it lands on the runway."
-                : plan.FromPad && plan.Departure && PadOf(plan) == null ? "No helipad clicked: it takes off from the runway." : null), Area.New);
-            if (error != null) return;
+            if (error != null) { Say(error, Area.New); return null; }
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
             Started(plan, added);
             // (In FLYING only, gone with it: not a plan of the list, as ADD NOW in the PAR trainer.)
             plan.Quick = true;
             plans.Add(plan);
             ShowPlans();
-            callsignBox.Text = "";
             view.SetTraffic(engine.Snapshot(), engine.Time);
             view.Select(added);
+            return added;
+        }
+
+        // ----- Quick traffic (the user, 7 Nov) ----------------------------------------------------------------------------
+
+        private enum QuickKind { LongFinal, InboundIp, Departure, LocalConventional, LocalWide }
+
+        /// <summary>The Quick tab or the Advanced one of Traffic generation (saved).</summary>
+        private void ShowTab()
+        {
+            tabRow.Show(settings.QuickTab);
+            quickContent.Visibility = settings.QuickTab ? Visibility.Visible : Visibility.Collapsed;
+            advancedContent.Visibility = settings.QuickTab ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>The Quick tab: one click, one aircraft at once, VFR, the base traffic of the aerodrome (Settings › Aircraft).</summary>
+        private void BuildQuick()
+        {
+            quickContent.Children.Add(quickBase);
+            QuickRow("LONG FIN", QuickKind.LongFinal, "From the long final, straight in, full stop.");
+            QuickRow("INBOUND IP", QuickKind.InboundIp, "From the long final at the altitude of the initial (IP), kept to the IP, then the overhead, full stop.");
+            QuickRow("DEPARTURE", QuickKind.Departure, "From the runway, away along the runway heading, up to 3000 ft QNH.");
+            QuickRow("LOCAL CONV", QuickKind.LocalConventional, "From the runway: take-off, a conventional circuit, full stop.");
+            QuickRow("LOCAL WIDE", QuickKind.LocalWide, "From the runway: take-off, a wide circuit, full stop.");
+            Note("The circuit side of the aerodrome. In the Traffic List (FLYING) until it is gone. Every other flight: Advanced.", quickContent);
+        }
+
+        private void QuickRow(string text, QuickKind kind, string what)
+        {
+            Button button = ActionButton(text, () => AddQuick(kind, text));
+            button.MinWidth = 92;
+            button.ToolTip = what;
+            button.VerticalAlignment = VerticalAlignment.Top;
+            Grid row = new() { Margin = new Thickness(0, 1, 0, 1) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.Children.Add(button);
+            TextBlock note = new() { Text = what, Foreground = DimBrush, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 2, 0, 0) };
+            Grid.SetColumn(note, 1);
+            row.Children.Add(note);
+            quickContent.Children.Add(row);
+        }
+
+        /// <summary>A Quick aircraft now (the user, 7 Nov): the class, the ICAO type and the callsign of the aerodrome's base traffic; F/S.</summary>
+        private void AddQuick(QuickKind kind, string name)
+        {
+            bool runway = kind is QuickKind.Departure or QuickKind.LocalConventional or QuickKind.LocalWide;
+            TowerPlan plan = new()
+            {
+                Class = QuickClass(out _) ?? "",
+                IcaoType = (airfield.Circuits.IcaoType ?? "").Trim().ToUpperInvariant(),
+                Ifr = false,
+                WayOut = true,
+                From = runway ? From.Runway : From.LongFinal,
+                Entry = kind switch { QuickKind.LongFinal => CircuitEntry.Final, QuickKind.InboundIp => CircuitEntry.InitialPoint, _ => CircuitEntry.Downwind },
+                Circuit = kind switch { QuickKind.InboundIp => CircuitType.Overhead, QuickKind.LocalWide => CircuitType.Wide, _ => CircuitType.Conventional },
+                End = EndAction.FullStop,
+                OnFinal = EndAction.FullStop,
+                Circuits = 0,
+                Local = kind is QuickKind.LocalConventional or QuickKind.LocalWide,
+                Departure = kind == QuickKind.Departure,
+                To = kind == QuickKind.Departure ? ExitWay.RunwayHeading : "",
+                Formation = 1
+            };
+            if (StartNow(plan) is string added) Say($"{added} started: {name}.", Area.New);
         }
 
         /// <summary>An aircraft of a plan, now: from its gate, the runway or already in the circuit. Returns an error, or null.</summary>
@@ -1887,7 +2121,7 @@ namespace ATCRoom.TwrTrainer
             return plan.PadX is double x && plan.PadY is double y ? (x, y) : null;
         }
 
-        /// <summary>The row of the helipads of New aircraft built again (the registered ones, then POINT).</summary>
+        /// <summary>The row of the helipads of Traffic generation built again (the registered ones, then POINT).</summary>
         private void RebuildPads()
         {
             string? was = padRow.HasValue ? padRow.Value : null;
@@ -1956,6 +2190,8 @@ namespace ATCRoom.TwrTrainer
             if (plan.From == From.LongFinal)
             {
                 if (plan.Entry == CircuitEntry.Circling) return commands.Add(CircuitStart.Circling, CircuitType.Conventional, plan.Side, plan.End, kind, callsign, false, out added);
+                // (Quick INBOUND IP, the user 7 Nov: from the long final at the initial's altitude, the overhead.)
+                if (plan.Entry == CircuitEntry.InitialPoint && plan.Circuit == CircuitType.Overhead) return commands.AddInboundIp(plan.Side, plan.End, kind, callsign, out added);
                 CircuitType type = plan.Circuit is CircuitType.Overhead or CircuitType.Sfo ? CircuitType.Conventional : plan.Circuit;
                 return commands.Add(CircuitStart.LongFinal, type, plan.Side, plan.End, kind, callsign, false, out added);
             }
@@ -2002,10 +2238,17 @@ namespace ATCRoom.TwrTrainer
             ShowPlans();
         }
 
-        /// <summary>A plan of WAITING into New aircraft, to change it (UPDATE) or to start a copy (ADD NOW).</summary>
+        /// <summary>A plan of WAITING into Traffic generation, to change it (UPDATE) or to start a copy (ADD NOW).</summary>
         private void EditPlan(TowerPlan p)
         {
             editing = p;
+            // (Its rows are in Advanced, the user 7 Nov.)
+            if (settings.QuickTab)
+            {
+                settings.QuickTab = false;
+                settings.Save();
+                ShowTab();
+            }
             p.Upgrade();
             // (PTRN is gone, the user 5 Nov: such an old plan into the first gate.)
             if (p.From.Length > 0) fromRow.Show(From.IsInCircuit(p.From) ? DefaultFrom() : p.From);
@@ -2097,7 +2340,7 @@ namespace ATCRoom.TwrTrainer
             string side = p.Side is CircuitSide s ? (s == CircuitSide.Left ? " L" : " R") : "";
             string circuit = TowerCommands.Circuits.FirstOrDefault(c => c.Type == p.Circuit).Short ?? "";
             int circuits = p.Circuits ?? 0;
-            string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
+            string entry = p.From is From.Runway ? "T/O" : p.From is From.LongFinal ? (p.Entry == CircuitEntry.Circling ? "CIRCLING" : p.Circuit == CircuitType.Overhead ? "IP" : "FINAL") : p.Entry.ToString().ToUpperInvariant();
             string height = (p.HeightFt is double hf ? $" {hf + HeightOffset:0} ft" : "") + (p.HighKeyFt is double hk ? $" HK {hk + HeightOffset:0} ft" : "");
             string team = p.Formation > 1 ? $" F{p.Formation}" : "";
             string type = p.IcaoType.Length > 0 ? p.IcaoType : p.Class;
@@ -2289,7 +2532,7 @@ namespace ATCRoom.TwrTrainer
             // (Lit: under the mouse only its border changes, its text stays readable on the yellow.)
             waitingButton.Tag = settings.ShowWaiting ? "on" : null;
             waitingButton.ToolTip = settings.ShowWaiting
-                ? "The aircraft waiting are on the map, still, in grey (click one: it goes into New aircraft). Click: hide them."
+                ? "The aircraft waiting are on the map, still, in grey (click one: it goes into Traffic generation). Click: hide them."
                 : "The aircraft waiting are not on the map. Click: show them, still, where they will start.";
         }
 
@@ -2439,11 +2682,11 @@ namespace ATCRoom.TwrTrainer
                 (string name, string rest) = PlanParts(p);
                 TextBlock callsign = CallsignText(name);
                 TextBlock text = RowText(rest);
-                // A click on the row: the plan into New aircraft, to change it (the user, 4 Nov).
+                // A click on the row: the plan into Traffic generation, to change it (the user, 4 Nov).
                 foreach (TextBlock clickable in new[] { callsign, text })
                 {
                     clickable.Cursor = Cursors.Hand;
-                    clickable.ToolTip = "Click: change it in New aircraft (UPDATE).";
+                    clickable.ToolTip = "Click: change it in Traffic generation › Advanced (UPDATE).";
                     clickable.MouseLeftButtonUp += (_, _) => EditPlan(p);
                 }
                 if (ReferenceEquals(p, editing)) callsign.Foreground = text.Foreground = Theme.Chosen;
@@ -2452,7 +2695,7 @@ namespace ATCRoom.TwrTrainer
                 planRows.Add((p, text, hold));
                 planCallsigns[p] = callsign;
             }
-            if (planList.Children.Count == 0) planList.Children.Add(new TextBlock { Text = "None: New aircraft, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
+            if (planList.Children.Count == 0) planList.Children.Add(new TextBlock { Text = "None: Traffic generation › Advanced, then TO LIST.", Foreground = DimBrush, FontSize = 11 });
             ShowGroupButton();
             UpdatePlans();
         }
@@ -2939,7 +3182,7 @@ namespace ATCRoom.TwrTrainer
             AutoExitTurn();
         }
 
-        /// <summary>A helicopter departure in New aircraft (it may take off from a helipad, the user 6 Nov).</summary>
+        /// <summary>A helicopter departure in Traffic generation (it may take off from a helipad, the user 6 Nov).</summary>
         private bool PadDeparture() =>
             typeRow.HasValue && typeRow.Value == Flight.Departure && engine.Classes.FirstOrDefault(c => c.Name == classRow.Value)?.CanHover == true;
 
@@ -3284,7 +3527,7 @@ namespace ATCRoom.TwrTrainer
             menu.IsOpen = true;
         }
 
-        // ----- The selected aircraft -------------------------------------------------------------------------------------
+        // ----- Aircraft control: the selected aircraft --------------------------------------------------------------------
 
         private void WithSelected(Action<string> action)
         {
