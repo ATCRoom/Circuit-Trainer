@@ -776,6 +776,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;
   a name in the middle of a row is now against the field after it (right-aligned in its place). WRITTEN.
 
+- **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle) — DECIDED, to write on the go:** today, before the
+  IP and near the runway track, it goes out to the WIDE downwind abeam where it is, then diagonally to the axis. New: out
+  parallel to the final on its own side, at its distance from the axis (at least the conventional downwind, at most the
+  WIDE; nearer: first aside to it), down to abeam the turn-in point, then 45° onto the axis 1 NM before the IP, the initial
+  as now (its height and speed). On the other side of the runway: it stays on its side (the user: "D che rimanga pure su
+  quel lato"). The same way for DCT TO HK (SFO). Beyond the IP: straight to it as now. A test: never wider than the WIDE,
+  on the axis before the IP. (Mock-up of 4 positions shown 7 Nov.)
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
