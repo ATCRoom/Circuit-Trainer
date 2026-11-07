@@ -788,10 +788,19 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   has CallsignPrefix, 1 to 6 letters / digits; no row in the UI yet): the base traffic, then BASE1, BASE2... A callsign typed wins.
 - **Settings › Aircraft: default type of aircraft** (ICAO, free text, not the class) for each aerodrome: the base traffic; it
   fills the ICAO type of the aircraft without one (the strip shows it) and of the Quick ones.
-- **Quick traffic** (a tab of Traffic generation, Quick | Advanced as in AuroraPAR; one click = an aircraft at once, as ADD NOW):
-  1. from LONG FIN; 2. inbound IP, starting on the runway axis (the same place as the long final); 3. departure, exit RWY HDG;
-  4. local, entering the WIDE circuit; 5. local, entering the CONV circuit; 6. on final always **F/S** for the arrivals and the locals.
-  To decide: class of Quick, where exactly 2 and 4-5 start, rules V/I, side of the circuit (the aerodrome's).
+- **Settings › Aircraft: default class** (per aerodrome, next to the default type, above or below the ICAO one): the class of the
+  Quick aircraft (the ICAO type is only a label; the engine needs a class).
+- **Quick traffic** (a tab of Traffic generation, Quick | Advanced as in AuroraPAR; one click = an aircraft at once, as ADD NOW;
+  class, ICAO type and callsign of the aerodrome's defaults; rules VFR) — DECIDED (the user, 7 Nov):
+  1. **LONG FIN**: from the long final point, on final, F/S.
+  2. **Inbound IP**: starts at the long final point (as set in the Settings of the aerodrome), keeps its height to the IP, then the
+     overhead entry; F/S. (Height to the IP: the circuit height of the overhead of the aerodrome, to confirm.)
+  3. **Departure**: exit RWY HDG, no circuits, exit altitude 3000 ft.
+  4. **Local CONV** and 5. **Local WIDE**: from the RUNWAY, one flight = a departure + an arrival: it takes off, flies a circuit
+     (the conventional one / the wide one, the side of the aerodrome) and lands F/S.
+  6. On final always **F/S** (arrivals and locals).
+- **Callsign number**: not already in the simulation (the engine already skips the callsigns flying, the reserved ones of the
+  plans waiting and those flying outside; the counter goes on, a number is not given twice).
 
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
