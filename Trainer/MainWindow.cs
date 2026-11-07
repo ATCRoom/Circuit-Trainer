@@ -759,6 +759,8 @@ namespace ATCRoom.TwrTrainer
                 else if (entry == CircuitEntry.HighKey) circuitRow.Show(CircuitType.Sfo);
                 else if (entry == CircuitEntry.Circling) circuitRow.Show(CircuitType.Conventional);
                 else if (circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
+                // (From the long final: the pattern rows follow FINAL / CIRCLING, the user 7 Nov.)
+                ShowEntries();
             };
             circuitRow.Picked += type =>
             {
@@ -3127,7 +3129,15 @@ namespace ATCRoom.TwrTrainer
             if (!usesRunway && toRow.Value is ExitWay.RunwayHeading or ExitWay.Radial)
                 toRow.Show(airfield.Gates.Count > 0 ? airfield.Gates[^1].Name : From.Point);
             // Pattern: after a take-off the conventional or the wide (the others once it flies).
-            foreach (CircuitType circuitType in Enum.GetValues<CircuitType>()) circuitRow.SetEnabled(circuitType, !runway || circuitType is CircuitType.Conventional or CircuitType.Wide);
+            // (From the long final: no overhead, no SFO, the user 7 Nov: grey, not refused after the click.)
+            bool longFinal = from == From.LongFinal;
+            foreach (CircuitType circuitType in Enum.GetValues<CircuitType>())
+            {
+                bool allowed = runway ? circuitType is CircuitType.Conventional or CircuitType.Wide
+                    : !longFinal || circuitType is not (CircuitType.Overhead or CircuitType.Sfo);
+                circuitRow.SetEnabled(circuitType, allowed);
+            }
+            if (longFinal && circuitRow.Value is CircuitType.Overhead or CircuitType.Sfo) circuitRow.Show(CircuitType.Conventional);
             if (runway && circuitRow.Value is not (CircuitType.Conventional or CircuitType.Wide)) circuitRow.Show(CircuitType.Conventional);
             // On Final: F/S only for those that land.
             onFinalRow.SetEnabled(EndAction.FullStop, arrival || local);
@@ -3156,6 +3166,12 @@ namespace ATCRoom.TwrTrainer
             if (departLine == null) return;
             static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
             patternLine.Visibility = sideLine.Visibility = onFinalLine.Visibility = Shown(inCircuit && !away);
+            // (From the long final, the user 7 Nov: the pattern is only for the circuits after the first approach; none after
+            // it (F/S, or a transit OUT): no pattern, no side; CIRCLING: always the conventional, its side kept.)
+            bool circling = longFinal && entryRow.Value == CircuitEntry.Circling;
+            bool straightOnly = longFinal && !circling && (((arrival || local) && landsFirst) || (transit && lapsRow.Value == 0));
+            if (straightOnly || circling) patternLine.Visibility = Visibility.Collapsed;
+            if (straightOnly) sideLine.Visibility = Visibility.Collapsed;
             hkLine.Visibility = Shown(inCircuit && !away && circuitRow.Value == CircuitType.Sfo);
             circuitsLine.Visibility = Shown(departure || withCircuits || ((arrival || local) && !landsFirst));
             padLine.Visibility = Shown((padAllowed && onFinalRow.Value == PadEnd && inCircuit) || padDeparture);
