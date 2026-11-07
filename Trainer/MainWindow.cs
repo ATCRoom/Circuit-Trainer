@@ -494,6 +494,22 @@ namespace ATCRoom.TwrTrainer
             else if (e.Key == Key.F2) { GoLevel(2); e.Handled = true; }
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
             else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
+            // (The user, 7 Nov: Tab the next aircraft, Shift+Tab the one before; in a text box Tab stays the next box.)
+            else if (e.Key == Key.Tab && Keyboard.FocusedElement is not TextBox && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0)
+            {
+                SelectNext((Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>The next (or the one before) aircraft selected, in the order of FLYING; none selected: the first one.</summary>
+        private void SelectNext(int step)
+        {
+            List<string> order = flyingOrder.Where(cs => engine.Get(cs) != null).ToList();
+            if (order.Count == 0) return;
+            int at = view.Selected is string now ? order.IndexOf(now) : -1;
+            int next = at < 0 ? (step > 0 ? 0 : order.Count - 1) : ((at + step) % order.Count + order.Count) % order.Count;
+            view.Select(order[next]);
         }
 
         // ----- The panel -------------------------------------------------------------------------------------------------
