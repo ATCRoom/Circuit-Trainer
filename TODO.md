@@ -779,6 +779,20 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the end; the black runway of the map shows all. The centreline before the threshold and its ticks stay. Without a runway on
   the map the thin line still shows the runway placed.
 
+## Traffic generation, defaults and Quick (the user, 7 Nov afternoon) — NOTED, to confirm and to do with the next go
+- **Names of the panels as in AuroraPAR Trainer:** New aircraft -> **Traffic generation**; Selected aircraft -> **Aircraft control**
+  (titles, tooltips and messages that name them; the saved places of the panels keep working: the key of the place is kept or moved).
+- **Scenario / flight plans LOAD...: SAVE... in Traffic generation** (in AuroraPAR Trainer they are in Traffic generation, Advanced;
+  here they are in the Traffic List panel). Proposed: move TWR's to Traffic generation; AuroraPAR stays as it is.
+- **Settings › Aircraft: default callsign** for each aerodrome (in the aerodrome file, optional field), instead of SIM (the engine
+  has CallsignPrefix, 1 to 6 letters / digits; no row in the UI yet): the base traffic, then BASE1, BASE2... A callsign typed wins.
+- **Settings › Aircraft: default type of aircraft** (ICAO, free text, not the class) for each aerodrome: the base traffic; it
+  fills the ICAO type of the aircraft without one (the strip shows it) and of the Quick ones.
+- **Quick traffic** (a tab of Traffic generation, Quick | Advanced as in AuroraPAR; one click = an aircraft at once, as ADD NOW):
+  1. from LONG FIN; 2. inbound IP, starting on the runway axis (the same place as the long final); 3. departure, exit RWY HDG;
+  4. local, entering the WIDE circuit; 5. local, entering the CONV circuit; 6. on final always **F/S** for the arrivals and the locals.
+  To decide: class of Quick, where exactly 2 and 4-5 start, rules V/I, side of the circuit (the aerodrome's).
+
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
   final at its distance, the threshold (departures, local), the helipad. Small label: callsign, ICAO type, starting altitude,
