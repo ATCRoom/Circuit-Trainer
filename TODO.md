@@ -782,6 +782,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   SFO grey. WRITTEN.
 - **Advanced (the user, 7 Nov):** Callsign under ICAO type; Height ft and Delay min always in sight at the bottom, no "More…"
   to open. WRITTEN.
+- **ADD NOW and Quick in the Traffic List (the user, 7 Nov: "ok va bene anche per i quick"):** their plans stay in the list as
+  the others (not gone with the aircraft): ✕ or its end puts it back in WAITING, ↺ again, saved in the scenario; the
+  callsign given is kept in the plan (one aircraft). WRITTEN.
 - **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle) — DECIDED, to write on the go:** today, before the
   IP and near the runway track, it goes out to the WIDE downwind abeam where it is, then diagonally to the axis. New: out
   parallel to the final on its own side, at its distance from the axis (at least the conventional downwind, at most the

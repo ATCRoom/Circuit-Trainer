@@ -1087,7 +1087,7 @@ namespace ATCRoom.TwrTrainer
             ["Remove all aircraft"] = "Remove all the aircraft flying (the flight plans stay).",
             ["ADD GATE"] = "Click the entry gate on the map: a VRP gives its name (or the name written). At least 5 NM out.",
             ["REMOVE GATE"] = "Remove the gate written (or the one chosen in Start from).",
-            ["ADD NOW"] = "Start this aircraft now.",
+            ["ADD NOW"] = "Start this aircraft now (its plan in the Traffic List: ✕ puts it back in WAITING).",
             ["CANCEL"] = "The plan being changed stays as it was.",
             ["TO LIST"] = "Put it in the Traffic List: started by ▶ or by START ALL after its delay.",
             ["START ALL"] = "Start every aircraft of the Traffic List waiting, each after its delay (held ones stay held).",
@@ -1976,15 +1976,15 @@ namespace ATCRoom.TwrTrainer
             callsignBox.Text = "";
         }
 
-        /// <summary>A plan flown at once (ADD NOW, Quick): its aircraft added, selected; null when it could not start (said).</summary>
+        /// <summary>A plan flown at once (ADD NOW, Quick): in the Traffic List, its aircraft added, selected; null when it could not start (said).</summary>
         private string? StartNow(TowerPlan plan)
         {
             string? error = Launch(plan, out string added);
             if (error != null) { Say(error, Area.New); return null; }
             // (The user, 3 Nov: the aircraft added at once are in the Traffic List too, flying.)
             Started(plan, added);
-            // (In FLYING only, gone with it: not a plan of the list, as ADD NOW in the PAR trainer.)
-            plan.Quick = true;
+            // (The user, 7 Nov: a plan of the list like the others, so ✕ or its end puts it back in WAITING; with its callsign.)
+            if (plan.Callsign.Trim().Length == 0 && plan.Formation <= 1) plan.Callsign = added;
             plans.Add(plan);
             ShowPlans();
             view.SetTraffic(engine.Snapshot(), engine.Time);
@@ -2374,7 +2374,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The aircraft of each plan shown (the list built again when they change: a formation split, one removed).</summary>
         private string plansKey = "";
 
-        /// <summary>The plans waiting (not flying; those of ADD NOW are only in FLYING).</summary>
+        /// <summary>The plans waiting (not flying).</summary>
         private List<TowerPlan> Waiting() => plans.Where(p => p.Now != TowerPlan.State.Flying && !p.Quick).ToList();
 
         private string PlansKey() => string.Join(";", Waiting().Select(p => $"{p.GetHashCode()}{(p.Picked ? "+" : "")}"));
@@ -2718,7 +2718,7 @@ namespace ATCRoom.TwrTrainer
                 Button again = SmallButton("↺", () => RestartPlanOf(cs));
                 again.ToolTip = "Its plan again from the start (an aircraft of the Traffic List).";
                 Button remove = SmallButton("✕", () => commands.Remove(cs));
-                remove.ToolTip = "Out of the simulation (its plan waits again; one of ADD NOW is gone).";
+                remove.ToolTip = "Out of the simulation: its plan waits again in WAITING.";
                 TextBlock callsign = CallsignText(cs);
                 TextBlock text = RowText("");
                 foreach (TextBlock clickable in new[] { callsign, text })
@@ -2737,7 +2737,7 @@ namespace ATCRoom.TwrTrainer
         private void RestartPlanOf(string callsign)
         {
             TowerPlan? plan = plans.FirstOrDefault(p => p.Now == TowerPlan.State.Flying && !p.Quick && (p.Members.Contains(callsign) || p.Flying == callsign));
-            if (plan == null) { Say($"{callsign} is not from a plan of the Traffic List (ADD NOW).", Area.Traffic); return; }
+            if (plan == null) { Say($"{callsign} is not from a plan of the Traffic List.", Area.Traffic); return; }
             foreach (string m in MembersFlying(plan)) commands.Remove(m);
             plan.Now = TowerPlan.State.Waiting;
             StartPlan(plan);
