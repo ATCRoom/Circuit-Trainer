@@ -791,6 +791,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   45° turn in made the way out longer the wider it was (from the WIDE to about 7.5 NM). Now out parallel to abeam the IP
   + 2 NM, then towards the IP rolling out on the initial at the IP (about 45° from the CONV, 60° from the WIDE). Test 62
   from the CONV and the WIDE. WRITTEN, next group.
+- **POINT instead of R/D (the user, 7 Nov: "solo click", moved by drag & drop):** in Start from and Exit to the button R/D is
+  now POINT; its row (Start point / Exit point): CLICK ON MAP, then the point shown as radial / distance (not typed); on the
+  map a mark START / EXIT (green diamond) while the plan is in Advanced: dragged, the point moves. Kept in the plan as
+  radial °M / distance NM from the middle of the runway, as before (old scenarios the same). RADIAL (outbound) unchanged.
+  Settings: "Gates and exits" → "Gates and RWY exits". WRITTEN, next group.
 - **Range rings (the user, 7 Nov; "5NM va bene") — WRITTEN:** instructor only (not in the student console).
   Centre: the middle of the runway in use (the user: "dal centro dell'aeroporto (pista)"). Proposed: spacing 1 / 2 / 5 / 10
   NM in Settings › Map (per aerodrome, default 5 NM, up to 30 NM), thin and faint, the distance written small on each;

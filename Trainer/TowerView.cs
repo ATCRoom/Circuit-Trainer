@@ -47,7 +47,7 @@ namespace ATCRoom.TwrTrainer
         private readonly Dictionary<string, Vector> labelOffsets = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Rect> labelRects = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>What the left button is dragging: the map, a label, the heading of an aircraft (and which one).</summary>
-        private enum Drag { None, Map, Label, Heading }
+        private enum Drag { None, Map, Label, Heading, Mark }
         private Drag drag;
         private string? dragCallsign;
         private Vector grab;
@@ -78,6 +78,11 @@ namespace ATCRoom.TwrTrainer
         public double CentrelineNM { get; set; } = 10;
         /// <summary>The spacing of the range rings around the middle of the runway (NM; 0: none), up to 30 NM (the user, 7 Nov; instructor only).</summary>
         public double RingsNM { get; set; }
+        /// <summary>The marks of the points of the plan being written (START, EXIT; the user 7 Nov): dragged, <see cref="MarkMoved"/> on release.</summary>
+        public IReadOnlyList<(string Name, double X, double Y)> Marks { get; set; } = [];
+        public event Action<string, double, double>? MarkMoved;
+        private static readonly Brush MarkBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x5D, 0xCA, 0xA5)));
+        private string? dragMark;
         private static readonly Brush RingBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x70, 0x8A, 0x98, 0xA4)));
         /// <summary>The entry gates of the aerodrome (the plane, NM).</summary>
         public IReadOnlyList<(string Name, double X, double Y)> Gates { get; set; } = [];
@@ -281,6 +286,7 @@ namespace ATCRoom.TwrTrainer
             DrawHelipads(dc, dip);
             DrawWaiting(dc, dip);
             DrawTraffic(dc, dip);
+            DrawMarks(dc, dip);
             if (Hint.Length > 0)
             {
                 FormattedText hint = new(Hint, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 16, GroundBrush, dip)
@@ -349,6 +355,28 @@ namespace ATCRoom.TwrTrainer
                 if (names && name.Length > 0) dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, brush, dip), new Point(at.X + 4, at.Y - 6));
             }
         }
+
+        /// <summary>The marks of the points of the plan being written: a diamond and its name (where the mouse drags it).</summary>
+        private void DrawMarks(DrawingContext dc, double dip)
+        {
+            foreach ((string name, double x, double y) in Marks)
+            {
+                Point at = drag == Drag.Mark && dragMark == name && panned ? dragNow : ToScreen(x, y);
+                StreamGeometry diamond = new();
+                using (StreamGeometryContext g = diamond.Open())
+                {
+                    g.BeginFigure(new Point(at.X, at.Y - 7), true, true);
+                    g.LineTo(new Point(at.X + 7, at.Y), true, false);
+                    g.LineTo(new Point(at.X, at.Y + 7), true, false);
+                    g.LineTo(new Point(at.X - 7, at.Y), true, false);
+                }
+                dc.DrawGeometry(null, new Pen(MarkBrush, 2), diamond);
+                dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, MarkBrush, dip), new Point(at.X + 10, at.Y - 7));
+            }
+        }
+
+        /// <summary>The mark under the mouse (within 10 px), or null.</summary>
+        private string? MarkAt(Point at) => Marks.Where(m => (ToScreen(m.X, m.Y) - at).Length <= 10).Select(m => m.Name).FirstOrDefault();
 
         /// <summary>The range rings: thin circles around the middle of the runway in use, their distance written on top.</summary>
         private void DrawRings(DrawingContext dc, double dip)
@@ -927,8 +955,14 @@ namespace ATCRoom.TwrTrainer
             (panX, panY) = (centreX, centreY);
             // What a drag would move: the heading (from the symbol), the label (not on its buttons), else the map.
             dragCallsign = null;
+            dragMark = null;
             drag = Drag.Map;
-            if (pick == null && (Selected == null || FieldAt(at) == null))
+            if (pick == null && MarkAt(at) is string mark && (Selected == null || FieldAt(at) == null))
+            {
+                drag = Drag.Mark;
+                dragMark = mark;
+            }
+            else if (pick == null && (Selected == null || FieldAt(at) == null))
             {
                 if (SymbolAt(at) is string symbol)
                 {
@@ -975,6 +1009,13 @@ namespace ATCRoom.TwrTrainer
             drag = Drag.None;
             if (!click)
             {
+                // A mark dragged: its point moved on release.
+                if (was == Drag.Mark && dragMark is string moved)
+                {
+                    (double mx, double my) = ToPlane(at);
+                    dragMark = null;
+                    MarkMoved?.Invoke(moved, mx, my);
+                }
                 // A heading dragged from an aircraft: given on release.
                 if (was == Drag.Heading && dragCallsign != null && Traffic.FirstOrDefault(t => t.Callsign == dragCallsign) is AircraftState dragged)
                 {
@@ -983,6 +1024,8 @@ namespace ATCRoom.TwrTrainer
                 InvalidateVisual();
                 return;
             }
+            // (A click on a mark: nothing.)
+            if (was == Drag.Mark) { dragMark = null; return; }
             // A click (not a drag): the point asked, else the aircraft under it.
             if (pick is Action<double, double> done)
             {

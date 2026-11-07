@@ -313,6 +313,12 @@ namespace ATCRoom.TwrTrainer
             photoText.VerticalAlignment = VerticalAlignment.Center;
             photoText.Margin = new Thickness(4, 0, 2, 4);
             bar.Children.Add(photoText);
+            // (The user, 7 Nov: the mark of a point of the plan in Advanced dragged on the map: the point moved.)
+            view.MarkMoved += (mark, x, y) =>
+            {
+                if (mark == "START") SetPoint(fromRadialBox, fromDistanceBox, x, y);
+                else if (mark == "EXIT") SetPoint(toRadialBox, toDistanceBox, x, y);
+            };
             view.MouseDown += (_, e) =>
             {
                 if (e.ChangedButton != MouseButton.Middle) return;
@@ -721,11 +727,12 @@ namespace ATCRoom.TwrTrainer
             Row("Type of flight", typeRow, null, LabelWidth);
             Row("Start from", fromHolder, null, LabelWidth);
             // (The user, 6 Nov: a point as radial / distance instead of a gate.)
-            fromPointLine = Row("R/D start", PointBoxes(fromRadialBox, fromDistanceBox), null, LabelWidth);
+            // (The user, 7 Nov: POINT, clicked on the map, moved by dragging its mark; kept as radial / distance as before.)
+            fromPointLine = Row("Start point", PointPicker(fromRadialBox, fromDistanceBox, "START"), null, LabelWidth);
             // (The user, 6 Nov: one row for the ways out of a departure or a transit: RWY HDG, RADIAL, a gate, an R/D point.)
             toLine = Row("Exit to", toHolder, null, LabelWidth);
             toName = (TextBlock)toLine.Children[0];
-            toPointLine = Row("R/D exit", PointBoxes(toRadialBox, toDistanceBox), null, LabelWidth);
+            toPointLine = Row("Exit point", PointPicker(toRadialBox, toDistanceBox, "EXIT"), null, LabelWidth);
             departLine = Row("Exit via", departRow, null, LabelWidth);
             departLine.Visibility = Visibility.Collapsed;
             RadialTip(radialBox);
@@ -2035,6 +2042,7 @@ namespace ATCRoom.TwrTrainer
             tabRow.Show(settings.QuickTab);
             quickContent.Visibility = settings.QuickTab ? Visibility.Visible : Visibility.Collapsed;
             advancedContent.Visibility = settings.QuickTab ? Visibility.Collapsed : Visibility.Visible;
+            ShowPointMarks();
         }
 
         /// <summary>The Quick tab: one click, one aircraft at once, VFR, the base traffic of the aerodrome (Settings › Aircraft).</summary>
@@ -2216,7 +2224,7 @@ namespace ATCRoom.TwrTrainer
                     return commands.AddAtGate(sx, sy, plan.Entry, plan.Circuit, plan.Side, plan.End, kind, callsign, plan.HeightFt, out added);
                 }
                 if (PlaceOf(plan.From, plan.FromRadial, plan.FromDistance) is not (double fx, double fy)) return StartMissing(plan);
-                if (exit is not (double tx, double ty)) return "A crossing goes to a gate or an R/D point (Exit to).";
+                if (exit is not (double tx, double ty)) return "A crossing goes to a gate or a point (Exit to).";
                 if (Math.Abs(fx - tx) < 0.05 && Math.Abs(fy - ty) < 0.05) return "A crossing goes to another place (Exit to).";
                 return commands.AddTransit(fx, fy, tx, ty, plan.Overhead, plan.HeightFt, kind, callsign, out added);
             }
@@ -2244,7 +2252,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         private static string StartMissing(TowerPlan plan) =>
-            plan.From == From.Point ? "Write the R/D start (radial °M and distance NM)." : $"There is no gate {plan.From} at this aerodrome.";
+            plan.From == From.Point ? "Click the start point on the map (Start point: CLICK ON MAP)." : $"There is no gate {plan.From} at this aerodrome.";
 
         // ----- Flight plans (advanced generation) ----------------------------------------------------------------------
 
@@ -3058,14 +3066,14 @@ namespace ATCRoom.TwrTrainer
         {
             string? was = fromRow.HasValue ? fromRow.Value : null;
             List<(string, string)> items = airfield.Gates.Select(g => (g.Name, g.Name)).ToList();
-            items.Add((From.Point, "R/D"));
+            items.Add((From.Point, "POINT"));
             items.Add((From.LongFinal, "LONG FIN"));
             items.Add((From.Runway, "RWY"));
             fromRow = new ChoiceRow<string>(items, (value, _) => value switch
             {
                 From.LongFinal => "On the final at the long final distance (Simulation), on the glide path.",
                 From.Runway => "On the runway (a departure): it takes off, then the conventional or the wide circuit, or away (Circuits 0).",
-                From.Point => "A point given as radial °M / distance NM from the middle of the runway (R/D start), instead of a gate.",
+                From.Point => "A point clicked on the map (Start point), instead of a gate; drag its mark to move it.",
                 _ => $"Entry gate {value}: it starts here and joins its circuit by itself (Entry)."
             });
             fromRow.Picked += from =>
@@ -3078,12 +3086,12 @@ namespace ATCRoom.TwrTrainer
             fromHolder.Children.Add(fromRow);
             // The ways out (the user, 6 Nov): along the runway, onto a radial, to a gate, to an R/D point.
             string? wasTo = toRow.HasValue ? toRow.Value : null;
-            List<(string, string)> exits = [(ExitWay.RunwayHeading, "RWY HDG"), (ExitWay.Radial, "RADIAL"), .. airfield.Gates.Select(g => (g.Name, g.Name)), (From.Point, "R/D")];
+            List<(string, string)> exits = [(ExitWay.RunwayHeading, "RWY HDG"), (ExitWay.Radial, "RADIAL"), .. airfield.Gates.Select(g => (g.Name, g.Name)), (From.Point, "POINT")];
             toRow = new ChoiceRow<string>(exits, (value, _) => value switch
             {
                 ExitWay.RunwayHeading => "Away along the runway heading, gone 10 NM out.",
                 ExitWay.Radial => "Away onto a radial (Radial °M, its turn), as a departure; gone 10 NM out.",
-                From.Point => "Straight to a point given as radial °M / distance NM from the middle of the runway (R/D exit), gone there.",
+                From.Point => "Straight to a point clicked on the map (Exit point), gone there; drag its mark to move it.",
                 _ => $"Straight to the gate {value}, gone there."
             });
             toRow.Picked += _ =>
@@ -3110,13 +3118,57 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The start chosen when there is no other (the review of 6 Nov): the first gate, else the long final (not R/D, empty).</summary>
         private string DefaultFrom() => airfield.Gates.Count > 0 ? airfield.Gates[0].Name : From.LongFinal;
 
-        /// <summary>The two boxes of an R/D point (radial °M, distance NM).</summary>
-        private static StackPanel PointBoxes(TextBox radial, TextBox distance)
+        /// <summary>
+        /// A point of a plan (the user, 7 Nov): CLICK ON MAP, then its mark on the map dragged to move it. Kept in the two boxes
+        /// (not shown) as radial °M / distance NM from the middle of the runway, as the R/D points before; shown beside the button.
+        /// </summary>
+        private StackPanel PointPicker(TextBox radial, TextBox distance, string mark)
         {
-            radial.ToolTip = "The radial (0 to 360, magnetic) from the middle of the runway in use.";
-            distance.ToolTip = "The distance (NM) from the middle of the runway in use.";
-            return Inline(new TextBlock { Text = "radial °M", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }, radial,
-                new TextBlock { Text = "distance NM", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }, distance);
+            TextBlock shown = new() { Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 4) };
+            void Show()
+            {
+                shown.Text = Typed(radial, 0, 360) is double r && Typed(distance, 0.1, 200) is double d
+                    ? string.Format(CultureInfo.InvariantCulture, "{0:000}° / {1:0.0} NM (drag its mark {2})", r, d, mark) : "not chosen";
+                ShowPointMarks();
+            }
+            radial.TextChanged += (_, _) => Show();
+            distance.TextChanged += (_, _) => Show();
+            Button click = ActionButton("CLICK ON MAP", () =>
+            {
+                if (double.IsNaN(airfield.Course)) { Say("Place the runway in use first: a point is kept from its middle.", Area.New); return; }
+                view.AskPoint($"{mark}: click the point on the map  -  Esc: cancel", (x, y) => SetPoint(radial, distance, x, y));
+            });
+            click.ToolTip = $"Click the point on the map; then drag its mark ({mark}) to move it.";
+            Show();
+            return Inline(click, shown);
+        }
+
+        /// <summary>A point of the plane written into the boxes of a point: radial °M and distance NM from the middle of the runway.</summary>
+        private void SetPoint(TextBox radial, TextBox distance, double x, double y)
+        {
+            if (double.IsNaN(airfield.Course)) return;
+            double course = airfield.Course * Math.PI / 180, half = Math.Max(airfield.LengthNM, 0.3) / 2;
+            double dx = x - half * Math.Sin(course), dy = y - half * Math.Cos(course);
+            double nm = Math.Clamp(Math.Sqrt(dx * dx + dy * dy), 0.1, 200);
+            double bearing = Math.Atan2(dx, dy) * 180 / Math.PI - (airfield.Circuits.MagneticVariation ?? 0);
+            bearing = Math.Round(((bearing % 360) + 360) % 360, 1) % 360;
+            radial.Text = bearing.ToString("0.#", CultureInfo.InvariantCulture);
+            distance.Text = Math.Round(nm, 2).ToString("0.##", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>The marks of the points of the plan in Advanced (START, EXIT) on the map, to drag (the user, 7 Nov).</summary>
+        private void ShowPointMarks()
+        {
+            List<(string Name, double X, double Y)> marks = [];
+            if (fromPointLine != null && toPointLine != null && !settings.QuickTab)
+            {
+                if (fromPointLine.Visibility == Visibility.Visible && RdPoint(Typed(fromRadialBox, 0, 360), Typed(fromDistanceBox, 0.1, 200)) is (double fx, double fy))
+                    marks.Add(("START", fx, fy));
+                if (toPointLine.Visibility == Visibility.Visible && RdPoint(Typed(toRadialBox, 0, 360), Typed(toDistanceBox, 0.1, 200)) is (double tx, double ty))
+                    marks.Add(("EXIT", tx, ty));
+            }
+            view.Marks = marks;
+            view.InvalidateVisual();
         }
 
         private static double? Typed(TextBox box, double low, double high) =>
@@ -3155,7 +3207,7 @@ namespace ATCRoom.TwrTrainer
             if (to.Length == 0 || to == ExitWay.RunwayHeading || to == ExitWay.Radial)
                 return (to == ExitWay.RunwayHeading ? double.NaN : RadialTrue(p), null, to == ExitWay.Radial && p.Radial == null ? "Write the radial (0 to 360, magnetic) in Radial °M." : null);
             if (PlaceOf(to, p.ToRadial, p.ToDistance) is (double x, double y)) return (double.NaN, (x, y), null);
-            return (double.NaN, null, to == From.Point ? "Write the R/D exit (radial °M and distance NM)." : $"There is no gate {to} at this aerodrome.");
+            return (double.NaN, null, to == From.Point ? "Click the exit point on the map (Exit point: CLICK ON MAP)." : $"There is no gate {to} at this aerodrome.");
         }
 
         /// <summary>The entries that apply to where it starts: none from the long final or the runway; in the circuit: DW, IP, HK.</summary>
@@ -3242,6 +3294,7 @@ namespace ATCRoom.TwrTrainer
             exitAltLine.Visibility = Shown(usesRunway);
             toPointLine.Visibility = Shown((departure || transit) && toRow.Value == From.Point);
             fromPointLine.Visibility = Shown(!runway && from == From.Point);
+            ShowPointMarks();
             viaLine.Visibility = Shown(transit);
             // (From the long final: straight on (FINAL) or the circling; the circling only from there.)
             foreach (CircuitEntry entry in Enum.GetValues<CircuitEntry>())
