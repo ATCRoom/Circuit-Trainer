@@ -663,7 +663,7 @@ namespace ATCRoom.TwrTrainer
             };
             current.Children.Add(windText);
 
-            current = Section("Gates and exits", gatesSummary, false);
+            current = Section("Gates and RWY exits", gatesSummary, false);
             Note("Entry gates (where the arriving aircraft start, at least 5 NM out): a name (empty: the VRP clicked), then click it on the map.");
             Row("Gate name", newGateName);
             current.Children.Add(ActionRow(("ADD GATE", AddGate), ("REMOVE GATE", RemoveGate)));
