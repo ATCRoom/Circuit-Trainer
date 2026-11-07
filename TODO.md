@@ -804,11 +804,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   plans waiting and those flying outside; the counter goes on, a number is not given twice).
 
 ## Default heights as altitudes (QNH) and import of the heights of other aerodromes (the user, 7 Nov) — NOTED, to confirm
-- **IMPORTANT (the user: "la stragrande maggioranza degli aeroporti lavora sulle altitudini"):** the defaults of the heights
-  (circuits, IP, break, HK...) are today heights above the aerodrome (500 / 1000 / 1500 ft...), shown as altitude with the
-  elevation added (LIBN, elevation 657: 1157, 1657, 2657...). From now on the defaults refer to QNH: the altitudes shown are the
-  defaults, round numbers. To decide: (1) round the elevation + height to 100 ft (1200, 1700, 2700) or (2) the same fixed altitude
-  in every aerodrome, in the class data (e.g. 1500 ft QNH). QFE aerodromes: the heights above the runway as now.
+- **IMPORTANT (the user: "la stragrande maggioranza degli aeroporti lavora sulle altitudini") — DECIDED (7 Nov):** the default
+  values of the classes (circuit Conv / Wide / Close, IP, Break, HK, LK) are from now **altitudes ft QNH**, not heights above the
+  aerodrome: a new aerodrome shows them as they are, with no correction (today: elevation + 500 / 1000 / 1500...). The engine
+  keeps the heights above the runway: a missing value of the aerodrome = the class altitude minus the elevation, at least 300 ft
+  above the runway (the minimum of the engine); QFE aerodromes show the height (altitude - elevation). The values written by hand
+  in an aerodrome file stay as they are (above the threshold). Not altitudes: the roll-out height (250 ft...) and the rules
+  "500 above the circuit". To decide: the numbers of the defaults (the present ones fit the aerodromes near sea level: at 657 ft
+  the low ones all fall on the minimum) and the default exit altitude (3000 ft above the runway: QNH too?).
 - **Import of the heights of other aerodromes:** so as not to write them by hand each time. Source to decide: the table of another
   aerodrome of the program (the Maps folder), or a text / CSV file of the user.
 
