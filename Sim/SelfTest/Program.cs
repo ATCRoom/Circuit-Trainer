@@ -2250,17 +2250,18 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
 
         // 62. DCT TO IP near the aerodrome (the user, 7 Nov): out parallel to the final on its side (never wider than the WIDE),
         // then 45° onto the runway track before the IP, on the initial at the IP, the overhead, lands. From the conventional
-        // downwind and from the base.
+        // downwind, early and late (towards the base).
         {
             SimEngine w62 = NewCircuitEngine();
             string wc62 = w62.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
             w62.RunFor(20);
             double wide62 = Math.Abs(Frame(w62.Get(wc62)!).Lateral);
-            foreach (CircuitStart start in new[] { CircuitStart.Downwind, CircuitStart.Base })
+            foreach (double after in new[] { 15.0, 75.0 })
             {
                 SimEngine s62 = NewCircuitEngine();
-                string c62 = s62.AddInCircuit(start, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
-                s62.RunFor(15);
+                string c62 = s62.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+                s62.RunFor(after);
+                string start = $"{s62.Get(c62)!.Leg} ({after:0} s)";
                 s62.DirectTo(c62, DirectPoint.InitialPoint, CircuitSide.Left);
                 List<AircraftState> f62 = Fly(s62, c62, 1200);
                 int initial62 = f62.FindIndex(st => st.Leg == "INITIAL");
