@@ -772,6 +772,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   the player, click = go there); to add when the log / the recording exist. The student console takes no photo (instructor
   only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
+## Next build (the user, 7 Nov) — NOTED, to do with the next go
+- **The runway on the map (the user, 7 Nov: "mi piace la 1"):** today the tower draws its own light grey strip (B8C0C6, 0.03 NM
+  wide, from the threshold, the length placed) over the map, covering the black runway of the Map Creator (only the ends past
+  the thresholds show). Change: draw only a **thin line along the runway axis** (1-2 px, grey or white), from the threshold to
+  the end; the black runway of the map shows all. The centreline before the threshold and its ticks stay. Without a runway on
+  the map the thin line still shows the runway placed.
+
 ## Waiting traffic on the instructor's map (the user, 6 Nov) — DECIDED, next build
 - **Every plan in WAITING** drawn on the instructor's map as a still, faint grey symbol at its starting point: the gate, the long
   final at its distance, the threshold (departures, local), the helipad. Small label: callsign, ICAO type, starting altitude,
