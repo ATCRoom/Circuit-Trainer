@@ -811,8 +811,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
-  To decide: the threshold of the runway in use on the left or on the right (or the side of the tower); the labels and
-  the texts stay upright; L1 / L2 and the views kept on them in both; the photos as on the screen.
+  DECIDED (the user, 7 Nov evening): buttons NORTH and RWY on the bar; the RWY view from both sides: a click on RWY when it
+  is already on turns it round (the threshold of the runway in use on the left, then on the right; kept in the settings).
+  The labels and the texts stay upright; L1 / L2 and the views kept on them in both; the photos as on the screen.
+- **⏸ HELD (the user, 7 Nov evening):** a plan held stops everything, its countdown too (it goes on from there when let go).
 
 ## Build of 7 Nov afternoon (the user: "procedi con la build") — WRITTEN (tests 60-61)
 - The three sections below, as decided. Choices made while writing them (simple, to check with the build):
