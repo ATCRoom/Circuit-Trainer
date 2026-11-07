@@ -811,6 +811,22 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   quel lato"). The same way for DCT TO HK (SFO). Beyond the IP: straight to it as now. A test: never wider than the WIDE,
   on the axis before the IP. (Mock-up of 4 positions shown 7 Nov.)
 
+- **Log of the flights (the user, 6-7 Nov: "si. ok") — WRITTEN:** Logs\Log_<date>.csv (sep=; for Excel in any language),
+  made at the first event, closed with the program or when another map is opened. On top: aerodrome, runway, start UTC,
+  network (IVAO or empty), instructor callsign and VID, student callsign and VID (empty when not connected; the student's
+  when the student console exists). Rows: sim time, UTC, source (SIM / INSTRUCTOR / IVAO), callsign, ICAO type, rules V/I,
+  runway, pattern, event, detail. Events: ADDED, TAKE-OFF, TOUCH AND GO, LANDING, GO AROUND, LOW APPROACH, LOW PASS, OUT OF
+  THE CIRCUIT, GONE; the instructor's orders (DCT TO, circuit, break, orbit, heading / altitude / speed, G/A, remove...);
+  PHOTO n; IVAO IN RANGE / OUT OF RANGE; NETWORK CONNECTED / DISCONNECTED. At the end: a summary per aircraft.
+  **Open: the VID** (the network number of the instructor and of the student): Aurora's link does not give it as far as known;
+  to find out how (typed once in Settings?). For now empty.
+- **IVAO traffic from Aurora (the user, 7 Nov) — WRITTEN, to test by the user (no Aurora here):** IVAO on the bar of the map
+  (off at first, kept): Aurora on this PC (port 1130, as AuroraPAR v2; Aurora.cs copied), asked every 2 s; the traffic
+  within 60 NM on the map in light blue (square, one minute ahead, callsign, A + hundreds of ft, speed), only shown, nothing
+  sent; its callsign every 30 s (in the log); **the METAR of the aerodrome from Aurora every minute** (into the METAR box,
+  applied: the user, 7 Nov). Button: grey off, amber "IVAO ?" Aurora not found / not on IVAO, green "● IVAO" on IVAO.
+  Not yet: strips of IVAO aircraft, selecting them, the student.
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.

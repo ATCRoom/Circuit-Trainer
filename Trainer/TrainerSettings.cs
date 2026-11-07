@@ -29,6 +29,9 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The photos for the debriefing (the user, 6 Nov): one folder for each session.</summary>
         public static string PhotosFolder => Path.Combine(Folder, "Photos");
 
+        /// <summary>The logs of the flights (the user, 6-7 Nov): one CSV file for each session.</summary>
+        public static string LogsFolder => Path.Combine(Folder, "Logs");
+
         public static string Performance => Path.Combine(Folder, ATCRoom.Sim.PerformanceFile.FileName);
 
         /// <summary>The folders as said to the user (without the Windows user name).</summary>
@@ -74,6 +77,8 @@ namespace ATCRoom.TwrTrainer
         public bool QuickTab { get; set; } = true;
         /// <summary>The range rings on the instructor's map (the user, 7 Nov; spacing per aerodrome, Settings › Map).</summary>
         public bool ShowRings { get; set; } = true;
+        /// <summary>The traffic of the network (IVAO, through Aurora on this PC) on the map (the user, 7 Nov).</summary>
+        public bool ShowIvao { get; set; }
         /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
         public string StripDeparture { get; set; } = "WHITE";
         public string StripArrival { get; set; } = "YELLOW";

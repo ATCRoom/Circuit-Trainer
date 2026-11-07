@@ -80,6 +80,9 @@ namespace ATCRoom.TwrTrainer
         public double RingsNM { get; set; }
         /// <summary>The marks of the points of the plan being written (START, EXIT; the user 7 Nov): dragged, <see cref="MarkMoved"/> on release.</summary>
         public IReadOnlyList<(string Name, double X, double Y)> Marks { get; set; } = [];
+        /// <summary>The traffic of the network (IVAO through Aurora; the user, 7 Nov): place, altitude (ft), speed (kt), track (° true). Only shown.</summary>
+        public IReadOnlyList<(string Callsign, double X, double Y, double AltitudeFt, double SpeedKt, double Track)> Network { get; set; } = [];
+        private static readonly Brush NetworkBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x85, 0xB7, 0xEB)));
         public event Action<string, double, double>? MarkMoved;
         private static readonly Brush MarkBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x5D, 0xCA, 0xA5)));
         private string? dragMark;
@@ -285,6 +288,7 @@ namespace ATCRoom.TwrTrainer
             DrawExits(dc, dip);
             DrawHelipads(dc, dip);
             DrawWaiting(dc, dip);
+            DrawNetwork(dc, dip);
             DrawTraffic(dc, dip);
             DrawMarks(dc, dip);
             if (Hint.Length > 0)
@@ -353,6 +357,25 @@ namespace ATCRoom.TwrTrainer
             {
                 dc.DrawEllipse(brush, null, at, 2, 2);
                 if (names && name.Length > 0) dc.DrawText(new FormattedText(name, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 10, brush, dip), new Point(at.X + 4, at.Y - 6));
+            }
+        }
+
+        /// <summary>The network traffic: a small square, a line of one minute ahead, callsign and altitude / speed beside it, in light blue.</summary>
+        private void DrawNetwork(DrawingContext dc, double dip)
+        {
+            Pen pen = new(NetworkBrush, 1.2);
+            foreach ((string callsign, double x, double y, double altitude, double speed, double track) in Network)
+            {
+                Point at = ToScreen(x, y);
+                if (at.X < -200 || at.Y < -200 || at.X > ActualWidth + 200 || at.Y > ActualHeight + 200) continue;
+                dc.DrawRectangle(null, pen, new Rect(at.X - 4, at.Y - 4, 8, 8));
+                double t = track * Math.PI / 180, ahead = speed / 60;
+                dc.DrawLine(pen, at, ToScreen(x + ahead * Math.Sin(t), y + ahead * Math.Cos(t)));
+                FormattedText name = new(callsign, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, NetworkBrush, dip);
+                FormattedText data = new(string.Create(CultureInfo.InvariantCulture, $"A{Math.Max(0, Math.Round(altitude / 100)):000} {Math.Round(speed):0}"),
+                    CultureInfo.InvariantCulture, FlowDirection.LeftToRight, MapFace, 11, NetworkBrush, dip);
+                dc.DrawText(name, new Point(at.X + 8, at.Y - 14));
+                dc.DrawText(data, new Point(at.X + 8, at.Y - 1));
             }
         }
 

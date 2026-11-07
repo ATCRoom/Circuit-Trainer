@@ -32,6 +32,14 @@ namespace ATCRoom.TwrTrainer
         private readonly TrainerSettings settings = TrainerSettings.Load();
         private readonly TowerView view = new();
         private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+        /// <summary>The network (the user, 7 Nov): Aurora on this PC, asked every 2 s while IVAO is on; the log of the flights.</summary>
+        private readonly Aurora aurora = new();
+        private readonly FlightLog flightLog = new();
+        private readonly DispatcherTimer networkTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+        private bool networkBusy, logErrorSaid;
+        private DateTime networkCallsignAt = DateTime.MinValue, networkMetarAt = DateTime.MinValue;
+        private string networkCallsign = "";
+        private Button ivaoButton = null!;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private double lastTick;
         private int ticks;
@@ -302,6 +310,10 @@ namespace ATCRoom.TwrTrainer
             ringsButton = ActionButton("", ToggleRings);
             ringsButton.Margin = new Thickness(12, 0, 0, 4);
             bar.Children.Add(ringsButton);
+            // (The user, 7 Nov: the traffic of IVAO from Aurora, only shown; its METAR used.)
+            ivaoButton = ActionButton("", ToggleIvao);
+            ivaoButton.Margin = new Thickness(4, 0, 0, 4);
+            bar.Children.Add(ivaoButton);
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
@@ -383,7 +395,15 @@ namespace ATCRoom.TwrTrainer
             view.MenuAsked += callsign => OpenMenu(Menu(callsign));
             view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back).", Area.Selected); };
             Loaded += (_, _) => Start();
-            Closing += (_, _) => settings.Save();
+            Closing += (_, _) =>
+            {
+                settings.Save();
+                flightLog.Close(engine.Time);
+                aurora.Close();
+            };
+            // (The user, 7 Nov: the orders of the instructor in the log of the flights.)
+            commands.Logged = (callsign, what, detail) => flightLog.Event(engine.Time, what, callsign, detail, "INSTRUCTOR");
+            networkTimer.Tick += async (_, _) => await PollNetwork();
             PreviewKeyDown += OnKeys;
             timer.Tick += (_, _) => Tick();
         }
@@ -409,6 +429,8 @@ namespace ATCRoom.TwrTrainer
             UpdatePause();
             lastTick = clock.Elapsed.TotalSeconds;
             timer.Start();
+            ShowIvaoButton();
+            networkTimer.Start();
         }
 
         private void Tick()
@@ -417,7 +439,17 @@ namespace ATCRoom.TwrTrainer
             double wall = now - lastTick;
             lastTick = now;
             engine.Advance(wall * speed);
-            view.SetTraffic(engine.Snapshot(), engine.Time);
+            IReadOnlyList<AircraftState> traffic = engine.Snapshot();
+            view.SetTraffic(traffic, engine.Time);
+            // (The log of the flights, the user 6-7 Nov: what changed since the last time.)
+            flightLog.Aerodrome = airfield.Code;
+            flightLog.Runway = airfield.Runway?.Runway ?? "";
+            flightLog.Observe(traffic, engine.Time, FlightInfo);
+            if (flightLog.Error is string logError && !logErrorSaid)
+            {
+                logErrorSaid = true;
+                Say(logError);
+            }
             view.Status = view.Picking ? view.Status : engine.Paused ? "PAUSED" : "";
             if (view.PendingCircuit is CircuitType chosen && now - pendingSince > 1.2)
             {
@@ -1293,6 +1325,8 @@ namespace ATCRoom.TwrTrainer
             int number = ++photoCount;
             double time = Math.Max(0, engine.Time);
             string name = string.Create(CultureInfo.InvariantCulture, $"Photo-{number:00}_T+{(int)(time / 60)}m{(int)(time % 60):00}s.png");
+            // (A mark in the log of the flights, the user 6 Nov.)
+            flightLog.Event(time, $"PHOTO {number}", detail: name, source: "INSTRUCTOR");
             // (Written on another thread: the simulation does not wait.)
             System.Threading.Tasks.Task.Run(() =>
             {
@@ -1374,6 +1408,8 @@ namespace ATCRoom.TwrTrainer
                 return;
             }
             settings.MapPath = path;
+            // (Another map: another session of the log.)
+            flightLog.Close(engine.Time);
             // The layers of this map: those it has, on as saved (or the defaults).
             HashSet<string> present = new(airfield.Map!.Lines.Select(l => l.Category).Concat(airfield.Map.Labels.Select(l => l.Category))
                 .Concat(airfield.Map.Points.Select(p => p.Category)), StringComparer.OrdinalIgnoreCase);
@@ -2555,6 +2591,106 @@ namespace ATCRoom.TwrTrainer
             caption.Margin = new Thickness(0, 0, 6, 1);
             header.Children.Add(caption);
             return header;
+        }
+
+        /// <summary>The ICAO type and the rules (V / I) of an aircraft, from its plan; empty: not known.</summary>
+        private (string Type, string Rules) FlightInfo(string callsign)
+        {
+            TowerPlan? plan = plans.FirstOrDefault(p => string.Equals(p.Flying, callsign, StringComparison.OrdinalIgnoreCase)
+                || p.Members.Contains(callsign, StringComparer.OrdinalIgnoreCase));
+            return plan == null ? ("", "") : (plan.IcaoType, plan.Ifr ? "I" : "V");
+        }
+
+        /// <summary>IVAO on the bar of the map: the traffic of the network from Aurora shown or not (saved).</summary>
+        private void ToggleIvao()
+        {
+            settings.ShowIvao = !settings.ShowIvao;
+            settings.Save();
+            networkCallsignAt = networkMetarAt = DateTime.MinValue;
+            if (!settings.ShowIvao)
+            {
+                view.Network = [];
+                flightLog.ObserveNetwork([], engine.Time);
+                flightLog.SetNetwork(false, "", engine.Time);
+                view.InvalidateVisual();
+            }
+            ShowIvaoButton();
+            _ = PollNetwork();
+        }
+
+        private void ShowIvaoButton()
+        {
+            if (ivaoButton == null) return;
+            bool on = settings.ShowIvao, linked = on && aurora.Connected, network = linked && networkCallsign.Length > 0;
+            ivaoButton.Content = !on ? "IVAO" : linked ? "● IVAO" : "IVAO ?";
+            ivaoButton.Background = !on ? Theme.OffBack : network ? new SolidColorBrush(Color.FromRgb(0x63, 0x99, 0x22)) : new SolidColorBrush(Color.FromRgb(0xEF, 0x9F, 0x27));
+            ivaoButton.Foreground = !on ? Theme.OffText : new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A));
+            ivaoButton.BorderBrush = ivaoButton.Background;
+            ivaoButton.Tag = on ? "on" : null;
+            ivaoButton.ToolTip = !on ? "The traffic of IVAO from Aurora on this PC: off. Click: on (only shown, nothing is sent to the network)."
+                : !linked ? "Aurora not found on this PC: open Aurora (with its link for other programs on). Click: off."
+                : network ? $"Aurora on IVAO as {networkCallsign}: its traffic on the map (light blue), its METAR used, both in the log. Click: off."
+                : "Aurora found, but not connected to IVAO: no traffic yet. Click: off.";
+        }
+
+        /// <summary>
+        /// The network (every 2 s while IVAO is on): Aurora connected again when needed, its callsign (every 30 s, in the
+        /// log), the METAR of the aerodrome (every minute: into the METAR box, applied), the traffic within 60 NM on the map.
+        /// </summary>
+        private async Task PollNetwork()
+        {
+            if (networkBusy || !settings.ShowIvao) return;
+            networkBusy = true;
+            try
+            {
+                if (!aurora.Connected && !await aurora.TryConnect())
+                {
+                    networkCallsign = "";
+                    view.Network = [];
+                    flightLog.ObserveNetwork([], engine.Time);
+                    flightLog.SetNetwork(false, "", engine.Time);
+                    return;
+                }
+                if (DateTime.UtcNow - networkCallsignAt > TimeSpan.FromSeconds(30))
+                {
+                    networkCallsignAt = DateTime.UtcNow;
+                    networkCallsign = await aurora.GetConnectedCallsign() ?? "";
+                    flightLog.SetNetwork(networkCallsign.Length > 0, networkCallsign, engine.Time);
+                }
+                string code = airfield.Code.Trim().ToUpperInvariant();
+                if (airfield.Map != null && code.Length == 4 && DateTime.UtcNow - networkMetarAt > TimeSpan.FromMinutes(1))
+                {
+                    networkMetarAt = DateTime.UtcNow;
+                    if (await aurora.GetMetar(code) is string metar && metar != settings.Metar.Trim())
+                    {
+                        metarBox.Text = metar;
+                        ApplyMetar(quiet: true);
+                    }
+                }
+                List<(string, double, double, double, double, double)> shown = [];
+                List<IvaoAircraft> near = [];
+                if (airfield.Map != null)
+                {
+                    foreach (string callsign in (await aurora.GetTrafficList()).Take(80))
+                    {
+                        if (!settings.ShowIvao) break;
+                        if (await aurora.GetTrafficPosition(callsign) is not IvaoAircraft a) continue;
+                        (double x, double y) = airfield.Plane.FromGeo(a.Latitude, a.Longitude);
+                        if (!double.IsFinite(x) || !double.IsFinite(y) || Math.Sqrt(x * x + y * y) > 60) continue;
+                        shown.Add((a.Callsign, x, y, a.AltitudeFt, a.SpeedKt, a.Track));
+                        near.Add(a);
+                    }
+                }
+                if (!settings.ShowIvao) return;
+                view.Network = shown;
+                flightLog.ObserveNetwork(near, engine.Time);
+                view.InvalidateVisual();
+            }
+            finally
+            {
+                networkBusy = false;
+                ShowIvaoButton();
+            }
         }
 
         /// <summary>RINGS on the bar of the map: the range rings shown or not (saved).</summary>

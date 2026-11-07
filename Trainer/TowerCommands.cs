@@ -9,6 +9,9 @@ namespace ATCRoom.TwrTrainer
     internal sealed class TowerCommands(SimEngine engine, Airfield airfield)
     {
         // Each value with its name (menus) and its short name (buttons, label).
+        /// <summary>An order of the instructor given (the user, 7 Nov: in the log of the flights): callsign, what, detail.</summary>
+        public Action<string, string, string>? Logged { get; set; }
+
         public static readonly (CircuitStart Start, string Text, string Short)[] Starts =
         [
             (CircuitStart.Downwind, "Downwind", "DWN"),
@@ -93,45 +96,97 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
-        public void OrbitForever(string callsign) => engine.Orbit(callsign, forever: true);
+        public void OrbitForever(string callsign)
+        {
+            Logged?.Invoke(callsign, "ORBIT (on and on)", "");
+            engine.Orbit(callsign, forever: true);
+        }
 
-        public void Continue(string callsign) => engine.ContinueAfterOrbit(callsign);
+        public void Continue(string callsign)
+        {
+            Logged?.Invoke(callsign, "CONTINUE", "");
+            engine.ContinueAfterOrbit(callsign);
+        }
 
-        public void Breakup(string callsign) => engine.Breakup(callsign);
+        public void Breakup(string callsign)
+        {
+            Logged?.Invoke(callsign, "BREAKUP", "");
+            engine.Breakup(callsign);
+        }
 
         /// <summary>Fly this circuit on this side from where it is (the side changed: an S over the aerodrome).</summary>
-        public void FlyCircuit(string callsign, CircuitType type, CircuitSide side) => engine.SetCircuit(callsign, type, side);
+        public void FlyCircuit(string callsign, CircuitType type, CircuitSide side)
+        {
+            Logged?.Invoke(callsign, "CIRCUIT NOW", $"{type} {side}");
+            engine.SetCircuit(callsign, type, side);
+        }
 
         /// <summary>The next circuit (the plan): flown after the next touch and go / go-around; not in a circuit: joined now.</summary>
-        public void NextCircuit(string callsign, CircuitType type, CircuitSide side) => engine.SetNextCircuit(callsign, type, side);
+        public void NextCircuit(string callsign, CircuitType type, CircuitSide side)
+        {
+            Logged?.Invoke(callsign, "NEXT CIRCUIT", $"{type} {side}");
+            engine.SetNextCircuit(callsign, type, side);
+        }
 
         /// <summary>DCT TO (the user, 5 Nov): at once to the conventional downwind, its base, the initial point or the High Key, on the aerodrome's side of that circuit.</summary>
-        public void DirectTo(string callsign, DirectPoint point) => engine.DirectTo(callsign, point, engine.SideFor(point switch
+        public void DirectTo(string callsign, DirectPoint point)
+        {
+            Logged?.Invoke(callsign, "DCT TO", $"{point}");
+            engine.DirectTo(callsign, point, engine.SideFor(point switch
         {
             DirectPoint.InitialPoint => CircuitType.Overhead,
             DirectPoint.HighKey => CircuitType.Sfo,
             _ => CircuitType.Conventional
         }));
+        }
 
-        public void ExtendDownwind(string callsign) => engine.ExtendDownwind(callsign);
+        public void ExtendDownwind(string callsign)
+        {
+            Logged?.Invoke(callsign, "EXTEND DOWNWIND", "");
+            engine.ExtendDownwind(callsign);
+        }
 
-        public void TurnBase(string callsign) => engine.TurnBase(callsign);
+        public void TurnBase(string callsign)
+        {
+            Logged?.Invoke(callsign, "TURN BASE", "");
+            engine.TurnBase(callsign);
+        }
 
         /// <summary>Out of the circuit: a heading (degrees true), the circuit waits (REJOIN brings it back).</summary>
-        public void Heading(string callsign, double headingTrue) => engine.SetHeading(callsign, headingTrue);
+        public void Heading(string callsign, double headingTrue)
+        {
+            Logged?.Invoke(callsign, "HEADING", $"{headingTrue:000}° true");
+            engine.SetHeading(callsign, headingTrue);
+        }
 
         /// <summary>An altitude given as a height above the runway (ft), and a speed (kt).</summary>
-        public void Height(string callsign, double heightFt) => engine.SetAltitude(callsign, airfield.ElevationFt + heightFt);
+        public void Height(string callsign, double heightFt)
+        {
+            Logged?.Invoke(callsign, "ALTITUDE", $"{heightFt:0} ft above the runway");
+            engine.SetAltitude(callsign, airfield.ElevationFt + heightFt);
+        }
 
-        public void Speed(string callsign, double speedKt) => engine.SetSpeed(callsign, speedKt);
+        public void Speed(string callsign, double speedKt)
+        {
+            Logged?.Invoke(callsign, "SPEED", $"{speedKt:0} kt");
+            engine.SetSpeed(callsign, speedKt);
+        }
 
         /// <summary>A formation: the aircraft just added leads it (null, or why not).</summary>
         public string? MakeFormation(string leader, int size, IReadOnlyList<bool>? lands, double splitSeconds) => engine.MakeFormation(leader, size, lands, splitSeconds);
 
-        public void Split(string callsign) => engine.SplitFormation(callsign);
+        public void Split(string callsign)
+        {
+            Logged?.Invoke(callsign, "SPLIT", "");
+            engine.SplitFormation(callsign);
+        }
 
         /// <summary>Landed, rolling out: expedite taxi (at least 45 kt to the nearest exit it can still take).</summary>
-        public void ExpediteTaxi(string callsign) => engine.ExpediteTaxi(callsign);
+        public void ExpediteTaxi(string callsign)
+        {
+            Logged?.Invoke(callsign, "EXPEDITE TAXI", "");
+            engine.ExpediteTaxi(callsign);
+        }
 
         /// <summary>The plan of its circuits: how many (0: on and on), the last one's end.</summary>
         public void SetLaps(string callsign, int laps, EndAction last, EndAction onFinal) => engine.SetLaps(callsign, laps, last, onFinal);
@@ -148,6 +203,7 @@ namespace ATCRoom.TwrTrainer
         {
             AircraftState? a = engine.Get(callsign);
             if (a == null) return;
+            Logged?.Invoke(callsign, "REJOIN", "");
             if (a.Transit) engine.ResumeTransit(callsign);
             else engine.SetCircuit(callsign, a.Circuit ?? CircuitType.Conventional, a.CircuitSide);
         }
@@ -188,9 +244,17 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
-        public void SetEnd(string callsign, EndAction end) => engine.SetEndAction(callsign, end);
+        public void SetEnd(string callsign, EndAction end)
+        {
+            Logged?.Invoke(callsign, "END", $"{end}");
+            engine.SetEndAction(callsign, end);
+        }
 
-        public void SetBreak(string callsign, BreakPoint where) => engine.SetBreak(callsign, where);
+        public void SetBreak(string callsign, BreakPoint where)
+        {
+            Logged?.Invoke(callsign, "BREAK AT", $"{where}");
+            engine.SetBreak(callsign, where);
+        }
 
         /// <summary>The break over a point clicked on the map: its distance along the runway.</summary>
         public void SetBreakAt(string callsign, double x, double y)
@@ -199,14 +263,30 @@ namespace ATCRoom.TwrTrainer
             engine.SetBreak(callsign, BreakPoint.Point, x * Math.Sin(c) + y * Math.Cos(c));
         }
 
-        public void BreakNow(string callsign) => engine.BreakNow(callsign);
+        public void BreakNow(string callsign)
+        {
+            Logged?.Invoke(callsign, "BREAK NOW", "");
+            engine.BreakNow(callsign);
+        }
 
-        public void Orbit(string callsign) => engine.Orbit(callsign);
+        public void Orbit(string callsign)
+        {
+            Logged?.Invoke(callsign, "ORBIT", "");
+            engine.Orbit(callsign);
+        }
 
         /// <summary>SFO: hold at the High Key (circling over the field) or start it (at the next pass over the High Key).</summary>
-        public void HoldAtHighKey(string callsign, bool hold) => engine.HoldAtHighKey(callsign, hold);
+        public void HoldAtHighKey(string callsign, bool hold)
+        {
+            Logged?.Invoke(callsign, "HOLD AT HIGH KEY", hold ? "on" : "off");
+            engine.HoldAtHighKey(callsign, hold);
+        }
 
-        public void GoAround(string callsign) => engine.GoAround(callsign);
+        public void GoAround(string callsign)
+        {
+            Logged?.Invoke(callsign, "GO AROUND (ordered)", "");
+            engine.GoAround(callsign);
+        }
 
         public void Helipad(string callsign, double x, double y) => engine.SetHelipad(callsign, x, y);
 
@@ -219,6 +299,10 @@ namespace ATCRoom.TwrTrainer
         /// <summary>A helicopter's pad wanted, not chosen yet (HPAD?).</summary>
         public void WantPad(string callsign) => engine.WantPad(callsign);
 
-        public void Remove(string callsign) => engine.Remove(callsign);
+        public void Remove(string callsign)
+        {
+            Logged?.Invoke(callsign, "REMOVED by the instructor", "");
+            engine.Remove(callsign);
+        }
     }
 }
