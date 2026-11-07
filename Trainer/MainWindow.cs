@@ -3243,7 +3243,6 @@ namespace ATCRoom.TwrTrainer
             toPointLine.Visibility = Shown((departure || transit) && toRow.Value == From.Point);
             fromPointLine.Visibility = Shown(!runway && from == From.Point);
             viaLine.Visibility = Shown(transit);
-            bool longFinal = from == From.LongFinal;
             // (From the long final: straight on (FINAL) or the circling; the circling only from there.)
             foreach (CircuitEntry entry in Enum.GetValues<CircuitEntry>())
                 entryRow.SetEnabled(entry, longFinal ? entry is CircuitEntry.Final or CircuitEntry.Circling : entry != CircuitEntry.Circling);

@@ -2061,16 +2061,23 @@ namespace ATCRoom.Sim
                     (along, lateral) = RunwayFrame(plane.X, plane.Y, outOn);
                 }
                 double near = Width(CircuitType.Conventional, kind, outOn), wide = Width(CircuitType.Wide, kind, outOn);
-                double away = Math.Clamp(Math.Abs(lateral), Math.Min(near, wide), Math.Max(near, wide));
-                double joinAlong = -initialPoint - 1;
-                // Aside to that distance first (from the runway track: a go-around, a take-off), then out along the final.
-                if (Math.Abs(Math.Abs(lateral) - away) > 0.1) route.Add(Point(along, away, outOn, height, speed, "JOIN"));
-                route.Add(Point(joinAlong - away, away, outOn, height, speed, "JOIN"));
-                // The 45° leg's last corner before the runway track by what the turn onto it needs, so it rolls out on it.
                 double knots = Math.Max(Math.Max(30, plane.GroundSpeedKt), speed);
                 double turnRate = Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, knots));
-                double early = Math.Min(away * Math.Sqrt(2) * 0.9, knots / 3600 / (turnRate * Math.PI / 180) * Math.Tan(22.5 * Math.PI / 180) + knots / 3600 * (turnRate / TurnRateChange) / 2);
+                double turnRadius = knots / 3600 / (turnRate * Math.PI / 180);
+                double rollIn = knots / 3600 * (turnRate / TurnRateChange) / 2;
+                double early = turnRadius * Math.Tan(22.5 * Math.PI / 180) + rollIn;
+                // (Room for the 135° turn at the end of the parallel leg and the roll-out, the review of 7 Nov; never wider than the WIDE.)
+                double room = turnRadius * (1 + Math.Sqrt(0.5)) + early / Math.Sqrt(2) + 0.2;
+                double away = Math.Min(Math.Max(Math.Clamp(Math.Abs(lateral), Math.Min(near, wide), Math.Max(near, wide)), room), Math.Max(near, wide));
+                early = Math.Min(early, away * Math.Sqrt(2) * 0.9);
+                double joinAlong = -initialPoint - 1;
+                // Aside to that distance first, 45° outwards (from the runway track: a go-around, a take-off), then out along the final.
+                double aside = Math.Abs(away - Math.Abs(lateral));
+                if (aside > 0.1) route.Add(Point(along - aside, away, outOn, height, speed, "JOIN"));
+                route.Add(Point(joinAlong - away, away, outOn, height, speed, "JOIN"));
+                // The 45° leg's last corner before the runway track by what the turn onto it needs, then the IP on the track.
                 route.Add(Point(joinAlong - early / Math.Sqrt(2), early / Math.Sqrt(2), outOn, height, speed, "JOIN"));
+                route.Add(Point(-initialPoint, 0, side, height, speed, "JOIN"));
                 route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
                 return route;
             }
