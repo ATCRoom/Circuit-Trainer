@@ -2036,33 +2036,47 @@ namespace ATCRoom.Sim
             plane.Class.MaxDescentFpm * (plane.Circuit is { Type: CircuitType.Sfo, Suspended: false, Departed: false } ? 1.5 : 1);
 
         /// <summary>
-        /// Back to the initial point for a new overhead (or to the High Key for a new flame out): out on the wide downwind to
-        /// abeam a point 1 NM before the initial point, onto the runway track there, then the overhead pattern (the flame
-        /// out: at the High Key height, to the High Key).
+        /// Back to the initial point for a new overhead (or to the High Key for a new flame out). Beyond the initial point:
+        /// straight to it. Nearer the aerodrome (the user, 7 Nov): out parallel to the final on its own side, at its distance
+        /// from the runway track (at least the conventional downwind, at most the wide one), then 45° onto the runway track
+        /// 1 NM before the initial point; then the overhead pattern (the flame out: at the High Key height, to the High Key).
         /// </summary>
         private List<RoutePoint> ToInitialPoint(SimAircraft plane, CircuitSide? outSide = null)
         {
             PerformanceClass kind = plane.Class;
             CircuitSide side = plane.Circuit!.Side;
-            // (Out to the wide downwind on the side it flies, the user 5 Nov: not across the runway to the overhead's side.)
+            // (Out on the side it flies, the user 5 Nov: not across the runway to the overhead's side.)
             CircuitSide outOn = outSide ?? side;
             bool sfo = plane.Circuit.Type == CircuitType.Sfo;
-            double wide = Width(CircuitType.Wide, kind, outOn);
             double height = runwayElevation + (sfo ? kind.HighKeyFt : kind.OverheadHeightFt);
             double speed = sfo ? kind.BestGlideKt : kind.OverheadSpeedKt;
             (double along, double lateral) = RunwayFrame(plane.X, plane.Y, outOn);
             List<RoutePoint> route = [];
-            // (The user, 3 Nov: straight to the IP, then the turn towards the aerodrome, anticipated so it rolls out on the
-            // initial at the IP. Only from the runway track ahead of the IP (a go-around, a take-off) it first goes out to
-            // the wide downwind abeam where it is, not back along the runway.)
-            (double fromAlong, double fromLateral) = (along, lateral);
-            if (Math.Abs(lateral) < wide / 2 && along > -initialPoint)
+            if (along > -initialPoint)
             {
-                route.Add(Point(Math.Max(along, 0), wide, outOn, height, kind.CircuitSpeedKt, "JOIN"));
-                (fromAlong, fromLateral) = (Math.Max(along, 0), wide);
+                // (The user, 7 Nov: on the other side of the runway it stays there.)
+                if (lateral < -0.2)
+                {
+                    outOn = outOn == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left;
+                    (along, lateral) = RunwayFrame(plane.X, plane.Y, outOn);
+                }
+                double near = Width(CircuitType.Conventional, kind, outOn), wide = Width(CircuitType.Wide, kind, outOn);
+                double away = Math.Clamp(Math.Abs(lateral), Math.Min(near, wide), Math.Max(near, wide));
+                double joinAlong = -initialPoint - 1;
+                // Aside to that distance first (from the runway track: a go-around, a take-off), then out along the final.
+                if (Math.Abs(Math.Abs(lateral) - away) > 0.1) route.Add(Point(along, away, outOn, height, speed, "JOIN"));
+                route.Add(Point(joinAlong - away, away, outOn, height, speed, "JOIN"));
+                // The 45° leg's last corner before the runway track by what the turn onto it needs, so it rolls out on it.
+                double knots = Math.Max(Math.Max(30, plane.GroundSpeedKt), speed);
+                double turnRate = Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, knots));
+                double early = Math.Min(away * Math.Sqrt(2) * 0.9, knots / 3600 / (turnRate * Math.PI / 180) * Math.Tan(22.5 * Math.PI / 180) + knots / 3600 * (turnRate / TurnRateChange) / 2);
+                route.Add(Point(joinAlong - early / Math.Sqrt(2), early / Math.Sqrt(2), outOn, height, speed, "JOIN"));
+                route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
+                return route;
             }
-            // The corner on the runway track beyond the IP by what the turn onto the initial needs, so it rolls out at the IP.
-            double turn = Math.Abs(Math.Atan2(-fromLateral, -initialPoint - fromAlong) * 180 / Math.PI);
+            // (The user, 3 Nov: straight to the IP, then the turn towards the aerodrome, anticipated so it rolls out on the
+            // initial at the IP.) The corner on the runway track beyond the IP by what the turn onto the initial needs.
+            double turn = Math.Abs(Math.Atan2(-lateral, -initialPoint - along) * 180 / Math.PI);
             // (At the speed of the initial, which it flies on the way there; the roll-in on top.)
             double speedNow = Math.Max(Math.Max(30, plane.GroundSpeedKt), speed);
             double rate = Math.Min(MaxTurnRate, RateForBank(kind.CircuitBankDegrees, speedNow));

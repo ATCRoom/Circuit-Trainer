@@ -791,7 +791,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   Centre: the middle of the runway in use (the user: "dal centro dell'aeroporto (pista)"). Proposed: spacing 1 / 2 / 5 / 10
   NM in Settings › Map (per aerodrome, default 5 NM, up to 30 NM), thin and faint, the distance written small on each;
   a RINGS button on the bar of the map (kept in the settings), on at first; a spacing chosen lights it.
-- **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle) — DECIDED, to write on the go:** today, before the
+- **DCT TO IP near the aerodrome (the user, 7 Nov, picture of the triangle; "via") — WRITTEN (test 62):** today, before the
   IP and near the runway track, it goes out to the WIDE downwind abeam where it is, then diagonally to the axis. New: out
   parallel to the final on its own side, at its distance from the axis (at least the conventional downwind, at most the
   WIDE; nearer: first aside to it), down to abeam the turn-in point, then 45° onto the axis 1 NM before the IP, the initial
