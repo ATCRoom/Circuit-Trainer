@@ -818,6 +818,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   only the performance (speeds, climb, descent, bank, brake: all aerodromes); the table of the heights of this aerodrome (a row
   for each class: Conv, Wide, Close, IP, Break, HK; ALT = QNH) goes to **Settings › Circuits**, with the button Import heights.
   The file of the aerodrome does not change for this (the same fields).
+- **Tooltips and messages follow the new names and places (the user, 7 Nov: "aggiorna anche i vari tooltips"):** everything that
+  names a panel or a setting: Traffic generation / Aircraft control (the waiting plans on the map "it goes into Traffic
+  generation", the plan row "Click: change it in Traffic generation (UPDATE)", the empty list "None: Traffic generation, then
+  TO LIST", the part titles and the comments), the Quick | Advanced tabs, Settings › Aircraft (classes, default callsign / type /
+  class, Formation separation), the heights table and Import heights in Settings › Circuits, the Class row tooltip (where the
+  classes and their heights are), QNH first in every text about heights (ALT / HGT, defaults, Exit altitude), and the notes
+  in docs/. A search for every old name at the end, before the review.
 - **The aerodromes already made (the user, 7 Nov: "1"):** they follow the new defaults: the heights written stay (above the
   threshold), the empty ones become the class altitudes (QNH); nothing is written into the files by itself. The file format is
   the same; the new optional fields (callsign, ICAO type, class) are missing = SIM, none. Import from an aerodrome with no
