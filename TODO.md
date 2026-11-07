@@ -818,6 +818,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   only the performance (speeds, climb, descent, bank, brake: all aerodromes); the table of the heights of this aerodrome (a row
   for each class: Conv, Wide, Close, IP, Break, HK; ALT = QNH) goes to **Settings › Circuits**, with the button Import heights.
   The file of the aerodrome does not change for this (the same fields).
+- **The aerodromes already made (the user, 7 Nov: "1"):** they follow the new defaults: the heights written stay (above the
+  threshold), the empty ones become the class altitudes (QNH); nothing is written into the files by itself. The file format is
+  the same; the new optional fields (callsign, ICAO type, class) are missing = SIM, none. Import from an aerodrome with no
+  elevation in the file (runway not placed from runways.par): a warning "place the runways first".
 - **Import of the heights of other aerodromes — DECIDED (7 Nov): from another aerodrome of the program.** In the Aircraft classes
   window a button **Import heights...**: the list of the maps (the Maps folder), the table of the chosen aerodrome is copied into
   this one; the **altitudes stay the same** (1700 stays 1700; the heights above the runway follow this elevation). Nothing else of
