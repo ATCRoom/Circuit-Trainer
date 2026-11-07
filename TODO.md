@@ -794,7 +794,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   class, ICAO type and callsign of the aerodrome's defaults; rules VFR) — DECIDED (the user, 7 Nov):
   1. **LONG FIN**: from the long final point, on final, F/S.
   2. **Inbound IP**: starts at the long final point (as set in the Settings of the aerodrome), keeps its height to the IP, then the
-     overhead entry; F/S. (Height to the IP: the circuit height of the overhead of the aerodrome, to confirm.)
+     overhead entry; F/S. Height to the IP: the height of the initial of the class (OverheadHeightFt, 1500 ft above the threshold
+     by default, in the Aircraft classes window) — the user, 7 Nov.
   3. **Departure**: exit RWY HDG, no circuits, exit altitude 3000 ft.
   4. **Local CONV** and 5. **Local WIDE**: from the RUNWAY, one flight = a departure + an arrival: it takes off, flies a circuit
      (the conventional one / the wide one, the side of the aerodrome) and lands F/S.
