@@ -538,7 +538,9 @@ namespace ATCRoom.Sim
                 if (a.Circuit is CircuitState was)
                 {
                     // (Its ordered circuit replaced; a departure back in the circuits: it lands at the end.)
+                    // (A BREAK NOW given during the touch and go: no more, the review of 8 Nov.)
                     was.NextType = null;
+                    was.BreakNow = false;
                     if (was.Departed || was.End == EndAction.Departure)
                     {
                         was.End = was.FinalEnd == EndAction.Departure ? EndAction.FullStop : was.FinalEnd;
@@ -663,6 +665,8 @@ namespace ATCRoom.Sim
                     // Flown after the next go-around or touch and go.
                     a.Circuit!.NextType = type;
                     a.Circuit.NextSide = side;
+                    // (A BREAK NOW armed for the close pattern after it: not for another circuit.)
+                    if (type != CircuitType.Close) a.Circuit.BreakNow = false;
                     return;
                 }
                 // (Another circuit now: a height given for the old one no more.)
@@ -671,6 +675,7 @@ namespace ATCRoom.Sim
                 if (a.Circuit == null) a.Class = Here(a.Class);
                 CircuitState circuit = a.Circuit ??= new CircuitState { End = EndAction.FullStop };
                 circuit.NextType = null;
+                circuit.BreakNow = false;
                 circuit.Type = type;
                 circuit.Side = side;
                 circuit.Departed = false;

@@ -60,6 +60,7 @@ namespace ATCRoom.TwrTrainer
         private string? valueCallsign;
         private double valueSince;
         private string? headingWheel;
+        private Window? keysWindow;
         private bool updating;
 
         // The panel.
@@ -229,7 +230,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
         private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => "From the next circuit (on the ground: CONV or WIDE only): " + ChoiceTip(t));
-        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "From the next circuit: " + ChoiceTip(t));
+        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "The side: of the circuit ordered, else now (an S over the aerodrome): " + ChoiceTip(t));
         private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)), (_, t) => "At the end of this final: " + ChoiceTip(t));
         private readonly ChoiceRow<BreakPoint> selBreakRow = new(TowerCommands.Breaks.Select(b => (b.Break, b.Short)), (_, t) => ChoiceTip("break " + t));
         private readonly StackPanel selectedPanel = new();
@@ -580,7 +581,7 @@ namespace ATCRoom.TwrTrainer
 
         private void OnKeys(object sender, KeyEventArgs e)
         {
-            bool typing = Keyboard.FocusedElement is TextBox or ComboBox or ComboBoxItem or ListBoxItem or Slider or PasswordBox;
+            bool typing = Keyboard.FocusedElement is TextBox or ComboBox or ComboBoxItem or ListBoxItem or Slider or PasswordBox or System.Windows.Controls.Primitives.ToggleButton;
             // (The user, 8 Nov: F1-F6 are DCT TO of the selected aircraft; the levels: Ctrl+F1 / F2, or F1 / F2 with none selected.)
             if (e.Key is Key.F1 or Key.F2 && (Keyboard.Modifiers == ModifierKeys.Control || view.Selected == null))
             {
@@ -618,7 +619,7 @@ namespace ATCRoom.TwrTrainer
         private bool OrderKey(Key key)
         {
             bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-            if (key == Key.Space) { TogglePause(); return true; }
+            if (key == Key.Space && !shift) { TogglePause(); return true; }
             Button? button = key switch
             {
                 Key.F1 => dctButtons[0], Key.F2 => dctButtons[1], Key.F3 => dctButtons[2], Key.F4 => dctButtons[3], Key.F5 => dctButtons[4], Key.F6 => dctButtons[5],
@@ -696,7 +697,12 @@ namespace ATCRoom.TwrTrainer
                 "  Ctrl+F1 / F2   level 1 / 2 of the map (F1 / F2 with no aircraft selected)\n" +
                 "  Ctrl+S      photo of the map\n" +
                 "  F12         this list";
-            Window keys = new()
+            if (keysWindow is { IsVisible: true })
+            {
+                keysWindow.Activate();
+                return;
+            }
+            Window keys = keysWindow = new()
             {
                 Title = "TWR Trainer - keys",
                 Owner = this,
@@ -1146,6 +1152,7 @@ namespace ATCRoom.TwrTrainer
             padEndLine = Row("", Inline(padEndButton), next, 62);
             // (A formation: who lands, as LAND of the label.)
             landLine = Row("LAND", landPanel, next, 62);
+            landLine.Visibility = Visibility.Collapsed;
 
             StackPanel now = Group("3 · Now, in the circuit", "At once. Blue: where it goes; orange: what it does now (grey: not where it is).", selectedPanel);
             // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov.)
@@ -1471,7 +1478,11 @@ namespace ATCRoom.TwrTrainer
                     headingWheel = cs;
                     valueSince = clock.Elapsed.TotalSeconds;
                 }
-                else LabelWheel(cs, field, step);
+                else
+                {
+                    LabelWheel(cs, field, step);
+                    ShowSelectedValues();
+                }
             };
             box.GotKeyboardFocus += (_, _) => box.SelectAll();
             box.PreviewKeyDown += (_, e) =>
@@ -1487,9 +1498,10 @@ namespace ATCRoom.TwrTrainer
                 {
                     e.Handled = true;
                     if (view.Selected is not string cs) return;
-                    if (!double.TryParse(box.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) || v < 0)
+                    if (!double.TryParse(box.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) || v < 1
+                        || (field == "HDG" && v > 360))
                     {
-                        Say("Write a number.", Area.Selected);
+                        Say(field == "HDG" ? "Write a heading (1-360)." : "Write a number.", Area.Selected);
                         return;
                     }
                     if (field == "ALT") commands.Height(cs, Math.Clamp((v < 200 ? v * 100 : v) - HeightOffset, 100, 15000));
@@ -4381,7 +4393,9 @@ namespace ATCRoom.TwrTrainer
                 orbitButton.BorderBrush = a.OrbitForever ? Theme.Chosen : NowEdge;
                 orbitButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
                 goAroundButton.IsEnabled = leg == "FINAL";
-                sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
+                sideLeftButton.IsEnabled = sideRightButton.IsEnabled = inCircuit;
+                // (As on the label.)
+                wideButton.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit && leg is not ("MANUAL" or "GO AROUND");
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
                 splitButton.IsEnabled = a.SplitAllowed;
