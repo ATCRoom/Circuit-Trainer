@@ -871,6 +871,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   of about 180° onto the initial (no IP + 2 NM; only if the turn fits in its width). And: Aircraft control, the HDG row: "HDG [078] or drag from its symbol", REJOIN on the row
   below (under the box), not between the box and the words.
 
+- **Next group (the user, 8 Nov night) — TO DO, no build yet:**
+  - **DCT TO FINAL** (new button in DCT TO, label and panel, with a key): for an aircraft out of the circuits, in the WIDE,
+    or on its way to the IP (it changes its mind). Enabled when a 45° intercept towards the runway meets the final farther
+    out than where the base joins it (the class's base): then straight to the final is shorter than the base. On the map:
+    two lines at 45° crossing on the runway track at the base, the wedge outwards. It turns onto the final (45° or less),
+    lines up, descends on the glide path, then its END.
+  - **SPLIT always** (the user: "può avvenire sempre e comunque"): no more "not before the break of the OVH / CLS, the
+    High Key of the SFO". Split in those circuits: each one flies it on its own, one interval behind the other.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
