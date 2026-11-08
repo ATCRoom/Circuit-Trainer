@@ -2092,7 +2092,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double width = downwind.Count > 0 ? Math.Abs(Frame(downwind[^1]).Lateral) : double.NaN;
         Check(close && onFinal > 0 && widest <= before + 0.2 && width < before - 0.1 && LandedOnRunway(flown),
             "DCT TO DW CLS from the conventional downwind: onto the close downwind (narrower), no wider, then lands",
-            $"close {close}, widest {widest:F2} NM (was {before:F2}), close downwind at {width:F2} NM, final at {onFinal} s");
+            $"close {close}, widest {widest:F2} NM (was {before:F2}), close downwind at {width:F2} NM, final at {onFinal} s; "
+            + string.Join(" | ", flown.Take(Math.Max(onFinal, 1)).Where((_, i) => i % 10 == 0).Select(st => $"{st.Leg} {Frame(st).Along:F1}/{Frame(st).Lateral:F2} h{st.HeadingTrue:0}")));
         pictures.Add(("DCT TO DW CLS from the conventional downwind (Jet)", flown));
     }
 
