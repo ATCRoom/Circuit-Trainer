@@ -2043,9 +2043,9 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         SimEngine sim = NewCircuitEngine();
         string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Jet");
         sim.SetBreak(cs, BreakPoint.Standby);
-        bool rolled = false, lifted = false, broke = false, gaveNow = false;
+        bool rolled = false, lifted = false, turned = false, gaveNow = false;
         double liftAt = double.NaN, turnAt = double.NaN, widestBefore = 0, alongAtNow = double.NaN;
-        for (int t = 0; t < 900 && !broke; t++)
+        for (int t = 0; t < 900 && !turned; t++)
         {
             sim.RunFor(1);
             if (sim.Get(cs) is not AircraftState st) break;
@@ -2064,14 +2064,14 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
                 continue;
             }
             if (!gaveNow) widestBefore = Math.Max(widestBefore, Math.Abs(lateral));
-            if (gaveNow && Math.Abs(lateral) > 0.5) { broke = true; turnAt = t; }
+            if (gaveNow && Math.Abs(lateral) > 0.5) { turned = true; turnAt = t; }
         }
         if (!armed)
-            Check(lifted && widestBefore < 0.3 && alongAtNow > CircuitLength + 2 && broke && turnAt - liftAt < 90 + 60,
+            Check(lifted && widestBefore < 0.3 && alongAtNow > CircuitLength + 2 && turned && turnAt - liftAt < 90 + 60,
                 "STBY after a touch and go: on along the runway track until BREAK NOW, then it turns to its downwind",
                 $"lifted {lifted}, widest before {widestBefore:F2} NM, {alongAtNow:F1} NM out at BREAK NOW, turned {turnAt - liftAt - 90:F0} s after it");
         else
-            Check(gaveNow && lifted && broke && turnAt - liftAt < 75,
+            Check(gaveNow && lifted && turned && turnAt - liftAt < 75,
                 "BREAK NOW during the touch and go: kept, it turns to its downwind soon after the lift-off (above 400 ft)",
                 $"given {gaveNow}, lifted {lifted}, turned {turnAt - liftAt:F0} s after the lift-off");
     }
