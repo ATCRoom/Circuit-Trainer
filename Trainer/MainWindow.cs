@@ -2743,7 +2743,7 @@ namespace ATCRoom.TwrTrainer
             {
                 if (!aurora.Connected && !await aurora.TryConnect())
                 {
-                    networkCallsign = "";
+                    networkCallsign = networkVid = vidFor = "";
                     view.Network = [];
                     flightLog.ObserveNetwork([], engine.Time);
                     flightLog.SetNetwork(false, "", engine.Time);
@@ -3133,6 +3133,8 @@ namespace ATCRoom.TwrTrainer
             {
                 Say($"{PlanText(plan)}: {error}", Area.Traffic);
                 plan.Now = TowerPlan.State.Held;
+                // (Let go: tried again at once, the review of 8 Nov.)
+                plan.HeldLeft = 0;
             }
             else
             {

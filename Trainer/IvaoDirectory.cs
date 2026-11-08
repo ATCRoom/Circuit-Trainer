@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -21,8 +22,10 @@ namespace ATCRoom.TwrTrainer
             {
                 using HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("TWRTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
-                await using Stream body = await http.GetStreamAsync(Address);
-                using JsonDocument json = await JsonDocument.ParseAsync(body);
+                // (The whole answer within 15 s, not only its start: a stuck download would stop the IVAO traffic.)
+                using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
+                await using Stream body = await http.GetStreamAsync(Address, cts.Token);
+                using JsonDocument json = await JsonDocument.ParseAsync(body, cancellationToken: cts.Token);
                 if (!json.RootElement.TryGetProperty("clients", out JsonElement clients) || clients.ValueKind != JsonValueKind.Object) return null;
                 foreach (JsonProperty group in clients.EnumerateObject())
                 {
