@@ -487,7 +487,7 @@ namespace ATCRoom.Sim
         /// circuit and side it flies: nothing changes. Not in a circuit (arriving, flown by the instructor): it joins it now.
         /// </summary>
         public void SetNextCircuit(string callsign, CircuitType type, CircuitSide side) =>
-            Instruct(callsign, Kind.Heading, a =>
+            Instruct(callsign, Kind.Plan, a =>
             {
                 if (a.Circuit is { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit && a.Contact is GroundContact.Airborne or GroundContact.Rolling)
                 {
@@ -508,7 +508,7 @@ namespace ATCRoom.Sim
         /// on the way to the High Key) the side of this circuit too: it is not flown yet.
         /// </summary>
         public void SetNextSide(string callsign, CircuitSide side) =>
-            Instruct(callsign, Kind.Heading, a =>
+            Instruct(callsign, Kind.Plan, a =>
             {
                 if (a.Circuit is not { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit) return;
                 if (a.Contact == GroundContact.Airborne && SideNotFlown(a))
@@ -523,7 +523,7 @@ namespace ATCRoom.Sim
         /// <summary>
         /// Instruction CHG SIDE (the user, 8 Nov): this circuit now on the other side: an S over the aerodrome to the other
         /// downwind (before the turn of its circuit: that turn to the other side). The next circuit ordered stays as it is.
-        /// On the final (and the base, rolling): it goes on and, after it, flies on the other side, as L / R.
+        /// On the final (the base, the SFO's low key): it goes on and, after it, flies on the other side, as L / R.
         /// </summary>
         public void ChangeSideNow(string callsign) =>
             Instruct(callsign, Kind.Heading, a =>
@@ -531,7 +531,7 @@ namespace ATCRoom.Sim
                 if (a.Circuit is not { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit) return;
                 CircuitSide other = circuit.Side == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left;
                 RoutePoint? target = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext] : null;
-                if (a.Contact != GroundContact.Airborne || circuit.OnFinal || target == null || target.Name is "BASE" or "FINAL")
+                if (a.Contact != GroundContact.Airborne || circuit.OnFinal || target == null || target.Name is "BASE" or "FINAL" or "LOW KEY")
                 {
                     NextSideOf(circuit, other);
                     return;
@@ -554,12 +554,13 @@ namespace ATCRoom.Sim
         private static bool SideNotFlown(SimAircraft a)
         {
             RoutePoint? target = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext] : null;
-            return a.Circuit!.Spiral || target?.Name is "UPWIND" or "GO AROUND" or "INITIAL" or "HIGH KEY" or "CLIMB" or "JOIN" or "CIRCLING";
+            return a.Circuit!.Spiral || target?.Name is "UPWIND" or "GO AROUND" or "INITIAL" or "HIGH KEY" or "JOIN" or "CIRCLING";
         }
 
         /// <summary>This circuit on the other side now (see <see cref="ChangeSide"/>); the next circuit ordered kept.</summary>
         private void MoveSide(SimAircraft a, CircuitSide side)
         {
+            EndOrbit(a);
             CircuitState circuit = a.Circuit!;
             (CircuitType? nextType, CircuitSide nextSide) = (circuit.NextType, circuit.NextSide);
             if (!ChangeSide(a, side, onFinal: false)) FlyCircuitNow(a, circuit.Type, side, now: true);

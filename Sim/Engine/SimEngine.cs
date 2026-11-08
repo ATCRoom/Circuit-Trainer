@@ -74,7 +74,8 @@ namespace ATCRoom.Sim
         public const double LandedRemoveAfter = 5;
 
         /// <summary>Kinds of pilot instructions: a new one replaces the one of the same kind still waiting.</summary>
-        private enum Kind { Heading, Vertical, Speed, Formation }
+        // (Plan: the next circuit and its side, the review of 8 Nov: they never cancel one another, nor are cancelled.)
+        private enum Kind { Heading, Vertical, Speed, Formation, Plan }
 
         private sealed record Pending(string Callsign, Kind Kind, long DueStep, Action<SimAircraft> Change);
 
@@ -667,7 +668,7 @@ namespace ATCRoom.Sim
         {
             lock (sync)
             {
-                pending.RemoveAll(p => Same(p.Callsign, callsign) && p.Kind == kind);
+                pending.RemoveAll(p => kind != Kind.Plan && Same(p.Callsign, callsign) && p.Kind == kind);
                 pending.Add(new Pending(callsign, kind, steps + (long)Math.Ceiling(reaction / Step - 1e-9), change));
             }
         }

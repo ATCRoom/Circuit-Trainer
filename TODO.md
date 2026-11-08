@@ -863,7 +863,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     initial before the break, to the High Key) this one too. The label and the panel show the side of the next circuit.
   - CHG SIDE (red, key C; label and panel; SIDE NOW L / R and Shift+← / → gone): this circuit now on the other side (an S
     over the aerodrome; on the initial / upwind: the turn to the other side); the next circuit ordered stays. On the
-    final (base, rolling): it goes on, then the other side (as L / R).
+    final (base, SFO low key): it goes on, then the other side (as L / R). Not on the ground.
   - DCT TO and NOW in columns, 4 a row (label and panel). Red: G/A, CHG SIDE, BREAKUP (the row below); ORB orange. The
     FORMATION row gone (SPLIT among the orange ones). EXP TAXI on the red row, last column (it is orange).
 

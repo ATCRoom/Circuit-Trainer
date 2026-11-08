@@ -1123,7 +1123,7 @@ namespace ATCRoom.TwrTrainer
             ValueBox(speedKtBox, "SPD");
             ValueBox(headingBox, "HDG");
 
-            StackPanel next = Group("2 · Next circuit", "PATTERN, BREAK: from the next touch and go or go-around. SIDE: now (or of the circuit ordered). END: the end of this final.", selectedPanel);
+            StackPanel next = Group("2 · Next circuit", "PATTERN, SIDE (L / R), BREAK: the next circuit, from the next touch and go or go-around. END: the end of this final.", selectedPanel);
             Row("PATTERN", selCircuitRow, next, 62);
             // Another circuit: its side at this runway (then L / R to change it). Both from the next circuit.
             selCircuitRow.Picked += type => WithSelected(cs =>
@@ -1154,7 +1154,7 @@ namespace ATCRoom.TwrTrainer
             landLine = Row("LAND", landPanel, next, 62);
             landLine.Visibility = Visibility.Collapsed;
 
-            StackPanel now = Group("3 · Now, in the circuit", "At once. Blue: where it goes; orange: what it does now (grey: not where it is).", selectedPanel);
+            StackPanel now = Group("3 · Now, in the circuit", "At once. Blue: where it goes; orange: what it does now; red: the urgent ones (grey: not where it is).", selectedPanel);
             // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov.)
             dctButtons = [Keyed("DW CONV", "F1", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Keyed("DW CLS", "F2", cs => commands.DirectTo(cs, DirectPoint.CloseDownwind)),
                 Keyed("BASE CONV", "F3", cs => commands.DirectTo(cs, DirectPoint.Base)), Keyed("BASE CLS", "F4", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
