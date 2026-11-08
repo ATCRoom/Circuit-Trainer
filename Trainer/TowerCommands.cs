@@ -137,7 +137,8 @@ namespace ATCRoom.TwrTrainer
         {
             Logged?.Invoke(callsign, "DCT TO", point switch
             {
-                DirectPoint.Downwind => "DW",
+                DirectPoint.Downwind => "DW CONV",
+                DirectPoint.CloseDownwind => "DW CLS",
                 DirectPoint.Base => "BASE CONV",
                 DirectPoint.CloseBase => "BASE CLS",
                 DirectPoint.InitialPoint => "IP",
@@ -148,6 +149,7 @@ namespace ATCRoom.TwrTrainer
         {
             DirectPoint.InitialPoint => CircuitType.Overhead,
             DirectPoint.HighKey => CircuitType.Sfo,
+            DirectPoint.CloseBase or DirectPoint.CloseDownwind => CircuitType.Close,
             _ => CircuitType.Conventional
         }));
         }

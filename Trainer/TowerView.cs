@@ -121,6 +121,8 @@ namespace ATCRoom.TwrTrainer
         public double? PendingSpeedKt { get; set; }
         /// <summary>The speeds offered under the label's speed field for an aircraft (its class), set by the window.</summary>
         public Func<AircraftState, IReadOnlyList<double>>? SpeedChoices { get; set; }
+        /// <summary>BREAK NOW can be given now (also during the touch and go before a close pattern).</summary>
+        public Func<string, bool>? CanBreakNow { get; set; }
         /// <summary>The heights offered under the label's height field (ft above the field).</summary>
         public static readonly double[] HeightChoices = [500, 700, 1000, 1500, 2000, 2500, 3000];
 
@@ -696,11 +698,15 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>How a piece of the selected label is drawn (the user, 4 Nov: as in the panel, yellow = chosen now).</summary>
-        private enum Look { Text, Tag, Option, On, Command, Off, Thick }
+        private enum Look { Text, Tag, Option, On, Command, Off, Thick, Now }
 
         private static readonly Brush OnText = Frozen(new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)));
         private static readonly Brush CommandBack = Frozen(new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x8F)));
         private static readonly Brush CommandEdge = Frozen(new SolidColorBrush(Color.FromRgb(0x5D, 0x9A, 0xC0)));
+        // (The user, 8 Nov: the orders of NOW orange, not to mix them up with DCT TO.)
+        private static readonly Brush NowBack = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)));
+        private static readonly Brush NowEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)));
+        private static readonly Brush NowText = Frozen(new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD)));
         private static readonly Brush OffText = Frozen(new SolidColorBrush(Color.FromRgb(0x5F, 0x6B, 0x75)));
         private static readonly Brush OffEdge = Frozen(new SolidColorBrush(Color.FromRgb(0x3B, 0x46, 0x4F)));
 
@@ -725,7 +731,7 @@ namespace ATCRoom.TwrTrainer
             {
                 // On the runway: its speed, EXPEDITE TAXI.
                 rows.Add([("", "SPEED", Look.Tag), ("", $"{Math.Round(a.GroundSpeedKt):000}", Look.Option)]);
-                now.Add(("EXPTAXI", "EXP TAXI", a.ExpediteTaxi ? Look.On : Look.Command));
+                now.Add(("EXPTAXI", "EXP TAXI", a.ExpediteTaxi ? Look.On : Look.Now));
             }
             else
             {
@@ -759,26 +765,32 @@ namespace ATCRoom.TwrTrainer
                         .. (a.CanHover ? [("PAD=END", a.WantsPad && !a.HasPad ? "HPAD?" : "HPAD", a.HasPad || a.WantsPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
-                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE CONV", Look.Command), ("DCT=CloseBase", "BASE CLS", Look.Command),
+                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW CONV", Look.Command), ("DCT=CloseDownwind", "DW CLS", Look.Command),
+                        ("DCT=Base", "BASE CONV", Look.Command), ("DCT=CloseBase", "BASE CLS", Look.Command),
                         ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command),
                         .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())]);
                     // The orders of where it is now.
-                    if ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")) now.Add(("BREAKNOW", "BREAK NOW", Look.Command));
-                    if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Command) : ("HOLD", "HOLD", Look.Command));
+                    // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
+                    if (CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")))
+                        now.Add(("BREAKNOW", "BREAK NOW", Look.Now));
+                    if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Now) : ("HOLD", "HOLD", Look.Now));
                     if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
-                    now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Command : Look.Off));
-                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Command : Look.Off));
+                    now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Now : Look.Off));
+                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Now : Look.Off));
                     bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
-                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Command : Look.Off));
-                    now.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Command : Look.Off));
+                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Now : Look.Off));
+                    now.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Now : Look.Off));
+                    // (The user, 8 Nov: WIDE NOW on the label too; BREAKUP where it can be given.)
+                    now.Add(("WIDENOW", "WIDE NOW", airborne && !manual ? Look.Now : Look.Off));
+                    if (a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE") now.Add(("BREAKUP", "BREAKUP", Look.Now));
                 }
                 else
                 {
                     // Crossing, or not in a circuit: its orbits, back onto its way.
-                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", a.Leg == "TRANSIT" ? Look.Command : Look.Off));
+                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", a.Leg == "TRANSIT" ? Look.Now : Look.Off));
                     now.Add(("REJOIN", "REJOIN", a.Leg is "MANUAL" or "" ? Look.Command : Look.Off));
                 }
-                if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Command : Look.Off));
+                if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
             }
             const double pad = 6, gap = 4, lineGap = 4, tagWidth = 50;
             FormattedText Text(string text, Look look, double size = 12) => new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, look == Look.Tag ? 10 : size,
@@ -786,7 +798,8 @@ namespace ATCRoom.TwrTrainer
                 {
                     Look.Tag => GroundBrush,
                     Look.On => OnText,
-                    Look.Command or Look.Thick => Brushes.White,
+                    Look.Command => Brushes.White,
+                    Look.Now or Look.Thick => NowText,
                     Look.Off => OffText,
                     Look.Text => SelectedBrush,
                     _ => AircraftBrush
@@ -826,11 +839,12 @@ namespace ATCRoom.TwrTrainer
                             dc.DrawText(text, new Point(left, y + (rowHeight - text.Height) / 2));
                             break;
                         default:
-                            Brush? fill = look switch { Look.On => SelectedBrush, Look.Command or Look.Thick => CommandBack, _ => null };
+                            Brush? fill = look switch { Look.On => SelectedBrush, Look.Command => CommandBack, Look.Now or Look.Thick => NowBack, _ => null };
                             Pen edge = look switch
                             {
                                 Look.On => new Pen(SelectedBrush, 1),
                                 Look.Command => new Pen(CommandEdge, 1),
+                                Look.Now => new Pen(NowEdge, 1),
                                 Look.Thick => new Pen(SelectedBrush, 2.5),
                                 Look.Off => new Pen(OffEdge, 1),
                                 _ => new Pen(GroundBrush, 0.8)

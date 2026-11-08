@@ -2036,6 +2036,66 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO BASE CLS from the conventional downwind (Jet)", flown));
     }
 
+    // 64. STBY for break after a touch and go (the user, 8 Nov): on along the runway track until BREAK NOW, then it turns
+    // to its downwind. 65. BREAK NOW given while it rolls (the touch and go): kept, it turns as soon as it is above 400 ft.
+    foreach (bool armed in new[] { false, true })
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Close, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Jet");
+        sim.SetBreak(cs, BreakPoint.Standby);
+        bool rolled = false, lifted = false, broke = false, gaveNow = false;
+        double liftAt = double.NaN, turnAt = double.NaN, widestBefore = 0, alongAtNow = double.NaN;
+        for (int t = 0; t < 900 && !broke; t++)
+        {
+            sim.RunFor(1);
+            if (sim.Get(cs) is not AircraftState st) break;
+            (double along, double lateral) = Frame(st);
+            if (st.Contact == GroundContact.Rolling) rolled = true;
+            if (armed && rolled && !gaveNow && st.Contact == GroundContact.Rolling) { sim.BreakNow(cs); gaveNow = true; }
+            if (rolled && !lifted && st.Contact == GroundContact.Airborne) { lifted = true; liftAt = t; }
+            if (!lifted) continue;
+            if (!armed && !gaveNow && t - liftAt >= 90)
+            {
+                // (Ninety seconds on standby: still on the runway track; then BREAK NOW.)
+                widestBefore = Math.Max(widestBefore, Math.Abs(lateral));
+                alongAtNow = along;
+                sim.BreakNow(cs);
+                gaveNow = true;
+                continue;
+            }
+            if (!gaveNow) widestBefore = Math.Max(widestBefore, Math.Abs(lateral));
+            if (gaveNow && Math.Abs(lateral) > 0.5) { broke = true; turnAt = t; }
+        }
+        if (!armed)
+            Check(lifted && widestBefore < 0.3 && alongAtNow > CircuitLength + 2 && broke && turnAt - liftAt < 90 + 60,
+                "STBY after a touch and go: on along the runway track until BREAK NOW, then it turns to its downwind",
+                $"lifted {lifted}, widest before {widestBefore:F2} NM, {alongAtNow:F1} NM out at BREAK NOW, turned {turnAt - liftAt - 90:F0} s after it");
+        else
+            Check(gaveNow && lifted && broke && turnAt - liftAt < 75,
+                "BREAK NOW during the touch and go: kept, it turns to its downwind soon after the lift-off (above 400 ft)",
+                $"given {gaveNow}, lifted {lifted}, turned {turnAt - liftAt:F0} s after the lift-off");
+    }
+
+    // 66. DCT TO DW CLS (the user, 8 Nov): from the conventional downwind onto the downwind of the close pattern (narrower),
+    // no wider than it was, then lands.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sim.RunFor(10);
+        double before = Math.Abs(Frame(sim.Get(cs)!).Lateral);
+        sim.DirectTo(cs, DirectPoint.CloseDownwind, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        bool close = flown.Count > 0 && flown[0].Circuit == CircuitType.Close;
+        int onFinal = flown.FindIndex(st => st.Leg == "FINAL");
+        double widest = onFinal > 0 ? flown.Take(onFinal).Max(st => Math.Abs(Frame(st).Lateral)) : double.NaN;
+        List<AircraftState> downwind = flown.Where(st => st.Leg == "DOWNWIND").ToList();
+        double width = downwind.Count > 0 ? Math.Abs(Frame(downwind[^1]).Lateral) : double.NaN;
+        Check(close && onFinal > 0 && widest <= before + 0.2 && width < before - 0.1 && LandedOnRunway(flown),
+            "DCT TO DW CLS from the conventional downwind: onto the close downwind (narrower), no wider, then lands",
+            $"close {close}, widest {widest:F2} NM (was {before:F2}), close downwind at {width:F2} NM, final at {onFinal} s");
+        pictures.Add(("DCT TO DW CLS from the conventional downwind (Jet)", flown));
+    }
+
     // 52. DCT TO BASE on the way to the final, out on the circuit side (the user, 5 Nov: it went far up and back): straight
     // to the start of the base, never past the threshold before the base, lands.
     {

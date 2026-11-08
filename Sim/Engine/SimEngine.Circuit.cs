@@ -29,7 +29,7 @@ namespace ATCRoom.Sim
 
     /// <summary>Where DCT TO sends an aircraft in flight at once (the user, 5 Nov): the conventional downwind, its base, the initial point, the High Key.</summary>
     /// <summary>Where DCT TO goes; CloseBase (the user, 8 Nov): the base of the close pattern, narrower than the conventional.</summary>
-    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey, CloseBase }
+    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey, CloseBase, CloseDownwind }
 
     /// <summary>Where the overhead pattern breaks.</summary>
     public enum BreakPoint
@@ -556,7 +556,7 @@ namespace ATCRoom.Sim
                 {
                     DirectPoint.InitialPoint => CircuitType.Overhead,
                     DirectPoint.HighKey => CircuitType.Sfo,
-                    DirectPoint.CloseBase => CircuitType.Close,
+                    DirectPoint.CloseBase or DirectPoint.CloseDownwind => CircuitType.Close,
                     _ => CircuitType.Conventional
                 };
                 FlyCircuitNow(a, type, side, now: true);
@@ -843,15 +843,44 @@ namespace ATCRoom.Sim
             a.Circuit.BreakNow = false;
         });
 
-        /// <summary>Instruction "break now" (after "standby for break", or to break earlier): on the initial, it breaks at once.</summary>
+        /// <summary>
+        /// Instruction "break now" (after "standby for break", or to break earlier): on the initial, it breaks at once. During
+        /// a touch and go, a low approach or a low pass with the close pattern after it (the user, 8 Nov): kept, it turns to
+        /// its downwind as soon as it is above 400 ft on the upwind.
+        /// </summary>
         public void BreakNow(string callsign) =>
             Instruct(callsign, Kind.Heading, a =>
             {
+                if (a.Circuit is not CircuitState circuit) return;
                 // Only on the initial (else it would break at once on the next initial).
                 // (The close pattern: on its upwind, the user 5 Nov.)
-                if (a.Circuit != null && a.Route != null && a.RouteNext < a.Route.Count
-                    && (a.Route[a.RouteNext].Name == "INITIAL" || (a.Circuit.Type == CircuitType.Close && a.Route[a.RouteNext].Name is "UPWIND" or "GO AROUND"))) a.Circuit.BreakNow = true;
+                if (a.Route != null && a.RouteNext < a.Route.Count
+                    && (a.Route[a.RouteNext].Name == "INITIAL" || (circuit.Type == CircuitType.Close && a.Route[a.RouteNext].Name is "UPWIND" or "GO AROUND"))) circuit.BreakNow = true;
+                else if (BreakNowArmable(a)) circuit.BreakNow = true;
             });
+
+        /// <summary>
+        /// "Break now" given before the upwind (the user, 8 Nov): on the final not to a full stop, or rolling on the runway
+        /// (a touch and go), with the close pattern after it (the overhead and the SFO go on as it, unless another is ordered).
+        /// </summary>
+        private static bool BreakNowArmable(SimAircraft a)
+        {
+            if (a.Circuit is not CircuitState circuit) return false;
+            bool beforeUpwind = a.Contact == GroundContact.Rolling || (circuit.OnFinal && circuit.End != EndAction.FullStop && a.Contact == GroundContact.Airborne);
+            CircuitType after = circuit.NextType ?? (circuit.Type is CircuitType.Overhead or CircuitType.Sfo ? CircuitType.Close : circuit.Type);
+            return beforeUpwind && after == CircuitType.Close;
+        }
+
+        /// <summary>"Break now" can be given now (for the buttons): on the initial, on the close upwind, or before it (a touch and go...).</summary>
+        public bool CanBreakNow(string callsign)
+        {
+            lock (sync)
+            {
+                if (Find(callsign) is not SimAircraft a || a.Circuit is not CircuitState circuit) return false;
+                string next = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext].Name : "";
+                return next == "INITIAL" || (circuit.Type == CircuitType.Close && next is "UPWIND" or "GO AROUND") || BreakNowArmable(a);
+            }
+        }
 
         /// <summary>
         /// Instruction: one orbit (a 360° turn) where it is, then on along its circuit from there (on the downwind: to make room

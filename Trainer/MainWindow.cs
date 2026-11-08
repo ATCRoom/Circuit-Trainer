@@ -59,6 +59,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The height or the speed chosen with the wheel on the label: of this aircraft, since this time.</summary>
         private string? valueCallsign;
         private double valueSince;
+        private string? headingWheel;
         private bool updating;
 
         // The panel.
@@ -70,7 +71,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The side of each group of circuits at the runway in use: conventional and wide, jet (overhead, close), SFO.</summary>
         private readonly ChoiceRow<CircuitSide> conventionalSideRow = SideRow("conventional and wide circuits"), jetSideRow = SideRow("jet circuits (overhead, close)"), sfoSideRow = SideRow("SFO");
         /// <summary>The bar on the map (the user, 4 Nov): the controls of the lesson, always in sight.</summary>
-        private readonly ChoiceRow<int> levelRow = new([(1, "L1"), (2, "L2")], (n, _) => n == 1 ? "Level 1 (F1): the aerodrome and its circuits." : "Level 2 (F2): the wide area, the IP and the long final.");
+        private readonly ChoiceRow<int> levelRow = new([(1, "L1"), (2, "L2")], (n, _) => n == 1 ? "Level 1 (Ctrl+F1): the aerodrome and its circuits." : "Level 2 (Ctrl+F2): the wide area, the IP and the long final.");
         /// <summary>The summaries of the closed sections of Settings.</summary>
         private readonly TextBlock gatesSummary = SectionSummary(), weatherSummary = SectionSummary(), circuitsSummary = SectionSummary(), mapSummary = SectionSummary();
         private readonly TextBox newRunwayName = new() { Width = 50 };
@@ -209,9 +210,13 @@ namespace ATCRoom.TwrTrainer
         private Grid selBreakGrid = null!, selBreakPointGrid = null!;
         private Button[] dctButtons = [];
         private Button padEndButton = null!, padNowButton = null!;
+        // (Aircraft control, the user 8 Nov: the box and its presets on one row; who lands of a formation.)
+        private readonly WrapPanel altPresets = new(), speedPresets = new(), landPanel = new();
+        private Grid landLine = null!;
+        private string presetsFor = "";
         private Grid padEndLine = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
-            orbitForeverButton = null!, goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
+            goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
         private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => ChoiceTip(t));
         private ChoiceRow<string> classRow = new([]);
@@ -416,6 +421,7 @@ namespace ATCRoom.TwrTrainer
             view.FieldClicked += LabelField;
             view.FieldWheel += LabelWheel;
             view.SpeedChoices = SpeedChoices;
+            view.CanBreakNow = engine.CanBreakNow;
             view.MenuAsked += callsign => OpenMenu(Menu(callsign));
             view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back).", Area.Selected); };
             Loaded += (_, _) => Start();
@@ -495,6 +501,12 @@ namespace ATCRoom.TwrTrainer
                 }
                 pendingCallsign = null;
             }
+            if (headingWheel != null && now - valueSince > 0.6)
+            {
+                // The wheel on the HDG box stopped: that heading (out of its circuit).
+                if (headingWheel == view.Selected && double.TryParse(headingBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double hdg)) commands.Heading(headingWheel, hdg % 360);
+                headingWheel = null;
+            }
             if ((view.PendingHeightFt != null || view.PendingSpeedKt != null) && now - valueSince > 0.6)
             {
                 // The wheel stopped: the height or the speed chosen is ordered.
@@ -568,8 +580,15 @@ namespace ATCRoom.TwrTrainer
 
         private void OnKeys(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F1) { GoLevel(1); e.Handled = true; }
-            else if (e.Key == Key.F2) { GoLevel(2); e.Handled = true; }
+            bool typing = Keyboard.FocusedElement is TextBox or ComboBox or ComboBoxItem or ListBoxItem or Slider or PasswordBox;
+            // (The user, 8 Nov: F1-F6 are DCT TO of the selected aircraft; the levels: Ctrl+F1 / F2, or F1 / F2 with none selected.)
+            if (e.Key is Key.F1 or Key.F2 && (Keyboard.Modifiers == ModifierKeys.Control || view.Selected == null))
+            {
+                GoLevel(e.Key == Key.F1 ? 1 : 2);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F12) { ShowKeys(); e.Handled = true; }
+            else if (!typing && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0 && OrderKey(e.Key == Key.System ? e.SystemKey : e.Key)) e.Handled = true;
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
             else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
             // (The user, 7 Nov: Tab the next aircraft, Shift+Tab the one before; in a text box Tab stays the next box.)
@@ -590,6 +609,105 @@ namespace ATCRoom.TwrTrainer
                 SelectNext((Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
                 e.Handled = true;
             }
+        }
+
+        /// <summary>
+        /// The keys of the orders (the user, 8 Nov): fixed, on the selected aircraft, as its buttons (only when they can be given).
+        /// False: not a key of an order.
+        /// </summary>
+        private bool OrderKey(Key key)
+        {
+            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            if (key == Key.Space) { TogglePause(); return true; }
+            Button? button = key switch
+            {
+                Key.F1 => dctButtons[0], Key.F2 => dctButtons[1], Key.F3 => dctButtons[2], Key.F4 => dctButtons[3], Key.F5 => dctButtons[4], Key.F6 => dctButtons[5],
+                Key.B => breakNowButton, Key.E => extendButton, Key.N => baseButton, Key.O => orbitButton, Key.G => goAroundButton,
+                Key.W => wideButton, Key.H => holdButton, Key.S => startSfoButton, Key.U => shift ? breakupButton : splitButton,
+                Key.X => expTaxiButton, Key.R => rejoinButton,
+                _ => null
+            };
+            if (button != null)
+            {
+                if (view.Selected == null) return false;
+                ShowSelectedValues();
+                if (button.IsEnabled) button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                else Say($"{KeyName(key, shift)}: not now for {view.Selected}.", Area.Selected);
+                return true;
+            }
+            if (view.Selected is not string cs || engine.Get(cs) is not AircraftState a) return false;
+            int pattern = key switch { Key.D1 or Key.NumPad1 => 1, Key.D2 or Key.NumPad2 => 2, Key.D3 or Key.NumPad3 => 3, Key.D4 or Key.NumPad4 => 4, Key.D5 or Key.NumPad5 => 5, _ => 0 };
+            if (pattern > 0 && !shift)
+            {
+                CircuitType type = new[] { CircuitType.Conventional, CircuitType.Close, CircuitType.Wide, CircuitType.Overhead, CircuitType.Sfo }[pattern - 1];
+                // (On the ground and taking off: the conventional or the wide, as its buttons.)
+                if (a.Contact == GroundContact.Airborne || type is CircuitType.Conventional or CircuitType.Wide) LabelField(cs, $"CIRC={type}");
+                else Say($"{TowerCommands.Circuits.First(c => c.Type == type).Short}: once it flies.", Area.Selected);
+                return true;
+            }
+            EndAction? end = key switch { Key.F => EndAction.FullStop, Key.T => EndAction.TouchAndGo, Key.A => EndAction.GoAround, Key.P => EndAction.LowPass, Key.D => EndAction.Departure, _ => null };
+            if (end is EndAction chosenEnd && !shift) { LabelField(cs, $"NEXT={chosenEnd}"); return true; }
+            if (key == Key.Delete && !shift) { RemoveAsked(cs); return true; }
+            TextBox? box = key switch { Key.L => heightBox, Key.K => speedKtBox, Key.V => headingBox, _ => null };
+            if (box != null && !shift)
+            {
+                if (!box.IsVisible) return false;
+                box.Focus();
+                Keyboard.Focus(box);
+                box.SelectAll();
+                return true;
+            }
+            return false;
+        }
+
+        private static string KeyName(Key key, bool shift) => (shift ? "Shift+" : "") + key switch { Key.F1 or Key.F2 or Key.F3 or Key.F4 or Key.F5 or Key.F6 => key.ToString(), _ => key.ToString().ToUpperInvariant() };
+
+        /// <summary>F12: the list of the keys (the user, 8 Nov).</summary>
+        private void ShowKeys()
+        {
+            const string text =
+                "On the selected aircraft (not while writing in a box):\n\n" +
+                "NEXT CIRCUIT\n" +
+                "  1 2 3 4 5   pattern CONV, CLS, WIDE, OVH, SFO\n" +
+                "  ← →         side (of the circuit ordered, or now)\n" +
+                "  F T A P D   end: F/S, T/G, L/A, L/P, DEP\n\n" +
+                "DCT TO\n" +
+                "  F1 F2       DW CONV, DW CLS\n" +
+                "  F3 F4       BASE CONV, BASE CLS\n" +
+                "  F5 F6       IP, HK\n\n" +
+                "NOW\n" +
+                "  Shift+← →   side now L, R\n" +
+                "  B           break now\n" +
+                "  E           extend downwind\n" +
+                "  N           base now\n" +
+                "  O           orbit (Shift+O: on and on; orbiting on and on: go on)\n" +
+                "  G           go around\n" +
+                "  W           wide now\n" +
+                "  H / S       hold at the High Key / start SFO\n" +
+                "  X           expedite taxi\n" +
+                "  U / Shift+U split / breakup\n" +
+                "  R           rejoin its circuit\n" +
+                "  Del         remove (asked first)\n\n" +
+                "VALUES\n" +
+                "  L / K / V   to the altitude / speed / heading box (type + Enter, Esc: back)\n\n" +
+                "OTHERS\n" +
+                "  Tab / Shift+Tab   next / previous aircraft\n" +
+                "  Space       run / pause\n" +
+                "  Ctrl+F1 / F2   level 1 / 2 of the map (F1 / F2 with no aircraft selected)\n" +
+                "  Ctrl+S      photo of the map\n" +
+                "  F12         this list";
+            Window keys = new()
+            {
+                Title = "TWR Trainer - keys",
+                Owner = this,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = Theme.Panel,
+                Content = new TextBlock { Text = text, FontFamily = new FontFamily("Consolas"), FontSize = 13, Foreground = TextBrush, Margin = new Thickness(16) }
+            };
+            keys.KeyDown += (_, k) => { if (k.Key is Key.Escape or Key.F12) keys.Close(); };
+            keys.Show();
         }
 
         /// <summary>The next (or the one before) aircraft selected, in the order of FLYING; none selected: the first one.</summary>
@@ -649,9 +767,6 @@ namespace ATCRoom.TwrTrainer
             initialPointBox.ToolTip = "Distance of the initial point before the threshold (NM).";
             callsignBox.ToolTip = "Empty: the next free callsign of the aerodrome's prefix (Settings › Aircraft).";
             delayBox.ToolTip = "For the Traffic List: minutes after START ALL.";
-            headingBox.ToolTip = "Heading (degrees true) for GO.";
-            heightBox.ToolTip = "Altitude (ft, QNH) for GO.";
-            speedKtBox.ToolTip = "Speed (kt) for GO.";
             current.Children.Add(mapText);
             Buttons(("Open map...", ChooseMap));
             Row("Runway in use", runwayHolder);
@@ -679,7 +794,7 @@ namespace ATCRoom.TwrTrainer
                 // (What is typed already, in the new reference: the same height.)
                 double before = HeightOffset;
                 airfield.Circuits.Qfe = qfe;
-                foreach (TextBox box in new[] { arrivalBox, hkBox, heightBox, exitAltBox })
+                foreach (TextBox box in new[] { arrivalBox, hkBox, exitAltBox })
                     if (double.TryParse(box.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double typed))
                         box.Text = Math.Round(typed - before + HeightOffset).ToString(CultureInfo.InvariantCulture);
                 if (airfield.Map != null) Say(airfield.Save());
@@ -960,8 +1075,50 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(selectedText);
             current.Children.Add(selectedPanel);
 
-            StackPanel next = Group("2 · Next circuit", "Its plan: circuit, side and break from the next touch and go / go-around; the end of the final: this one.", selectedPanel);
-            Row("Pattern", selCircuitRow, next, 62);
+            // (The user, 8 Nov: as the label, in its order and with its names; by phases; the keys beside the buttons.)
+            Button Order(string text, Action<string> action) => ActionButton(text, () => WithSelected(action));
+            Button Keyed(string text, string key, Action<string> action, bool now = false)
+            {
+                Button button = Order(text, action);
+                string tip = button.ToolTip as string ?? text;
+                if (key.Length > 0)
+                {
+                    StackPanel content = new() { Orientation = Orientation.Horizontal };
+                    content.Children.Add(new TextBlock { Text = text });
+                    content.Children.Add(new TextBlock { Text = key, FontSize = 9, Opacity = 0.65, Margin = new Thickness(3, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+                    button.Content = content;
+                    tip += $" Key: {key}.";
+                }
+                button.ToolTip = tip;
+                if (now) NowLook(button);
+                return button;
+            }
+
+            StackPanel values = Group("1 · Altitude, speed and heading",
+                "A box: the value now; the mouse wheel, or type + Enter (Esc: back). ALT, SPD: it keeps its circuit (AUTO: its circuit's). HDG: out of its circuit, you fly it; REJOIN: back in.", selectedPanel);
+            foreach (TextBox box in new[] { heightBox, speedKtBox, headingBox })
+            {
+                box.Width = 40;
+                box.TextAlignment = TextAlignment.Center;
+                box.Margin = new Thickness(0, 0, 6, 4);
+            }
+            heightBox.ToolTip = "The altitude (ALT, hundreds of ft: 25 = 2500; or the feet) or the height (HGT): Enter. Mouse wheel: ±100 ft. Key: L.";
+            speedKtBox.ToolTip = "The speed (kt): Enter. Mouse wheel: ±10 kt. Key: K.";
+            headingBox.ToolTip = "A heading (°, true): Enter; it leaves its circuit (MANUAL). Mouse wheel: ±5°. Or drag from its symbol on the map. Key: V.";
+            Grid altLine = Row("ALT", altPresets, values, 40);
+            heightName = (TextBlock)altLine.Children[0];
+            Row("SPD", speedPresets, values, 40);
+            altPresets.Children.Add(heightBox);
+            speedPresets.Children.Add(speedKtBox);
+            rejoinButton = Keyed("REJOIN", "R", commands.Rejoin);
+            rejoinButton.ToolTip = "Back into its circuit (from MANUAL, a heading). Key: R.";
+            Row("HDG", Wrap(headingBox, rejoinButton, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 40);
+            ValueBox(heightBox, "ALT");
+            ValueBox(speedKtBox, "SPD");
+            ValueBox(headingBox, "HDG");
+
+            StackPanel next = Group("2 · Next circuit", "PATTERN, BREAK: from the next touch and go or go-around. SIDE: now (or of the circuit ordered). END: the end of this final.", selectedPanel);
+            Row("PATTERN", selCircuitRow, next, 62);
             // Another circuit: its side at this runway (then L / R to change it). Both from the next circuit.
             selCircuitRow.Picked += type => WithSelected(cs =>
             {
@@ -969,77 +1126,75 @@ namespace ATCRoom.TwrTrainer
                 selSideRow.Show(side);
                 commands.NextCircuit(cs, type, side);
             });
-            Row("Side", selSideRow, next, 62);
-            selSideRow.Picked += side => WithSelected(cs => commands.NextCircuit(cs, selCircuitRow.HasValue ? selCircuitRow.Value : CircuitType.Conventional, side));
-            Row("At the end", selEndRow, next, 62);
+            Row("SIDE", selSideRow, next, 62);
+            // (As SIDE of the label, the user 8 Nov: now, or the side of the circuit ordered.)
+            selSideRow.Picked += side => WithSelected(cs => LabelField(cs, $"SIDE={side}"));
+            // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
+            selBreakGrid = Row("BREAK", selBreakRow, next, 62);
+            selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
+            selBreakPointGrid = Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
+                view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
+            Row("END", selEndRow, next, 62);
             selEndRow.Picked += end => WithSelected(cs =>
             {
                 if (engine.Get(cs) is { CanHover: true } heli && (heli.HasPad || heli.WantsPad)) commands.Helipad(cs, double.NaN, double.NaN);
                 commands.SetEnd(cs, end);
             });
-            // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
-            selBreakGrid = Row("Break", selBreakRow, next, 62);
-            selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
             // (Helicopters, the user 5 Nov: the end of the final on a helipad.)
             padEndButton = ActionButton("HPAD", () => WithSelected(cs => PadMenu(cs, now: false)));
             padEndButton.ToolTip = "Helicopter: the final ends on a helipad (a registered one, or a point clicked on the map).";
-            padEndLine = Row("Helipad", Inline(padEndButton), next, 62);
-            selBreakPointGrid = Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
-                view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
+            padEndLine = Row("", Inline(padEndButton), next, 62);
+            // (A formation: who lands, as LAND of the label.)
+            landLine = Row("LAND", landPanel, next, 62);
 
-            StackPanel now = Group("3 · Now, in the circuit", "Standard orders at once, in the order of the circuit (grey: not where it is now).", selectedPanel);
-            Button Order(string text, Action<string> action) => ActionButton(text, () => WithSelected(action));
-            breakNowButton = Order("BREAK NOW", commands.BreakNow);
-            holdButton = Order("HOLD HK", cs => commands.HoldAtHighKey(cs, true));
-            startSfoButton = Order("START SFO", cs => commands.HoldAtHighKey(cs, false));
-            extendButton = Order("EXTEND DWN", commands.ExtendDownwind);
-            baseButton = Order("TURN BASE", commands.TurnBase);
-            orbitButton = Order("ORBIT", commands.Orbit);
-            // ORBIT ∞: orbits until CONTINUE (the same button while it orbits); Shift + ORBIT too.
-            orbitForeverButton = Order("ORBIT ∞", cs =>
-            {
-                if (engine.Get(cs)?.OrbitForever == true) commands.Continue(cs); else commands.OrbitForever(cs);
-            });
-            orbitButton.PreviewMouseLeftButtonUp += (_, e) =>
-            {
-                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) return;
-                WithSelected(commands.OrbitForever);
-                e.Handled = true;
-            };
-            goAroundButton = Order("GO AROUND", commands.GoAround);
-            sideLeftButton = Order("SIDE NOW L", cs => SideNow(cs, CircuitSide.Left));
-            sideRightButton = Order("SIDE NOW R", cs => SideNow(cs, CircuitSide.Right));
-            wideButton = Order("WIDE NOW", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.Get(cs)?.CircuitSide ?? engine.SideFor(CircuitType.Wide)));
-            Row("Arrival", Inline(breakNowButton, holdButton, startSfoButton), now, 62);
-            Row("Downwind", Wrap(extendButton, baseButton, orbitButton, orbitForeverButton), now, 62);
-            Row("Final", Inline(goAroundButton), now, 62);
-            Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
-            // (DCT TO, the user 5 Nov: at once, in flight.)
-            dctButtons = [Order("DW", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Order("BASE CONV", cs => commands.DirectTo(cs, DirectPoint.Base)),
-                Order("BASE CLS", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
-                Order("IP", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Order("HK", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
-            dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit.";
-            dctButtons[1].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final.";
-            dctButtons[2].ToolTip = "At once straight to the start of the base of the close pattern (narrower), then the final.";
-            dctButtons[3].ToolTip = "At once straight to the initial point, then the overhead.";
-            dctButtons[4].ToolTip = "At once straight to the High Key, then the SFO.";
+            StackPanel now = Group("3 · Now, in the circuit", "At once. Blue: where it goes; orange: what it does now (grey: not where it is).", selectedPanel);
+            // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov.)
+            dctButtons = [Keyed("DW CONV", "F1", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Keyed("DW CLS", "F2", cs => commands.DirectTo(cs, DirectPoint.CloseDownwind)),
+                Keyed("BASE CONV", "F3", cs => commands.DirectTo(cs, DirectPoint.Base)), Keyed("BASE CLS", "F4", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
+                Keyed("IP", "F5", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Keyed("HK", "F6", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
+            dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit. Key: F1.";
+            dctButtons[1].ToolTip = "At once onto the downwind of the close pattern (narrower). Key: F2.";
+            dctButtons[2].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final. Key: F3.";
+            dctButtons[3].ToolTip = "At once straight to the start of the base of the close pattern (narrower), then the final. Key: F4.";
+            dctButtons[4].ToolTip = "At once straight to the initial point, then the overhead. Key: F5.";
+            dctButtons[5].ToolTip = "At once straight to the High Key, then the SFO. Key: F6.";
             padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
             padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
             dctButtons = [.. dctButtons, padNowButton];
             Row("DCT TO", Wrap(dctButtons), now, 62);
-            splitButton = Order("SPLIT", commands.Split);
-            Row("Formation", Inline(splitButton), now, 62);
-            expTaxiButton = Order("EXP TAXI", commands.ExpediteTaxi);
-            Row("Runway", Inline(expTaxiButton), now, 62);
+            extendButton = Keyed("EXT DWN", "E", commands.ExtendDownwind, now: true);
+            baseButton = Keyed("BASE", "N", commands.TurnBase, now: true);
+            // ORB (as the label): one orbit; Shift: on and on; orbiting on and on, a click goes on along its circuit.
+            orbitButton = Keyed("ORB", "O", cs =>
+            {
+                if (engine.Get(cs)?.OrbitForever == true) commands.Continue(cs);
+                else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(cs);
+                else commands.Orbit(cs);
+            }, now: true);
+            goAroundButton = Keyed("G/A", "G", commands.GoAround, now: true);
+            breakNowButton = Keyed("BREAK NOW", "B", commands.BreakNow, now: true);
+            Row("NOW", Wrap(extendButton, baseButton, orbitButton, goAroundButton, breakNowButton), now, 62);
+            sideLeftButton = Keyed("SIDE NOW L", "⇧←", cs => SideNow(cs, CircuitSide.Left), now: true);
+            sideRightButton = Keyed("SIDE NOW R", "⇧→", cs => SideNow(cs, CircuitSide.Right), now: true);
+            // (The user, 8 Nov: the wide circuit on its own side at this runway, not the side it flies now.)
+            wideButton = Keyed("WIDE NOW", "W", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.SideFor(CircuitType.Wide)), now: true);
+            Row("", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
+            holdButton = Keyed("HOLD HK", "H", cs => commands.HoldAtHighKey(cs, true), now: true);
+            startSfoButton = Keyed("START SFO", "S", cs => commands.HoldAtHighKey(cs, false), now: true);
+            expTaxiButton = Keyed("EXP TAXI", "X", commands.ExpediteTaxi, now: true);
+            Row("", Wrap(holdButton, startSfoButton, expTaxiButton), now, 62);
+            splitButton = Keyed("SPLIT", "U", commands.Split, now: true);
+            breakupButton = Keyed("BREAKUP", "⇧U", commands.Breakup, now: true);
+            Row("FORMATION", Inline(splitButton, breakupButton), now, 62);
 
-            StackPanel outside = Group("4 · Out of the circuit", "You fly it (MANUAL): heading, altitude (QNH; QFE: height), speed; or drag from its symbol on the map for a heading. REJOIN brings it back, BREAKUP takes it out.", selectedPanel);
-            Row("Heading", Inline(headingBox, ActionButton("GO", () => WithSelected(cs => Number(headingBox, "a heading (0-360)", v => commands.Heading(cs, v))))), outside, 62);
-            heightName = (TextBlock)Row("Height ft", Inline(heightBox, ActionButton("GO", () => WithSelected(cs => Number(heightBox, "a height or an altitude in feet", v => commands.Height(cs, v - HeightOffset))))), outside, 62).Children[0];
-            Row("Speed kt", Inline(speedKtBox, ActionButton("GO", () => WithSelected(cs => Number(speedKtBox, "a speed in knots", v => commands.Speed(cs, v))))), outside, 62);
-            rejoinButton = Order("REJOIN", commands.Rejoin);
-            breakupButton = Order("BREAKUP", commands.Breakup);
-            outside.Children.Add(Wrap(rejoinButton, breakupButton, Order("REMOVE", commands.Remove)));
-            Note("Right click on an aircraft: all its commands. Its label can be dragged.", selectedPanel);
+            Button removeButton = Keyed("REMOVE", "Del", cs => RemoveAsked(cs));
+            removeButton.Background = removeButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x26, 0x26));
+            DockPanel bottom = new() { Margin = new Thickness(0, 4, 0, 0), LastChildFill = false };
+            TextBlock keysNote = new() { Text = "F12: all the keys · Right click on an aircraft: its menu", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(removeButton, Dock.Right);
+            bottom.Children.Add(removeButton);
+            bottom.Children.Add(keysNote);
+            selectedPanel.Children.Add(bottom);
             current = panel;
             // Each part its message line, at its bottom; the folders in the Aerodrome.
             settingsContent.Children.Add(messages[Area.Aerodrome]);
@@ -1229,13 +1384,19 @@ namespace ATCRoom.TwrTrainer
             ["⧉"] = "Duplicate: the next callsign, one minute later.",
             ["✕"] = "Remove this plan.",
             ["BREAK AT A POINT"] = "Overhead and close: click on the map where it breaks (along the runway).",
-            ["BREAK NOW"] = "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft).",
+            ["BREAK NOW"] = "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft). Also during a touch and go before a close pattern: it turns above 400 ft (another break point: cancelled).",
             ["HOLD HK"] = "SFO: it waits circling over the High Key (until START SFO).",
             ["START SFO"] = "SFO: at the next pass over the High Key it starts the flame out pattern.",
             ["EXTEND DWN"] = "On the downwind: straight on beyond the base turn, until TURN BASE.",
             ["TURN BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
             ["ORBIT"] = "One orbit (360°) away from the runway, then on. Shift+click: orbits until CONTINUE.",
             ["ORBIT ∞"] = "Orbits until CONTINUE (this button while it orbits).",
+            ["EXT DWN"] = "On the downwind: straight on beyond the base turn, until BASE.",
+            ["BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
+            ["ORB"] = "One orbit (360°) away from the runway, then on. Shift: orbits on and on (thick border); then a click: on along its circuit.",
+            ["G/A"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
+            ["EXP TAXI"] = "Landed: off the runway quickly.",
+            ["SPLIT"] = "The formation splits (each aircraft on its own).",
             ["CONTINUE"] = "The orbits end: on along its circuit from here.",
             ["GO AROUND"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
             ["SIDE NOW L"] = "Left-hand now: an S over the aerodrome onto the new downwind (on the final: a go-around).",
@@ -1244,7 +1405,7 @@ namespace ATCRoom.TwrTrainer
             ["GO"] = "Give it: the aircraft leaves its circuit (MANUAL); REJOIN brings it back.",
             ["REJOIN"] = "Back into its circuit from where it is.",
             ["BREAKUP"] = "Out of the circuits: on the downwind a turn away from the runway, on the base on turning past the final. Then MANUAL.",
-            ["REMOVE"] = "Remove this aircraft."
+            ["REMOVE"] = "Remove this aircraft (asked first)."
         };
 
         private static readonly Brush ActionBack = new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x86));
@@ -1270,6 +1431,128 @@ namespace ATCRoom.TwrTrainer
             if (Tips.TryGetValue(text, out string? tip)) button.ToolTip = tip;
             ToolTipService.SetShowOnDisabled(button, true);
             return button;
+        }
+
+        // (The user, 8 Nov: the NOW orders orange, not to mix them up with DCT TO.)
+        private static readonly Brush NowBack = new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)), NowEdge = new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)),
+            NowText = new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD));
+
+        private static void NowLook(Button button)
+        {
+            button.Background = NowBack;
+            button.BorderBrush = NowEdge;
+            button.Foreground = NowText;
+        }
+
+        /// <summary>REMOVE of Aircraft control and the Del key: asked first.</summary>
+        private void RemoveAsked(string callsign)
+        {
+            if (MessageBox.Show(this, $"Remove {callsign}?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            commands.Remove(callsign);
+        }
+
+        /// <summary>
+        /// A box of ALT, SPD or HDG (the user, 8 Nov): it shows the value now; the wheel as on the label; typed + Enter: the order;
+        /// Esc: the value now again; leaving it without Enter: nothing.
+        /// </summary>
+        private void ValueBox(TextBox box, string field)
+        {
+            box.PreviewMouseWheel += (_, e) =>
+            {
+                e.Handled = true;
+                if (view.Selected is not string cs) return;
+                int step = e.Delta > 0 ? -1 : 1;
+                if (field == "HDG")
+                {
+                    // ±5° a notch, ordered when the wheel stops a moment (as ALT and SPD).
+                    double from = double.TryParse(box.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double h) ? h : engine.Get(cs)?.HeadingTrue ?? 0;
+                    double next = ((Math.Round(from / 5) * 5 - step * 5) % 360 + 360) % 360;
+                    box.Text = $"{(next == 0 ? 360 : next):000}";
+                    headingWheel = cs;
+                    valueSince = clock.Elapsed.TotalSeconds;
+                }
+                else LabelWheel(cs, field, step);
+            };
+            box.GotKeyboardFocus += (_, _) => box.SelectAll();
+            box.PreviewKeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Escape)
+                {
+                    Keyboard.ClearFocus();
+                    FocusManager.SetFocusedElement(this, view);
+                    ShowSelectedValues();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
+                    if (view.Selected is not string cs) return;
+                    if (!double.TryParse(box.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) || v < 0)
+                    {
+                        Say("Write a number.", Area.Selected);
+                        return;
+                    }
+                    if (field == "ALT") commands.Height(cs, Math.Clamp((v < 200 ? v * 100 : v) - HeightOffset, 100, 15000));
+                    else if (field == "SPD") commands.Speed(cs, v);
+                    else commands.Heading(cs, v % 360);
+                    Keyboard.ClearFocus();
+                    FocusManager.SetFocusedElement(this, view);
+                    ShowSelected();
+                }
+            };
+        }
+
+        /// <summary>The AUTO and the presets of ALT and SPD (made again for another aircraft or other presets), the one now yellow.</summary>
+        private void ShowPresets(AircraftState a)
+        {
+            IReadOnlyList<double> speeds = SpeedChoices(a);
+            string key = $"{a.Callsign}|{HeightOffset}|{string.Join(",", speeds)}|{a.Formation?.Count}";
+            if (key != presetsFor)
+            {
+                presetsFor = key;
+                altPresets.Children.Clear();
+                altPresets.Children.Add(heightBox);
+                altPresets.Children.Add(Preset("AUTO", "ALT=AUTO", "Its circuit's altitude again."));
+                foreach (double h in TowerView.HeightChoices)
+                    altPresets.Children.Add(Preset($"{Math.Round((h + HeightOffset) / 100):000}", $"ALT={h:0}", $"{Math.Round((h + HeightOffset) / 100) * 100:0} ft; it keeps its circuit."));
+                speedPresets.Children.Clear();
+                speedPresets.Children.Add(speedKtBox);
+                speedPresets.Children.Add(Preset("AUTO", "SPD=AUTO", "Its circuit's speed again."));
+                foreach (double v in speeds) speedPresets.Children.Add(Preset($"{v:0}", $"SPD={v:0}", $"{v:0} kt; it keeps its circuit."));
+                landPanel.Children.Clear();
+                if (a.Formation is { Count: > 1 } crew)
+                    for (int i = 0; i < crew.Count; i++)
+                    {
+                        int member = i;
+                        Button land = ActionButton($"{member + 1}", () => WithSelected(cs => LabelField(cs, $"LAND={member}")));
+                        land.ToolTip = $"{crew[member]}: yellow lands, grey goes around (from a circuit at most 2 land).";
+                        landPanel.Children.Add(land);
+                    }
+            }
+            // The one now: yellow.
+            double? alt = !a.RouteAltitude && a.VerticalMode == VerticalMode.Altitude ? a.TargetAltitudeFt - airfield.ElevationFt : null;
+            double? spd = !a.RouteSpeed ? a.TargetSpeedKt : null;
+            foreach (Button b in altPresets.Children.OfType<Button>())
+                Lit(b, b.Tag as string == "ALT=AUTO" ? a.RouteAltitude : alt is double x && b.Tag is string t && double.TryParse(t[4..], NumberStyles.Float, CultureInfo.InvariantCulture, out double h) && Math.Abs(h - x) < 30);
+            foreach (Button b in speedPresets.Children.OfType<Button>())
+                Lit(b, b.Tag as string == "SPD=AUTO" ? a.RouteSpeed : spd is double y && b.Tag is string t && double.TryParse(t[4..], NumberStyles.Float, CultureInfo.InvariantCulture, out double v) && Math.Abs(v - y) < 3);
+            if (a.Formation is { } team)
+                for (int i = 0; i < landPanel.Children.Count; i++)
+                    Lit((Button)landPanel.Children[i], a.Lands == null || i >= a.Lands.Count || a.Lands[i]);
+            landLine.Visibility = a.Formation is { Count: > 1 } ? Visibility.Visible : Visibility.Collapsed;
+
+            Button Preset(string text, string field, string tip)
+            {
+                Button b = ActionButton(text, () => WithSelected(cs => LabelField(cs, field)));
+                b.Tag = field;
+                b.ToolTip = tip;
+                return b;
+            }
+            static void Lit(Button b, bool on)
+            {
+                b.Background = b.BorderBrush = on ? LitBack : ActionBack;
+                b.Foreground = on ? LitText : ActionText;
+            }
         }
 
         private Grid Row(string label, UIElement control, Panel? into = null, double labelWidth = 130)
@@ -1676,9 +1959,10 @@ namespace ATCRoom.TwrTrainer
             if (arrivalName == null) return;
             arrivalName.Text = $"{HeightWord} ft";
             exitAltName.Text = $"Exit {HeightWord.ToLowerInvariant()} ft";
-            heightName.Text = $"{HeightWord} ft";
+            heightName.Text = qfe ? "HGT" : "ALT";
             hkName.Text = $"HK {HeightWord.ToLowerInvariant()} ft";
-            heightBox.ToolTip = qfe ? "Height above the runway (ft) for GO." : "Altitude (ft, QNH) for GO.";
+            heightBox.ToolTip = qfe ? "The height above the runway (hundreds of ft: 25 = 2500; or the feet): Enter. Mouse wheel: ±100 ft. Key: L."
+                : "The altitude (QNH, hundreds of ft: 25 = 2500; or the feet): Enter. Mouse wheel: ±100 ft. Key: L.";
         }
 
         /// <summary>The row of the classes in Traffic generation, made again (at the start, after the Aircraft classes window).</summary>
@@ -3890,6 +4174,13 @@ namespace ATCRoom.TwrTrainer
                 case "SPLIT":
                     commands.Split(callsign);
                     break;
+                case "WIDENOW":
+                    // (Its own side at this runway, the user 8 Nov.)
+                    commands.FlyCircuit(callsign, CircuitType.Wide, engine.SideFor(CircuitType.Wide));
+                    break;
+                case "BREAKUP":
+                    commands.Breakup(callsign);
+                    break;
             }
             ShowSelected();
         }
@@ -4078,28 +4369,36 @@ namespace ATCRoom.TwrTrainer
                 // (On the ground and taking off: the conventional or the wide, the user 5 Nov.)
                 foreach (CircuitType pattern in Enum.GetValues<CircuitType>())
                     selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);
-                breakNowButton.IsEnabled = (a.Circuit == CircuitType.Overhead && leg == "INITIAL") || (a.Circuit == CircuitType.Close && leg is "UPWIND" or "GO AROUND");
+                // (The user, 8 Nov: also during the touch and go, before a close pattern: it turns above 400 ft.)
+                breakNowButton.IsEnabled = engine.CanBreakNow(a.Callsign);
                 holdButton.IsEnabled = sfo && !a.SfoHold && leg is "CLIMB" or "HIGH KEY";
                 startSfoButton.IsEnabled = sfo && a.SfoHold;
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS"
                     || (leg == "JOIN" && a.Circuit is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close);
-                orbitButton.IsEnabled = (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
-                orbitForeverButton.IsEnabled = a.OrbitForever || orbitButton.IsEnabled;
-                // (Orbiting on and on: a thick border, the user 4 Nov; a click: out of the orbit.)
-                orbitForeverButton.Content = "ORBIT ∞";
-                orbitForeverButton.ToolTip = Tips[a.OrbitForever ? "CONTINUE" : "ORBIT ∞"];
-                orbitForeverButton.BorderBrush = a.OrbitForever ? Theme.Chosen : Brushes.Transparent;
-                orbitForeverButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
+                // ORB: one orbit (Shift: on and on); orbiting on and on, a thick border and a click goes on along its circuit.
+                orbitButton.IsEnabled = a.OrbitForever || (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
+                orbitButton.BorderBrush = a.OrbitForever ? Theme.Chosen : NowEdge;
+                orbitButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
                 goAroundButton.IsEnabled = leg == "FINAL";
                 sideLeftButton.IsEnabled = sideRightButton.IsEnabled = wideButton.IsEnabled = inCircuit;
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
                 splitButton.IsEnabled = a.SplitAllowed;
                 expTaxiButton.IsEnabled = leg == "LANDED" && !a.ExpediteTaxi;
+                ShowPresets(a);
+                // The boxes: the values now (not while one is written in, nor while its wheel turns).
+                if (!heightBox.IsKeyboardFocusWithin)
+                    heightBox.Text = $"{Math.Round(((view.PendingHeightFt ?? a.AltitudeFt - airfield.ElevationFt) + HeightOffset) / 100):000}";
+                if (!speedKtBox.IsKeyboardFocusWithin) speedKtBox.Text = $"{Math.Round(view.PendingSpeedKt ?? a.SpeedKt):0}";
+                if (!headingBox.IsKeyboardFocusWithin && headingWheel == null)
+                {
+                    double hdg = Math.Round(a.HeadingTrue) % 360;
+                    headingBox.Text = $"{(hdg == 0 ? 360 : hdg):000}";
+                }
             }
             selectedText.Text = a == null ? "None: click an aircraft on the map."
-                : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}\n{Math.Round(a.AltitudeFt - airfield.ElevationFt + HeightOffset):0} ft {(airfield.Circuits.Qfe ? "HGT" : "ALT")}  {Math.Round(a.GroundSpeedKt):0} kt  {TowerView.LegText(a)}";
+                : $"{a.Callsign}{(a.Formation is { Count: > 1 } f ? $" F{f.Count} ({string.Join(" ", f)})" : "")}  {a.PerformanceClass}  ·  {TowerCommands.Ends.First(e => e.End == a.EndAction).Short}  ·  {TowerView.LegText(a)}";
         }
     }
 }

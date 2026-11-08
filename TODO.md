@@ -843,6 +843,21 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (waiting); in the log AURORA LOST / IVAO LOST / IVAO DATA STOPPED (aircraft flying not moving for 30 s) and RESTORED
   after m:ss; ERROR and CRASH (the session closed); a log left open marked "ended unexpectedly" at the next start.
 
+- **Group of 8 Nov evening (the user: "via") — WRITTEN (tests 64-66):**
+  - NOW orange (fill #8A4A1C, edge #D0803A) on the label and in Aircraft control; DCT TO and REJOIN stay blue.
+  - Keys on the selected aircraft (fixed, not while writing in a box): 1-5 pattern; ← / → side (Shift: now); F T A P D end;
+    F1-F6 DCT TO (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK); B E N O G W H S U (Shift+U) X R; Del remove (asked);
+    L / K / V the ALT / SPD / HDG box; Space run / pause; F12 the list of the keys. The levels of the map: Ctrl+F1 / F2
+    (F1 / F2 still with no aircraft selected). A key acts as its button (the same log; grey: "not now").
+  - BREAK NOW also during the touch and go before a close pattern (rolling, or the final not F/S): kept, it turns above
+    400 ft; another break point cancels it. Test: STBY after a T/G, then BREAK NOW.
+  - WIDE NOW on the side of the WIDE at this runway; DCT TO BASE CLS / DW CLS on the side of the close pattern.
+  - DCT TO DW CLS (onto the downwind of the close pattern), on the label and in the panel.
+  - Aircraft control again (mock-up v5): 1 Altitude, speed and heading (narrow boxes with the value now, wheel or
+    type + Enter, Esc back; ALT under 200 = hundreds; AUTO and presets, the one now yellow; REJOIN on the HDG row);
+    2 Next circuit (PATTERN, SIDE as on the label, BREAK, END, LAND for formations, HPAD); 3 Now (DCT TO; NOW rows; SPLIT /
+    BREAKUP); REMOVE red at the bottom; the old group 4 and ORBIT ∞ gone (ORB with Shift). WIDE NOW and BREAKUP on the label.
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
