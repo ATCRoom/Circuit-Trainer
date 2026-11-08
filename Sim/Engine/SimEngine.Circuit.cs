@@ -702,7 +702,10 @@ namespace ATCRoom.Sim
                 List<RoutePoint> loop = Loop(a, UpwindAlong(type, a.Class), withUpwind: false);
                 List<RoutePoint> downwind = loop.SkipWhile(p => !IsDownwind(p)).ToList();
                 double baseTurn = BaseAlong(type, a.Class);
-                if (lateral > 0.3 * width && along > baseTurn + 0.3 && along < upwind + 1.5)
+                // (Also on the way along a downwind beyond its start, the user 8 Nov, DCT TO DW CLS from the conventional
+                // downwind: straight in onto the narrower downwind, not out for a 45° entry.)
+                bool downwindWay = Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 60;
+                if (lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay))
                 {
                     // On the circuit side: join the downwind ahead (the points still ahead of it).
                     double entry = Math.Clamp(along - 0.4, baseTurn + 0.3, upwind);
