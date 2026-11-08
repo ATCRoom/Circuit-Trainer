@@ -2026,7 +2026,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         double before = Math.Abs(Frame(sim.Get(cs)!).Lateral);
         sim.DirectTo(cs, DirectPoint.CloseBase, CircuitSide.Left);
         List<AircraftState> flown = Fly(sim, cs, 900);
-        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        // (The close pattern turns from its downwind into the final in one turn: no leg named BASE, the final then.)
+        int onBase = flown.FindIndex(st => st.Leg is "BASE" or "FINAL");
         bool close = flown.Count > 0 && flown[0].Circuit == CircuitType.Close;
         double widest = onBase > 0 ? flown.Take(onBase).Max(st => Math.Abs(Frame(st).Lateral)) : double.NaN;
         Check(close && onBase > 0 && onBase < 300 && widest <= before + 0.2 && LandedOnRunway(flown),

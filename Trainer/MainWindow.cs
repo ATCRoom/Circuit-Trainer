@@ -574,11 +574,14 @@ namespace ATCRoom.TwrTrainer
             else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
             // (The user, 7 Nov: Tab the next aircraft, Shift+Tab the one before; in a text box Tab stays the next box.)
             // (The user, 8 Nov: ← / → the side of the selected aircraft, as SIDE L / R of its label; with Shift: now, as SIDE NOW.)
-            else if (e.Key is Key.Left or Key.Right && Keyboard.FocusedElement is not TextBox && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0
-                && view.Selected is string chosen && engine.Get(chosen) is AircraftState plane && plane.Contact == GroundContact.Airborne)
+            // (Only in its circuit, as the SIDE buttons; not when a list or a box of choices has the keys, the review of 8 Nov.)
+            else if (e.Key is Key.Left or Key.Right && Keyboard.FocusedElement is not (TextBox or ComboBox or ComboBoxItem or ListBoxItem or Slider or PasswordBox)
+                && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0
+                && view.Selected is string chosen && engine.Get(chosen) is AircraftState plane && plane.Contact == GroundContact.Airborne
+                && plane.Circuit != null && !plane.Transit)
             {
                 CircuitSide side = e.Key == Key.Left ? CircuitSide.Left : CircuitSide.Right;
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SideNow(chosen, side);
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) { if (side != plane.CircuitSide) SideNow(chosen, side); }
                 else LabelField(chosen, $"SIDE={side}");
                 e.Handled = true;
             }
@@ -1017,8 +1020,9 @@ namespace ATCRoom.TwrTrainer
                 Order("IP", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Order("HK", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
             dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit.";
             dctButtons[1].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final.";
-            dctButtons[2].ToolTip = "At once straight to the initial point, then the overhead.";
-            dctButtons[3].ToolTip = "At once straight to the High Key, then the SFO.";
+            dctButtons[2].ToolTip = "At once straight to the start of the base of the close pattern (narrower), then the final.";
+            dctButtons[3].ToolTip = "At once straight to the initial point, then the overhead.";
+            dctButtons[4].ToolTip = "At once straight to the High Key, then the SFO.";
             padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
             padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
             dctButtons = [.. dctButtons, padNowButton];
@@ -2717,6 +2721,8 @@ namespace ATCRoom.TwrTrainer
                 flightLog.Aerodrome = airfield.Code;
                 flightLog.Runway = airfield.Runway?.Runway ?? "";
                 flightLog.StartSession(engine.Time, engine.Snapshot(), FlightInfo);
+                // (A network trouble going on at the start: written, so its RESTORED has a beginning.)
+                if (networkProblem.Length > 0) flightLog.Event(engine.Time, networkProblem, detail: "going on at the start of the session", source: "IVAO");
                 Say(flightLog.Error ?? $"Session started: the log in {flightLog.FileName}.");
             }
             else
@@ -2725,6 +2731,9 @@ namespace ATCRoom.TwrTrainer
                     MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
                 string file = flightLog.FileName;
                 flightLog.EndSession(engine.Time);
+                // (The photos after it: a folder of their own again.)
+                photoSession = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+                photoCount = 0;
                 engine.Paused = true;
                 UpdatePause();
                 Say($"Session ended: {file}");
@@ -2827,6 +2836,7 @@ namespace ATCRoom.TwrTrainer
                     view.Network = [];
                     flightLog.ObserveNetwork([], engine.Time);
                     flightLog.SetNetwork(false, "", engine.Time, row: false);
+                    networkCallsignAt = DateTime.MinValue;
                     NetworkCondition("AURORA LOST", "Aurora does not answer (closed, or its link for other programs off)");
                     return;
                 }
