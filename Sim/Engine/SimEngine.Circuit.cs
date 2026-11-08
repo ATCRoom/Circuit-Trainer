@@ -708,7 +708,8 @@ namespace ATCRoom.Sim
                 if (lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay))
                 {
                     // On the circuit side: join the downwind ahead (the points still ahead of it).
-                    double entry = Math.Clamp(along - 0.4, baseTurn + 0.3, upwind);
+                    // (Onto a narrower or wider downwind, test 66: far enough ahead to slide across, not a loop to the point.)
+                    double entry = Math.Clamp(along - Math.Max(0.4, 4 * Math.Abs(lateral - width)), baseTurn + 0.3, upwind);
                     List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "DOWNWIND")];
                     route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);
