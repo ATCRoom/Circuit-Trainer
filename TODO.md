@@ -830,6 +830,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   applied: the user, 7 Nov). Button: grey off, amber "IVAO ?" Aurora not found / not on IVAO, green "● IVAO" on IVAO.
   Not yet: strips of IVAO aircraft, selecting them, the student.
 
+- **Group of 8 Nov (the user: "Ok. Procedi") — WRITTEN:** the VID found in IVAO's list (Whazzup v2, IvaoDirectory.cs) for the
+  callsign of Aurora, else "My VID" of Settings › Network; in the log only while connected (a row VID when known). NORTH /
+  RWY on the bar of the map (RWY again: turned round; the labels upright; headings dragged stay true). ⏸ HELD stops the
+  countdown too (HELD m:ss shown), let go it goes on. The log with the names of the screen (DCT TO IP, CONV L, F/S,
+  altitudes QNH).
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.

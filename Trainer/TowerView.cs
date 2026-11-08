@@ -271,9 +271,36 @@ namespace ATCRoom.TwrTrainer
             return (along * Math.Sin(c) + right * Math.Cos(c), along * Math.Cos(c) - right * Math.Sin(c));
         }
 
-        private Point ToScreen(double x, double y) => new(ActualWidth / 2 + (x - centreX) * scale, ActualHeight / 2 - (y - centreY) * scale);
+        /// <summary>
+        /// The map turned (the user, 7 Nov: NORTH / RWY): degrees counterclockwise; 0 north up. The labels and the texts stay
+        /// upright; the headings dragged are true ones.
+        /// </summary>
+        public double Rotation
+        {
+            get => rotation;
+            set
+            {
+                rotation = double.IsFinite(value) ? value : 0;
+                (rotationSin, rotationCos) = Math.SinCos(rotation * Math.PI / 180);
+            }
+        }
+        private double rotation, rotationSin, rotationCos = 1;
 
-        private (double X, double Y) ToPlane(Point p) => (centreX + (p.X - ActualWidth / 2) / scale, centreY - (p.Y - ActualHeight / 2) / scale);
+        /// <summary>A vector of the plane (NM, north up) as it lies on the turned map, and back.</summary>
+        private (double X, double Y) Turned(double dx, double dy) => (dx * rotationCos - dy * rotationSin, dx * rotationSin + dy * rotationCos);
+        private (double X, double Y) Unturned(double rx, double ry) => (rx * rotationCos + ry * rotationSin, -rx * rotationSin + ry * rotationCos);
+
+        private Point ToScreen(double x, double y)
+        {
+            (double rx, double ry) = Turned(x - centreX, y - centreY);
+            return new(ActualWidth / 2 + rx * scale, ActualHeight / 2 - ry * scale);
+        }
+
+        private (double X, double Y) ToPlane(Point p)
+        {
+            (double dx, double dy) = Unturned((p.X - ActualWidth / 2) / scale, -(p.Y - ActualHeight / 2) / scale);
+            return (centreX + dx, centreY + dy);
+        }
 
         protected override void OnRender(DrawingContext dc)
         {
@@ -321,7 +348,13 @@ namespace ATCRoom.TwrTrainer
 
         private void DrawMap(DrawingContext dc, double dip)
         {
-            Matrix matrix = new(scale, 0, 0, scale, ActualWidth / 2 - centreX * scale, ActualHeight / 2 + centreY * scale);
+            // (The shapes are kept with y downwards: back to the plane, centred, turned, scaled, onto the screen.)
+            Matrix matrix = Matrix.Identity;
+            matrix.Scale(1, -1);
+            matrix.Translate(-centreX, -centreY);
+            matrix.Rotate(rotation);
+            matrix.Scale(scale, -scale);
+            matrix.Translate(ActualWidth / 2, ActualHeight / 2);
             dc.PushTransform(new MatrixTransform(matrix));
             foreach ((string category, Pen pen, Brush? fill, StreamGeometry shape) in shapes)
             {
@@ -464,7 +497,9 @@ namespace ATCRoom.TwrTrainer
         {
             Pen pen = new(PromptBrush, 2);
             double c = double.IsNaN(Course) ? 0 : Course * Math.PI / 180;
-            Vector across = new(Math.Cos(c) * 5, Math.Sin(c) * 5);
+            // (Across the runway as it lies on the screen, the map maybe turned.)
+            (double ax, double ay) = Turned(Math.Cos(c), -Math.Sin(c));
+            Vector across = new(ax * 5, -ay * 5);
             foreach ((string name, double x, double y) in Exits)
             {
                 Point at = ToScreen(x, y);
@@ -887,7 +922,7 @@ namespace ATCRoom.TwrTrainer
         private static Point Nearest(Rect area, Point at) => new(Math.Clamp(at.X, area.Left, area.Right), Math.Clamp(at.Y, area.Top, area.Bottom));
 
         /// <summary>The heading (degrees true) from the aircraft to the mouse on the screen (north up).</summary>
-        private static double DraggedHeading(Point from, Point to) => SimEngine.Normalize(Math.Round(Math.Atan2(to.X - from.X, from.Y - to.Y) * 180 / Math.PI));
+        private double DraggedHeading(Point from, Point to) => SimEngine.Normalize(Math.Round(Math.Atan2(to.X - from.X, from.Y - to.Y) * 180 / Math.PI + rotation));
 
         /// <summary>The aircraft whose symbol is under a point of the screen, or null.</summary>
         private string? SymbolAt(Point p)
@@ -963,8 +998,9 @@ namespace ATCRoom.TwrTrainer
             (double x, double y) = ToPlane(at);
             scale = Math.Clamp(scale * Math.Pow(1.2, e.Delta / 120.0), 2, 20000);
             // The point under the mouse stays under it.
-            centreX = x - (at.X - ActualWidth / 2) / scale;
-            centreY = y + (at.Y - ActualHeight / 2) / scale;
+            (double zx, double zy) = Unturned((at.X - ActualWidth / 2) / scale, -(at.Y - ActualHeight / 2) / scale);
+            centreX = x - zx;
+            centreY = y - zy;
             InvalidateVisual();
             e.Handled = true;
         }
@@ -1017,8 +1053,9 @@ namespace ATCRoom.TwrTrainer
             }
             else if (drag == Drag.Map)
             {
-                centreX = panX - (at.X - start.X) / scale;
-                centreY = panY + (at.Y - start.Y) / scale;
+                (double mx, double my) = Unturned((at.X - start.X) / scale, -(at.Y - start.Y) / scale);
+                centreX = panX - mx;
+                centreY = panY - my;
             }
             InvalidateVisual();
         }

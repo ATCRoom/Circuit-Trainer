@@ -79,6 +79,10 @@ namespace ATCRoom.TwrTrainer
         public bool ShowRings { get; set; } = true;
         /// <summary>The traffic of the network (IVAO, through Aurora on this PC) on the map (the user, 7 Nov).</summary>
         public bool ShowIvao { get; set; }
+        /// <summary>The map: 0 north up; 1 the runway in use across the screen, its threshold on the left; 2 on the right (the user, 7 Nov).</summary>
+        public int MapTurn { get; set; }
+        /// <summary>The instructor's VID on the network, typed (used when IVAO's list does not give it; the user, 7 Nov).</summary>
+        public string InstructorVid { get; set; } = "";
         /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
         public string StripDeparture { get; set; } = "WHITE";
         public string StripArrival { get; set; } = "YELLOW";

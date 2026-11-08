@@ -173,6 +173,8 @@ namespace ATCRoom.TwrTrainer
         [JsonIgnore] public State Now { get; set; } = State.Waiting;
         /// <summary>When it starts (simulation time, s), counting.</summary>
         [JsonIgnore] public double Due { get; set; }
+        /// <summary>The countdown left when it was held (s; the user, 7 Nov: ⏸ stops it, it goes on from there).</summary>
+        [JsonIgnore] public double HeldLeft { get; set; }
         /// <summary>The aircraft flying it.</summary>
         [JsonIgnore] public string Flying { get; set; } = "";
         /// <summary>All its aircraft (a formation: the leader and its wingmen, flying together or split).</summary>

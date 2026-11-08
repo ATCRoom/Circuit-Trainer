@@ -105,6 +105,7 @@ namespace ATCRoom.TwrTrainer
             if (connected == Network && callsign == InstructorCallsign) return;
             Network = connected;
             InstructorCallsign = connected ? callsign : "";
+            if (!connected) InstructorVid = "";
             if (writer != null) Event(time, connected ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED", detail: connected ? $"instructor {callsign}" : "");
         }
 

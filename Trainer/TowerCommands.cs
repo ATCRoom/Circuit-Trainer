@@ -9,6 +9,10 @@ namespace ATCRoom.TwrTrainer
     internal sealed class TowerCommands(SimEngine engine, Airfield airfield)
     {
         // Each value with its name (menus) and its short name (buttons, label).
+        /// <summary>A circuit as on the screen (the log of the flights): CONV L, OVH R...</summary>
+        private static string Named(CircuitType type, CircuitSide side) =>
+            $"{Circuits.FirstOrDefault(c => c.Type == type).Short ?? type.ToString()} {(side == CircuitSide.Left ? "L" : "R")}";
+
         /// <summary>An order of the instructor given (the user, 7 Nov: in the log of the flights): callsign, what, detail.</summary>
         public Action<string, string, string>? Logged { get; set; }
 
@@ -117,21 +121,28 @@ namespace ATCRoom.TwrTrainer
         /// <summary>Fly this circuit on this side from where it is (the side changed: an S over the aerodrome).</summary>
         public void FlyCircuit(string callsign, CircuitType type, CircuitSide side)
         {
-            Logged?.Invoke(callsign, "CIRCUIT NOW", $"{type} {side}");
+            Logged?.Invoke(callsign, "CIRCUIT NOW", Named(type, side));
             engine.SetCircuit(callsign, type, side);
         }
 
         /// <summary>The next circuit (the plan): flown after the next touch and go / go-around; not in a circuit: joined now.</summary>
         public void NextCircuit(string callsign, CircuitType type, CircuitSide side)
         {
-            Logged?.Invoke(callsign, "NEXT CIRCUIT", $"{type} {side}");
+            Logged?.Invoke(callsign, "NEXT CIRCUIT", Named(type, side));
             engine.SetNextCircuit(callsign, type, side);
         }
 
         /// <summary>DCT TO (the user, 5 Nov): at once to the conventional downwind, its base, the initial point or the High Key, on the aerodrome's side of that circuit.</summary>
         public void DirectTo(string callsign, DirectPoint point)
         {
-            Logged?.Invoke(callsign, "DCT TO", $"{point}");
+            Logged?.Invoke(callsign, "DCT TO", point switch
+            {
+                DirectPoint.Downwind => "DW",
+                DirectPoint.Base => "BASE",
+                DirectPoint.InitialPoint => "IP",
+                DirectPoint.HighKey => "HK",
+                _ => $"{point}"
+            });
             engine.DirectTo(callsign, point, engine.SideFor(point switch
         {
             DirectPoint.InitialPoint => CircuitType.Overhead,
@@ -162,7 +173,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>An altitude given as a height above the runway (ft), and a speed (kt).</summary>
         public void Height(string callsign, double heightFt)
         {
-            Logged?.Invoke(callsign, "ALTITUDE", $"{heightFt:0} ft above the runway");
+            Logged?.Invoke(callsign, "ALTITUDE", $"{airfield.ElevationFt + heightFt:0} ft QNH");
             engine.SetAltitude(callsign, airfield.ElevationFt + heightFt);
         }
 
@@ -246,13 +257,13 @@ namespace ATCRoom.TwrTrainer
 
         public void SetEnd(string callsign, EndAction end)
         {
-            Logged?.Invoke(callsign, "END", $"{end}");
+            Logged?.Invoke(callsign, "END", Ends.FirstOrDefault(e => e.End == end).Short ?? $"{end}");
             engine.SetEndAction(callsign, end);
         }
 
         public void SetBreak(string callsign, BreakPoint where)
         {
-            Logged?.Invoke(callsign, "BREAK AT", $"{where}");
+            Logged?.Invoke(callsign, "BREAK AT", Breaks.FirstOrDefault(b => b.Break == where).Short ?? $"{where}");
             engine.SetBreak(callsign, where);
         }
 

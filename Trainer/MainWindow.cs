@@ -40,6 +40,11 @@ namespace ATCRoom.TwrTrainer
         private DateTime networkCallsignAt = DateTime.MinValue, networkMetarAt = DateTime.MinValue;
         private string networkCallsign = "";
         private Button ivaoButton = null!;
+        private Button northButton = null!, runwayButton = null!;
+        /// <summary>The VID found in IVAO's list for the callsign of Aurora (the user, 7 Nov), and when it was asked.</summary>
+        private string networkVid = "", vidFor = "";
+        private DateTime vidAskedAt = DateTime.MinValue;
+        private readonly TextBox vidBox = new() { Width = 90, MaxLength = 9 };
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private double lastTick;
         private int ticks;
@@ -310,6 +315,13 @@ namespace ATCRoom.TwrTrainer
             ringsButton = ActionButton("", ToggleRings);
             ringsButton.Margin = new Thickness(12, 0, 0, 4);
             bar.Children.Add(ringsButton);
+            // (The user, 7 Nov: NORTH up, or the runway in use across the screen; RWY again: turned round.)
+            northButton = ActionButton("NORTH", () => SetMapTurn(0));
+            northButton.Margin = new Thickness(12, 0, 0, 4);
+            bar.Children.Add(northButton);
+            runwayButton = ActionButton("RWY", () => SetMapTurn(settings.MapTurn == 1 ? 2 : 1));
+            runwayButton.Margin = new Thickness(4, 0, 0, 4);
+            bar.Children.Add(runwayButton);
             // (The user, 7 Nov: the traffic of IVAO from Aurora, only shown; its METAR used.)
             ivaoButton = ActionButton("", ToggleIvao);
             ivaoButton.Margin = new Thickness(4, 0, 0, 4);
@@ -424,6 +436,7 @@ namespace ATCRoom.TwrTrainer
             longFinalBox.Text = engine.LongFinalNM.ToString("0.#", CultureInfo.InvariantCulture);
             initialPointBox.Text = engine.InitialPointNM.ToString("0.#", CultureInfo.InvariantCulture);
             metarBox.Text = settings.Metar;
+            vidBox.Text = settings.InstructorVid;
             metarShowRow.Show(settings.MetarWindQnhOnly);
             ApplyMetar(quiet: true);
             if (settings.MapPath.Length > 0 && File.Exists(settings.MapPath)) OpenMap(settings.MapPath, settings.Runway);
@@ -694,6 +707,14 @@ namespace ATCRoom.TwrTrainer
                 Say(error ?? (full ? "Full rwy separation: in a formation landing to a full stop, the next one lands once the one ahead has left the runway."
                     : "Reduced rwy separation: in a formation landing to a full stop, the next one lands when the one ahead has rolled a third of the runway."));
             };
+
+            // (The user, 7 Nov: the instructor's VID for the log; found in IVAO's list when connected, else this one.)
+            current = Section("Network", null, false);
+            Note("IVAO through Aurora on this PC (IVAO on the bar of the map). Your VID goes in the log of the flights: found by itself from your callsign when connected, else the one written here.");
+            vidBox.ToolTip = "Your IVAO VID (a number): used when IVAO's list of who is connected does not give it.";
+            Row("My VID", vidBox);
+            vidBox.LostFocus += (_, _) => ApplyVid();
+            vidBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyVid(); };
 
             current = Section("Weather", weatherSummary, false);
             Row("METAR", metarBox);
@@ -1514,6 +1535,7 @@ namespace ATCRoom.TwrTrainer
             ShowBaseTraffic();
             ShowHeights();
             ShowRings();
+            ShowMapTurn();
             updating = false;
         }
 
@@ -2604,6 +2626,78 @@ namespace ATCRoom.TwrTrainer
             return plan == null ? ("", "") : (plan.IcaoType, plan.Ifr ? "I" : "V");
         }
 
+        /// <summary>My VID written (Settings › Network): digits only, kept; in the log when IVAO's list does not give it.</summary>
+        private void ApplyVid()
+        {
+            string vid = vidBox.Text.Trim();
+            if (vid.Length > 0 && !vid.All(char.IsAsciiDigit))
+            {
+                Say("Your VID: digits only (empty: none).");
+                vidBox.Text = settings.InstructorVid;
+                return;
+            }
+            if (vid == settings.InstructorVid) return;
+            settings.InstructorVid = vid;
+            settings.Save();
+            // (Only while connected: off the network the log leaves it empty, the user 7 Nov.)
+            if (networkCallsign.Length > 0) flightLog.InstructorVid = networkVid.Length > 0 ? networkVid : vid;
+            Say(vid.Length > 0 ? $"Your VID {vid} kept (used when IVAO's list does not give it)." : null);
+        }
+
+        /// <summary>
+        /// The VID of the callsign of Aurora from IVAO's list (the user, 7 Nov): asked when the callsign is new, then every 3
+        /// minutes while not found; else the one written in Settings › Network.
+        /// </summary>
+        private async Task FindVid()
+        {
+            if (networkCallsign.Length == 0)
+            {
+                networkVid = vidFor = "";
+                flightLog.InstructorVid = "";
+                return;
+            }
+            if (networkCallsign == vidFor && (networkVid.Length > 0 || DateTime.UtcNow - vidAskedAt < TimeSpan.FromMinutes(3))) return;
+            if (networkCallsign != vidFor) networkVid = "";
+            vidFor = networkCallsign;
+            vidAskedAt = DateTime.UtcNow;
+            string asked = networkCallsign;
+            string? found = await IvaoDirectory.FindVidAsync(asked, appVersion);
+            if (asked != networkCallsign) return;
+            networkVid = found ?? "";
+            string vid = networkVid.Length > 0 ? networkVid : settings.InstructorVid;
+            if (vid != flightLog.InstructorVid)
+            {
+                flightLog.InstructorVid = vid;
+                if (vid.Length > 0) flightLog.Event(engine.Time, "VID", detail: $"{asked} {vid}{(networkVid.Length > 0 ? " (IVAO's list)" : " (written)")}", source: "INSTRUCTOR");
+            }
+        }
+
+        /// <summary>NORTH / RWY: the map north up, or the runway in use across the screen (threshold left, or right); saved.</summary>
+        private void SetMapTurn(int turn)
+        {
+            settings.MapTurn = turn;
+            settings.Save();
+            ShowMapTurn();
+        }
+
+        private void ShowMapTurn()
+        {
+            int turn = double.IsNaN(airfield.Course) ? 0 : settings.MapTurn;
+            view.Rotation = turn == 0 ? 0 : airfield.Course - 90 + (turn == 2 ? 180 : 0);
+            view.InvalidateVisual();
+            if (northButton == null || runwayButton == null) return;
+            foreach ((Button button, bool on) in new[] { (northButton, turn == 0), (runwayButton, turn != 0) })
+            {
+                button.Background = on ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)) : Theme.OffBack;
+                button.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)) : Theme.OffText;
+                button.BorderBrush = button.Background;
+                button.Tag = on ? "on" : null;
+            }
+            northButton.ToolTip = "The map with the north up.";
+            runwayButton.ToolTip = turn == 0 ? "The map turned: the runway in use across the screen, its threshold on the left."
+                : $"The runway in use across the screen, its threshold on the {(turn == 1 ? "left" : "right")}. Click: turned round.";
+        }
+
         /// <summary>IVAO on the bar of the map: the traffic of the network from Aurora shown or not (saved).</summary>
         private void ToggleIvao()
         {
@@ -2612,6 +2706,7 @@ namespace ATCRoom.TwrTrainer
             networkCallsignAt = networkMetarAt = DateTime.MinValue;
             if (!settings.ShowIvao)
             {
+                networkCallsign = networkVid = vidFor = "";
                 view.Network = [];
                 flightLog.ObserveNetwork([], engine.Time);
                 flightLog.SetNetwork(false, "", engine.Time);
@@ -2662,6 +2757,8 @@ namespace ATCRoom.TwrTrainer
                     if (!settings.ShowIvao) return;
                     networkCallsign = callsign;
                     flightLog.SetNetwork(networkCallsign.Length > 0, networkCallsign, engine.Time);
+                    await FindVid();
+                    if (!settings.ShowIvao) return;
                 }
                 string code = airfield.Code.Trim().ToUpperInvariant();
                 if (airfield.Map != null && code.Length == 4 && DateTime.UtcNow - networkMetarAt > TimeSpan.FromMinutes(1))
@@ -2888,7 +2985,18 @@ namespace ATCRoom.TwrTrainer
                 TowerPlan p = plan;
                 Button hold = SmallButton("⏸", () =>
                 {
-                    p.Now = p.Now == TowerPlan.State.Held ? (p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting) : TowerPlan.State.Held;
+                    // (The user, 7 Nov: held, the countdown stops too; let go, it goes on from where it was.)
+                    if (p.Now == TowerPlan.State.Held)
+                    {
+                        if (p.Due > 0) p.Due = engine.Time + p.HeldLeft;
+                        p.Now = p.Due > 0 ? TowerPlan.State.Counting : TowerPlan.State.Waiting;
+                    }
+                    else
+                    {
+                        p.HeldLeft = p.Now == TowerPlan.State.Counting ? Math.Max(0, p.Due - engine.Time) : 0;
+                        if (p.Now != TowerPlan.State.Counting) p.Due = 0;
+                        p.Now = TowerPlan.State.Held;
+                    }
                     UpdatePlans();
                 });
                 Button tick = SmallButton(p.Picked ? "☑" : "☐", () => { p.Picked = !p.Picked; ShowPlans(); });
@@ -2994,7 +3102,7 @@ namespace ATCRoom.TwrTrainer
                 string state = plan.Now switch
                 {
                     TowerPlan.State.Counting => $"{(int)(Math.Max(0, plan.Due - time) / 60)}:{(int)(Math.Max(0, plan.Due - time) % 60):00} ",
-                    TowerPlan.State.Held => "HELD ",
+                    TowerPlan.State.Held => plan.Due > 0 ? $"HELD {(int)(plan.HeldLeft / 60)}:{(int)(plan.HeldLeft % 60):00} " : "HELD ",
                     _ => ""
                 };
                 text.Text = state + PlanParts(plan).Detail;
