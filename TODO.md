@@ -867,6 +867,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - DCT TO and NOW in columns, 4 a row (label and panel). Red: G/A, CHG SIDE, BREAKUP (the row below); ORB orange. The
     FORMATION row gone (SPLIT among the orange ones). EXP TAXI on the red row, last column (it is orange).
 
+- **Next group (the user, 8 Nov):** Aircraft control, the HDG row: "HDG [078] or drag from its symbol", REJOIN on the row
+  below (under the box), not between the box and the words.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
