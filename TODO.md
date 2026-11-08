@@ -887,6 +887,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     click is CONTINUE. Key O: the one on; both on: the side it already turns, else right; Shift+O on and on.
     13 buttons in the NOW grid: a 4th row (EXP TAXI alone); idea: HOLD HK and START SFO as one button.
 
+  - **HOLD HK and START SFO as ONE button** (the user: "ok va bene aggiungi", 8 Nov night): it shows the action it does
+    at the click, orange: HOLD HK (not on hold: it holds on the circle of the High Key), START SFO (on hold: it starts at the
+    next pass over the High Key); grey (text HOLD HK) outside an SFO circuit or once the SFO has started. One key, H (S free).
+    It sends "hold yes / no" by the text shown, not "toggle": a double click is harmless. 12 buttons, 3 rows.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
