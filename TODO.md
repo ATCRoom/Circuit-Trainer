@@ -892,6 +892,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     next pass over the High Key); grey (text HOLD HK) outside an SFO circuit or once the SFO has started. One key, H (S free).
     It sends "hold yes / no" by the text shown, not "toggle": a double click is harmless. 12 buttons, 3 rows.
 
+  - **DCT TO HK from the final: no offset** (the user, 8 Nov night: "ok va bene. per il prossimo"): an aircraft on the final
+    (near the runway track, before the High Key) stays on the track up to the High Key point and only there joins the circle,
+    which is tangent to the track there (no cutting across to the side of the circle). From farther away it is as now (the
+    steering towards the circle, up to 70°; the rule of 3 Nov against the loops). Test from the long final: it stays
+    within a small distance of the track until the High Key, then the hold within 0.2 NM of the circle, the climb never
+    turning back, the final aligned.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
