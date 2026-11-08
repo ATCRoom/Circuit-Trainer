@@ -880,6 +880,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - **SPLIT always** (the user: "può avvenire sempre e comunque"): no more "not before the break of the OVH / CLS, the
     High Key of the SFO". Split in those circuits: each one flies it on its own, one interval behind the other.
 
+  - **ORB L / ORB R instead of ORB** (the user, 8 Nov night; ORB did nothing when flying it by hand, MANUAL): two buttons,
+    label and panel. In its circuit only the right one is on (away from the runway); out of the circuits (transit, MANUAL
+    after a BREAKUP) and inbound to a circuit both are on. The engine: in MANUAL one orbit of 360° on the spot, then the
+    heading it had, still MANUAL, same altitude and speed. Shift+click: on and on; orbiting on and on, a thick border and a
+    click is CONTINUE. Key O: the one on; both on: the side it already turns, else right; Shift+O on and on.
+    13 buttons in the NOW grid: a 4th row (EXP TAXI alone); idea: HOLD HK and START SFO as one button.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
