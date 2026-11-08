@@ -858,6 +858,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     2 Next circuit (PATTERN, SIDE as on the label, BREAK, END, LAND for formations, HPAD); 3 Now (DCT TO; NOW rows; SPLIT /
     BREAKUP); REMOVE red at the bottom; the old group 4 and ORBIT ∞ gone (ORB with Shift). WIDE NOW and BREAKUP on the label.
 
+## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
+- **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
+  straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
+  from there. NOW (orange) = WHAT it does now, where it is, without being sent elsewhere (EXT DWN, BASE, ORB, G/A, BREAK
+  NOW, SIDE NOW, WIDE NOW, HOLD HK, START SFO, EXP TAXI, SPLIT, BREAKUP). Picture of the circuit as a ring; an example for each.
+  Also note: BASE (NOW) turns base from the downwind it flies; DCT TO BASE goes straight to the start of the base from anywhere.
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.
