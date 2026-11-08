@@ -867,7 +867,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - DCT TO and NOW in columns, 4 a row (label and panel). Red: G/A, CHG SIDE, BREAKUP (the row below); ORB orange. The
     FORMATION row gone (SPLIT among the orange ones). EXP TAXI on the red row, last column (it is orange).
 
-- **Next group (the user, 8 Nov):** Aircraft control, the HDG row: "HDG [078] or drag from its symbol", REJOIN on the row
+- **Group of 8 Nov late (the user: "ok") — WRITTEN (test 70):** DCT TO IP from the WIDE: out only to abeam the IP, one turn
+  of about 180° onto the initial (no IP + 2 NM; only if the turn fits in its width). And: Aircraft control, the HDG row: "HDG [078] or drag from its symbol", REJOIN on the row
   below (under the box), not between the box and the words.
 
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")

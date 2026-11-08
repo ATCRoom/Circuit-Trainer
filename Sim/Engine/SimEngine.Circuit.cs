@@ -2186,6 +2186,17 @@ namespace ATCRoom.Sim
                 double turnInAlong = -initialPoint - 2;
                 // Aside to that distance first, 45° outwards (from the runway track: a go-around, a take-off), then out along the final.
                 double aside = Math.Abs(away - Math.Abs(lateral));
+                // (The user, 8 Nov: from the WIDE no need of the IP + 2 NM: out only to abeam the IP, then one turn of about
+                // 180° onto the initial at the IP. Only if that turn fits in its width; else as from the others.)
+                if (Math.Abs(lateral) >= (near + wide) / 2 && away >= 1.8 * turnRadius)
+                {
+                    double outer = -initialPoint - turnRadius - 0.1;
+                    if (aside > 0.1) route.Add(Point(Math.Max(along - aside, outer + 0.5), away, outOn, height, speed, "JOIN"));
+                    route.Add(Point(outer, away, outOn, height, speed, "JOIN"));
+                    route.Add(Point(outer, 0, side, height, speed, "JOIN"));
+                    route.AddRange(sfo ? SfoRoute(plane) : OverheadRoute(plane));
+                    return route;
+                }
                 if (aside > 0.1) route.Add(Point(Math.Max(along - aside, turnInAlong + 0.5), away, outOn, height, speed, "JOIN"));
                 route.Add(Point(turnInAlong, away, outOn, height, speed, "JOIN"));
                 // Then towards the IP: the corner on the runway track beyond it by what the turn onto the initial needs, so it

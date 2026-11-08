@@ -2403,6 +2403,27 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
             }
         }
 
+        // 70. DCT TO IP from the WIDE downwind (the user, 8 Nov): out only to abeam the IP, one turn of about 180° onto the
+        // initial at the IP (no IP + 2 NM), lands.
+        foreach (string kind70 in new[] { "Light", "Turboprop" })
+        {
+            SimEngine s70 = NewCircuitEngine();
+            string c70 = s70.AddInCircuit(CircuitStart.Downwind, CircuitType.Wide, CircuitSide.Left, EndAction.FullStop, performanceClass: kind70);
+            s70.RunFor(15);
+            double wide70 = Math.Abs(Frame(s70.Get(c70)!).Lateral);
+            s70.DirectTo(c70, DirectPoint.InitialPoint, CircuitSide.Left);
+            List<AircraftState> f70 = Fly(s70, c70, 1200);
+            int initial70 = f70.FindIndex(st => st.Leg == "INITIAL");
+            double deepest70 = initial70 > 0 ? f70.Take(initial70).Min(st => Frame(st).Along) : double.NaN;
+            double widest70 = initial70 > 0 ? f70.Take(initial70).Max(st => Math.Abs(Frame(st).Lateral)) : double.NaN;
+            AircraftState? atIp70 = initial70 > 0 ? f70.Skip(initial70).FirstOrDefault(st => Frame(st).Along >= -s70.InitialPointNM) : null;
+            double lateral70 = atIp70 != null ? Frame(atIp70).Lateral : double.NaN;
+            Check(initial70 > 0 && deepest70 > -s70.InitialPointNM - 1.6 && widest70 <= wide70 + 0.25 && Math.Abs(lateral70) < 0.35 && LandedOnRunway(f70),
+                $"DCT TO IP from the WIDE downwind ({kind70}): out only to abeam the IP, one turn onto the initial at the IP, lands",
+                $"deepest {-deepest70:F2} NM out (IP {s70.InitialPointNM:F1}), widest {widest70:F2} NM (WIDE {wide70:F2}), {lateral70:F2} NM off the track at the IP");
+            pictures.Add(($"DCT TO IP from the WIDE downwind ({kind70})", f70));
+        }
+
         // START SFO a little before the High Key, on its circle: on round it, not a way back to the runway track.
         SimEngine near = NewCircuitEngine();
         string nc = near.AddInCircuit(CircuitStart.HighKey, CircuitType.Sfo, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");

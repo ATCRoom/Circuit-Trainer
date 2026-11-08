@@ -1118,7 +1118,9 @@ namespace ATCRoom.TwrTrainer
             speedPresets.Children.Add(speedKtBox);
             rejoinButton = Keyed("REJOIN", "R", commands.Rejoin);
             rejoinButton.ToolTip = "Back into its circuit (from MANUAL, a heading). Key: R.";
-            Row("HDG", Wrap(headingBox, rejoinButton, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 40);
+            // (The user, 8 Nov: the words with the box, REJOIN below it.)
+            Row("HDG", Wrap(headingBox, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 40);
+            Row("", Inline(rejoinButton), values, 40);
             ValueBox(heightBox, "ALT");
             ValueBox(speedKtBox, "SPD");
             ValueBox(headingBox, "HDG");
