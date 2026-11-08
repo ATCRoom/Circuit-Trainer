@@ -858,6 +858,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     2 Next circuit (PATTERN, SIDE as on the label, BREAK, END, LAND for formations, HPAD); 3 Now (DCT TO; NOW rows; SPLIT /
     BREAKUP); REMOVE red at the bottom; the old group 4 and ORBIT ∞ gone (ORB with Shift). WIDE NOW and BREAKUP on the label.
 
+- **Group of 8 Nov night (the user: "ok procedi") — WRITTEN (tests 67-69):**
+  - L / R (label, panel, ← / →): only the side of the next circuit; before the turn of this one (upwind, joining, the
+    initial before the break, to the High Key) this one too. The label and the panel show the side of the next circuit.
+  - CHG SIDE (red, key C; label and panel; SIDE NOW L / R and Shift+← / → gone): this circuit now on the other side (an S
+    over the aerodrome; on the initial / upwind: the turn to the other side); the next circuit ordered stays. On the
+    final (base, rolling): it goes on, then the other side (as L / R).
+  - DCT TO and NOW in columns, 4 a row (label and panel). Red: G/A, CHG SIDE, BREAKUP (the row below); ORB orange. The
+    FORMATION row gone (SPLIT among the orange ones). EXP TAXI on the red row, last column (it is orange).
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit

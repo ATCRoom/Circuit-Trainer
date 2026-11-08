@@ -698,7 +698,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>How a piece of the selected label is drawn (the user, 4 Nov: as in the panel, yellow = chosen now).</summary>
-        private enum Look { Text, Tag, Option, On, Command, Off, Thick, Now }
+        private enum Look { Text, Tag, Option, On, Command, Off, Thick, Now, Urgent }
 
         private static readonly Brush OnText = Frozen(new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)));
         private static readonly Brush CommandBack = Frozen(new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x8F)));
@@ -707,6 +707,10 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush NowBack = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)));
         private static readonly Brush NowEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)));
         private static readonly Brush NowText = Frozen(new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD)));
+        // (The user, 8 Nov: the urgent ones, G/A, CHG SIDE, BREAKUP, red.)
+        private static readonly Brush UrgentBack = Frozen(new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0x24)));
+        private static readonly Brush UrgentEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xE0, 0x60, 0x60)));
+        private static readonly Brush UrgentText = Frozen(new SolidColorBrush(Color.FromRgb(0xFD, 0xE8, 0xE8)));
         private static readonly Brush OffText = Frozen(new SolidColorBrush(Color.FromRgb(0x5F, 0x6B, 0x75)));
         private static readonly Brush OffEdge = Frozen(new SolidColorBrush(Color.FromRgb(0x3B, 0x46, 0x4F)));
 
@@ -726,7 +730,7 @@ namespace ATCRoom.TwrTrainer
             string leg = a.Leg == "LANDED" ? $"LANDED{(a.ExpediteTaxi ? " EXP" : "")}{(a.Exit.Length > 0 ? $" EXIT {a.Exit}" : "")}"
                 : a.Leg == "MANUAL" || a.Leg.Length == 0 ? $"{(a.Leg.Length > 0 ? a.Leg : "HDG")} {Math.Round(a.TargetHeading) % 360:000}°" : a.Leg;
             string title = a.Formation is { Count: > 1 } team ? $"{a.Callsign} F{team.Count}  {a.PerformanceClass}" : $"{a.Callsign}  {a.PerformanceClass}";
-            List<(string Field, string Text, Look Look)> now = [];
+            List<(string Field, string Text, Look Look)> now = [], urgent = [], dct = [];
             if (a.Leg == "LANDED")
             {
                 // On the runway: its speed, EXPEDITE TAXI.
@@ -765,32 +769,33 @@ namespace ATCRoom.TwrTrainer
                         .. (a.CanHover ? [("PAD=END", a.WantsPad && !a.HasPad ? "HPAD?" : "HPAD", a.HasPad || a.WantsPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
-                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW CONV", Look.Command), ("DCT=CloseDownwind", "DW CLS", Look.Command),
+                    if (airborne) dct = [("DCT=Downwind", "DW CONV", Look.Command), ("DCT=CloseDownwind", "DW CLS", Look.Command),
                         ("DCT=Base", "BASE CONV", Look.Command), ("DCT=CloseBase", "BASE CLS", Look.Command),
                         ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command),
-                        .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())]);
-                    // The orders of where it is now.
-                    // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
-                    if (CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND")))
-                        now.Add(("BREAKNOW", "BREAK NOW", Look.Now));
-                    if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Now) : ("HOLD", "HOLD", Look.Now));
-                    if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
+                        .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())];
+                    // The orders of where it is now (the user, 8 Nov: orange; the urgent ones red, on the row below).
+                    bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
                     now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Now : Look.Off));
                     now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Now : Look.Off));
-                    bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
                     now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Now : Look.Off));
-                    now.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Now : Look.Off));
-                    // (The user, 8 Nov: WIDE NOW on the label too; BREAKUP where it can be given.)
+                    // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
+                    bool breakNow = CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND"));
+                    now.Add(("BREAKNOW", "BREAK NOW", breakNow ? Look.Now : Look.Off));
                     now.Add(("WIDENOW", "WIDE NOW", airborne && !manual ? Look.Now : Look.Off));
-                    if (a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE") now.Add(("BREAKUP", "BREAKUP", Look.Now));
+                    if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Now) : ("HOLD", "HOLD HK", Look.Now));
+                    if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
+                    if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
+                    urgent.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Urgent : Look.Off));
+                    urgent.Add(("CHGSIDE", "CHG SIDE", airborne && !manual ? Look.Urgent : Look.Off));
+                    urgent.Add(("BREAKUP", "BREAKUP", a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE" ? Look.Urgent : Look.Off));
                 }
                 else
                 {
                     // Crossing, or not in a circuit: its orbits, back onto its way.
                     now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", a.Leg == "TRANSIT" ? Look.Now : Look.Off));
                     now.Add(("REJOIN", "REJOIN", a.Leg is "MANUAL" or "" ? Look.Command : Look.Off));
+                    if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
                 }
-                if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
             }
             const double pad = 6, gap = 4, lineGap = 4, tagWidth = 50;
             FormattedText Text(string text, Look look, double size = 12) => new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, look == Look.Tag ? 10 : size,
@@ -800,6 +805,7 @@ namespace ATCRoom.TwrTrainer
                     Look.On => OnText,
                     Look.Command => Brushes.White,
                     Look.Now or Look.Thick => NowText,
+                    Look.Urgent => UrgentText,
                     Look.Off => OffText,
                     Look.Text => SelectedBrush,
                     _ => AircraftBrush
@@ -807,12 +813,20 @@ namespace ATCRoom.TwrTrainer
             FormattedText titleText = Text(title, Look.Text, 13), legText = Text(leg, Look.Text, 13);
             double PieceWidth((string Field, string Text, Look Look) piece, FormattedText text) => piece.Look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : text.Width + 10;
             List<List<((string Field, string Text, Look Look) Piece, FormattedText Text)>> made = rows.Select(r => r.Select(p => (p, Text(p.Text, p.Look))).ToList()).ToList();
-            List<((string Field, string Text, Look Look) Piece, FormattedText Text)> nowMade = now.Select(p => (p, Text(p.Text, p.Look))).ToList();
+            // (DCT TO and NOW in columns, 4 a row, the user 8 Nov.)
+            const int columns = 4;
+            List<List<((string Field, string Text, Look Look) Piece, FormattedText Text)>> InColumns(string tag, List<(string Field, string Text, Look Look)> pieces) =>
+                pieces.Chunk(columns).Select((chunk, i) => new List<((string Field, string Text, Look Look) Piece, FormattedText Text)>
+                    { (("", i == 0 ? tag : "", Look.Tag), Text(i == 0 ? tag : "", Look.Tag)) }.Concat(chunk.Select(p => (p, Text(p.Text, p.Look)))).ToList()).ToList();
+            var dctMade = InColumns("DCT TO", dct);
+            var nowMade = InColumns("NOW", now).Concat(InColumns(now.Count > 0 ? "" : "NOW", urgent)).ToList();
+            double cell = dctMade.Concat(nowMade).SelectMany(l => l.Skip(1)).Select(t => t.Text.Width + 10).DefaultIfEmpty(0).Max();
             double RowWidth(IEnumerable<((string Field, string Text, Look Look) Piece, FormattedText Text)> line) =>
                 line.Sum(t => PieceWidth(t.Piece, t.Text)) + gap * Math.Max(0, line.Count() - 1);
-            double width = Math.Max(titleText.Width + 16 + legText.Width, Math.Max(made.Count > 0 ? made.Max(RowWidth) : 0, nowMade.Count > 0 ? RowWidth(nowMade) + tagWidth + gap : 0));
+            double gridWidth = tagWidth + columns * (cell + gap);
+            double width = Math.Max(titleText.Width + 16 + legText.Width, Math.Max(made.Count > 0 ? made.Max(RowWidth) : 0, dctMade.Count + nowMade.Count > 0 ? gridWidth : 0));
             double rowHeight = Text("X", Look.Option).Height + 2;
-            double height = pad + titleText.Height + lineGap + made.Count * (rowHeight + lineGap) + (nowMade.Count > 0 ? 6 + rowHeight + lineGap : 0) + pad - lineGap;
+            double height = pad + titleText.Height + lineGap + (made.Count + dctMade.Count + nowMade.Count) * (rowHeight + lineGap) + (nowMade.Count > 0 ? 6 : 0) + pad - lineGap;
             width += 2 * pad;
             Point corner = at + (labelOffsets.TryGetValue(a.Callsign, out Vector moved) ? moved : new Vector(14, -height - 8));
             selectedLabel = new Rect(corner, new Size(width, height));
@@ -823,12 +837,12 @@ namespace ATCRoom.TwrTrainer
             dc.DrawText(titleText, new Point(corner.X + pad, y));
             dc.DrawText(legText, new Point(corner.X + width - pad - legText.Width, y));
             y += titleText.Height + lineGap;
-            void Draw(List<((string Field, string Text, Look Look) Piece, FormattedText Text)> line, double x)
+            void Draw(List<((string Field, string Text, Look Look) Piece, FormattedText Text)> line, double x, double cellWidth = 0)
             {
                 bool first = true;
                 foreach (((string field, string _, Look look), FormattedText text) in line)
                 {
-                    double w = look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : text.Width + 10;
+                    double w = look == Look.Tag ? Math.Max(tagWidth, text.Width + 4) : cellWidth > 0 ? cellWidth : text.Width + 10;
                     Rect area = new(x, y, w, rowHeight);
                     switch (look)
                     {
@@ -839,18 +853,19 @@ namespace ATCRoom.TwrTrainer
                             dc.DrawText(text, new Point(left, y + (rowHeight - text.Height) / 2));
                             break;
                         default:
-                            Brush? fill = look switch { Look.On => SelectedBrush, Look.Command => CommandBack, Look.Now or Look.Thick => NowBack, _ => null };
+                            Brush? fill = look switch { Look.On => SelectedBrush, Look.Command => CommandBack, Look.Now or Look.Thick => NowBack, Look.Urgent => UrgentBack, _ => null };
                             Pen edge = look switch
                             {
                                 Look.On => new Pen(SelectedBrush, 1),
                                 Look.Command => new Pen(CommandEdge, 1),
                                 Look.Now => new Pen(NowEdge, 1),
+                                Look.Urgent => new Pen(UrgentEdge, 1),
                                 Look.Thick => new Pen(SelectedBrush, 2.5),
                                 Look.Off => new Pen(OffEdge, 1),
                                 _ => new Pen(GroundBrush, 0.8)
                             };
                             dc.DrawRectangle(fill, edge, area);
-                            dc.DrawText(text, new Point(x + 5, y + (rowHeight - text.Height) / 2));
+                            dc.DrawText(text, new Point(cellWidth > 0 ? x + (w - text.Width) / 2 : x + 5, y + (rowHeight - text.Height) / 2));
                             // (Grey orders are not where it is now: no click.)
                             if (field.Length > 0 && look != Look.Off) fields.Add((area, field));
                             break;
@@ -861,12 +876,13 @@ namespace ATCRoom.TwrTrainer
                 y += rowHeight + lineGap;
             }
             foreach (var line in made) Draw(line, corner.X + pad);
+            foreach (var line in dctMade) Draw(line, corner.X + pad, cell);
             if (nowMade.Count > 0)
             {
                 y += 2;
                 dc.DrawLine(new Pen(OffEdge, 1), new Point(corner.X + pad, y - 3), new Point(corner.X + width - pad, y - 3));
                 y += 4;
-                Draw([(("", "NOW", Look.Tag), Text("NOW", Look.Tag)), .. nowMade], corner.X + pad);
+                foreach (var line in nowMade) Draw(line, corner.X + pad, cell);
             }
         }
 

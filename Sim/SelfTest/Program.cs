@@ -2096,6 +2096,50 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO DW CLS from the conventional downwind (Jet)", flown));
     }
 
+    // 67-69. L / R and CHG SIDE (the user, 8 Nov): L / R only the side of the next circuit (before the turn of this one, on
+    // the initial: this one too); CHG SIDE moves it now and keeps the next circuit ordered.
+    {
+        double cc = CircuitCourse * Math.PI / 180;
+        double LeftOf(AircraftState st) => -(st.X * Math.Cos(cc) - st.Y * Math.Sin(cc));
+
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.TouchAndGo, performanceClass: "Light");
+        sim.RunFor(5);
+        sim.SetNextSide(cs, CircuitSide.Right);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        int touchAt = flown.FindIndex(st => st.Contact != GroundContact.Airborne);
+        bool stayed = touchAt > 0 && flown.Take(touchAt).All(st => LeftOf(st) > -0.2);
+        bool nextOrdered = flown.Count > 0 && flown[0].NextCircuit == CircuitType.Conventional && flown[0].NextSide == CircuitSide.Right;
+        bool then = touchAt > 0 && flown.Skip(touchAt).Any(st => st.Leg == "DOWNWIND" && LeftOf(st) < -0.5);
+        Check(stayed && nextOrdered && then, "L / R on the downwind: this circuit goes on on its side, the next one on the other",
+            $"stayed {stayed}, nextOrdered {nextOrdered}, then on the other side {then}, touched at {touchAt} s");
+        pictures.Add(("R on the left downwind: the next circuit right-hand", flown));
+
+        sim = NewCircuitEngine();
+        cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        sim.RunFor(5);
+        sim.SetNextCircuit(cs, CircuitType.Wide, CircuitSide.Left);
+        sim.ChangeSideNow(cs);
+        flown = Fly(sim, cs, 300);
+        bool moved = flown.Any(st => st.Leg == "DOWNWIND" && LeftOf(st) < -0.5);
+        AircraftState later = flown[Math.Min(30, flown.Count - 1)];
+        bool kept = later.NextCircuit == CircuitType.Wide && later.NextSide == CircuitSide.Left && later.CircuitSide == CircuitSide.Right;
+        Check(moved && kept, "CHG SIDE on the downwind: onto the other downwind now, the next circuit nextOrdered kept",
+            $"moved {moved}, kept {kept} (next {later.NextCircuit} {later.NextSide}, now {later.CircuitSide})");
+        pictures.Add(("CHG SIDE on the left downwind", flown));
+
+        sim = NewCircuitEngine();
+        cs = sim.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        for (int t = 0; t < 400 && sim.Get(cs)?.Leg != "INITIAL"; t++) sim.RunFor(1);
+        bool onInitial = sim.Get(cs)?.Leg == "INITIAL";
+        sim.SetNextSide(cs, CircuitSide.Right);
+        flown = Fly(sim, cs, 600);
+        bool brokeRight = flown.Any(st => st.Leg == "DOWNWIND" && LeftOf(st) < -0.3);
+        Check(onInitial && brokeRight && LandedOnRunway(flown), "R on the initial (before the break): it breaks to the right, lands",
+            $"on the initial {onInitial}, broke right {brokeRight}");
+        pictures.Add(("R on the initial of the overhead", flown));
+    }
+
     // 52. DCT TO BASE on the way to the final, out on the circuit side (the user, 5 Nov: it went far up and back): straight
     // to the start of the base, never past the threshold before the base, lands.
     {

@@ -217,7 +217,7 @@ namespace ATCRoom.TwrTrainer
         private string presetsFor = "";
         private Grid padEndLine = null!;
         private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
-            goAroundButton = null!, sideLeftButton = null!, sideRightButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
+            goAroundButton = null!, changeSideButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
         private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => ChoiceTip(t));
         private ChoiceRow<string> classRow = new([]);
@@ -230,7 +230,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
         private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => "From the next circuit (on the ground: CONV or WIDE only): " + ChoiceTip(t));
-        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "The side: of the circuit ordered, else now (an S over the aerodrome): " + ChoiceTip(t));
+        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "The side of the next circuit (before the turn of this one, on the upwind or the initial: this one too): " + ChoiceTip(t));
         private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)), (_, t) => "At the end of this final: " + ChoiceTip(t));
         private readonly ChoiceRow<BreakPoint> selBreakRow = new(TowerCommands.Breaks.Select(b => (b.Break, b.Short)), (_, t) => ChoiceTip("break " + t));
         private readonly StackPanel selectedPanel = new();
@@ -593,16 +593,15 @@ namespace ATCRoom.TwrTrainer
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
             else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
             // (The user, 7 Nov: Tab the next aircraft, Shift+Tab the one before; in a text box Tab stays the next box.)
-            // (The user, 8 Nov: ← / → the side of the selected aircraft, as SIDE L / R of its label; with Shift: now, as SIDE NOW.)
+            // (The user, 8 Nov: ← / → the side of the next circuit, as SIDE L / R of its label; CHG SIDE: C.)
             // (Only in its circuit, as the SIDE buttons; not when a list or a box of choices has the keys, the review of 8 Nov.)
             else if (e.Key is Key.Left or Key.Right && Keyboard.FocusedElement is not (TextBox or ComboBox or ComboBoxItem or ListBoxItem or Slider or PasswordBox)
-                && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0
+                && Keyboard.Modifiers == ModifierKeys.None
                 && view.Selected is string chosen && engine.Get(chosen) is AircraftState plane && plane.Contact == GroundContact.Airborne
                 && plane.Circuit != null && !plane.Transit)
             {
                 CircuitSide side = e.Key == Key.Left ? CircuitSide.Left : CircuitSide.Right;
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) { if (side != plane.CircuitSide) SideNow(chosen, side); }
-                else LabelField(chosen, $"SIDE={side}");
+                LabelField(chosen, $"SIDE={side}");
                 e.Handled = true;
             }
             else if (e.Key == Key.Tab && Keyboard.FocusedElement is not TextBox && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0)
@@ -625,7 +624,7 @@ namespace ATCRoom.TwrTrainer
                 Key.F1 => dctButtons[0], Key.F2 => dctButtons[1], Key.F3 => dctButtons[2], Key.F4 => dctButtons[3], Key.F5 => dctButtons[4], Key.F6 => dctButtons[5],
                 Key.B => breakNowButton, Key.E => extendButton, Key.N => baseButton, Key.O => orbitButton, Key.G => goAroundButton,
                 Key.W => wideButton, Key.H => holdButton, Key.S => startSfoButton, Key.U => shift ? breakupButton : splitButton,
-                Key.X => expTaxiButton, Key.R => rejoinButton,
+                Key.X => expTaxiButton, Key.R => rejoinButton, Key.C => changeSideButton,
                 _ => null
             };
             if (button != null)
@@ -670,14 +669,14 @@ namespace ATCRoom.TwrTrainer
                 "On the selected aircraft (not while writing in a box):\n\n" +
                 "NEXT CIRCUIT\n" +
                 "  1 2 3 4 5   pattern CONV, CLS, WIDE, OVH, SFO\n" +
-                "  ← →         side (of the circuit ordered, or now)\n" +
+                "  ← →         side of the next circuit (L / R)\n" +
                 "  F T A P D   end: F/S, T/G, L/A, L/P, DEP\n\n" +
                 "DCT TO\n" +
                 "  F1 F2       DW CONV, DW CLS\n" +
                 "  F3 F4       BASE CONV, BASE CLS\n" +
                 "  F5 F6       IP, HK\n\n" +
                 "NOW\n" +
-                "  Shift+← →   side now L, R\n" +
+                "  C           change side now (CHG SIDE)\n" +
                 "  B           break now\n" +
                 "  E           extend downwind\n" +
                 "  N           base now\n" +
@@ -1083,7 +1082,7 @@ namespace ATCRoom.TwrTrainer
 
             // (The user, 8 Nov: as the label, in its order and with its names; by phases; the keys beside the buttons.)
             Button Order(string text, Action<string> action) => ActionButton(text, () => WithSelected(action));
-            Button Keyed(string text, string key, Action<string> action, bool now = false)
+            Button Keyed(string text, string key, Action<string> action, bool now = false, bool urgent = false)
             {
                 Button button = Order(text, action);
                 string tip = button.ToolTip as string ?? text;
@@ -1097,6 +1096,7 @@ namespace ATCRoom.TwrTrainer
                 }
                 button.ToolTip = tip;
                 if (now) NowLook(button);
+                if (urgent) UrgentLook(button);
                 return button;
             }
 
@@ -1133,7 +1133,7 @@ namespace ATCRoom.TwrTrainer
                 commands.NextCircuit(cs, type, side);
             });
             Row("SIDE", selSideRow, next, 62);
-            // (As SIDE of the label, the user 8 Nov: now, or the side of the circuit ordered.)
+            // (As SIDE of the label, the user 8 Nov: only the side of the next circuit; CHG SIDE moves it now.)
             selSideRow.Picked += side => WithSelected(cs => LabelField(cs, $"SIDE={side}"));
             // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
             selBreakGrid = Row("BREAK", selBreakRow, next, 62);
@@ -1168,7 +1168,8 @@ namespace ATCRoom.TwrTrainer
             padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
             padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
             dctButtons = [.. dctButtons, padNowButton];
-            Row("DCT TO", Wrap(dctButtons), now, 62);
+            Row("DCT TO", Columns(dctButtons), now, 62);
+            // (The user, 8 Nov: 4 a row, in columns; the urgent ones, G/A, CHG SIDE, BREAKUP, red on the row below.)
             extendButton = Keyed("EXT DWN", "E", commands.ExtendDownwind, now: true);
             baseButton = Keyed("BASE", "N", commands.TurnBase, now: true);
             // ORB (as the label): one orbit; Shift: on and on; orbiting on and on, a click goes on along its circuit.
@@ -1178,21 +1179,19 @@ namespace ATCRoom.TwrTrainer
                 else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(cs);
                 else commands.Orbit(cs);
             }, now: true);
-            goAroundButton = Keyed("G/A", "G", commands.GoAround, now: true);
             breakNowButton = Keyed("BREAK NOW", "B", commands.BreakNow, now: true);
-            Row("NOW", Wrap(extendButton, baseButton, orbitButton, goAroundButton, breakNowButton), now, 62);
-            sideLeftButton = Keyed("SIDE NOW L", "⇧←", cs => SideNow(cs, CircuitSide.Left), now: true);
-            sideRightButton = Keyed("SIDE NOW R", "⇧→", cs => SideNow(cs, CircuitSide.Right), now: true);
+            Row("NOW", Columns(extendButton, baseButton, orbitButton, breakNowButton), now, 62);
             // (The user, 8 Nov: the wide circuit on its own side at this runway, not the side it flies now.)
             wideButton = Keyed("WIDE NOW", "W", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.SideFor(CircuitType.Wide)), now: true);
-            Row("", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
             holdButton = Keyed("HOLD HK", "H", cs => commands.HoldAtHighKey(cs, true), now: true);
             startSfoButton = Keyed("START SFO", "S", cs => commands.HoldAtHighKey(cs, false), now: true);
-            expTaxiButton = Keyed("EXP TAXI", "X", commands.ExpediteTaxi, now: true);
-            Row("", Wrap(holdButton, startSfoButton, expTaxiButton), now, 62);
             splitButton = Keyed("SPLIT", "U", commands.Split, now: true);
-            breakupButton = Keyed("BREAKUP", "⇧U", commands.Breakup, now: true);
-            Row("FORMATION", Inline(splitButton, breakupButton), now, 62);
+            Row("", Columns(wideButton, holdButton, startSfoButton, splitButton), now, 62);
+            goAroundButton = Keyed("G/A", "G", commands.GoAround, urgent: true);
+            changeSideButton = Keyed("CHG SIDE", "C", commands.ChangeSide, urgent: true);
+            breakupButton = Keyed("BREAKUP", "⇧U", commands.Breakup, urgent: true);
+            expTaxiButton = Keyed("EXP TAXI", "X", commands.ExpediteTaxi, now: true);
+            Row("", Columns(goAroundButton, changeSideButton, breakupButton, expTaxiButton), now, 62);
 
             Button removeButton = Keyed("REMOVE", "Del", cs => RemoveAsked(cs));
             removeButton.Background = removeButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x26, 0x26));
@@ -1321,13 +1320,6 @@ namespace ATCRoom.TwrTrainer
             else Say($"Write {what}.", Area.Selected);
         }
 
-        /// <summary>The side changed now (an S over the aerodrome, the same circuit).</summary>
-        private void SideNow(string callsign, CircuitSide side)
-        {
-            AircraftState? a = engine.Get(callsign);
-            commands.FlyCircuit(callsign, a?.Circuit ?? CircuitType.Conventional, side);
-        }
-
         /// <summary>What each choice means (its tooltip), by its short name.</summary>
         private static string ChoiceTip(string text) => text switch
         {
@@ -1406,8 +1398,7 @@ namespace ATCRoom.TwrTrainer
             ["SPLIT"] = "The formation splits (each aircraft on its own).",
             ["CONTINUE"] = "The orbits end: on along its circuit from here.",
             ["GO AROUND"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
-            ["SIDE NOW L"] = "Left-hand now: an S over the aerodrome onto the new downwind (on the final: a go-around).",
-            ["SIDE NOW R"] = "Right-hand now: an S over the aerodrome onto the new downwind (on the final: a go-around).",
+            ["CHG SIDE"] = "This circuit now on the other side: an S over the aerodrome onto the other downwind (on the initial, the upwind: the turn to the other side). The next circuit ordered stays. On the final: it goes on, then the other side.",
             ["WIDE NOW"] = "Out to the wide circuit now (to make room).",
             ["GO"] = "Give it: the aircraft leaves its circuit (MANUAL); REJOIN brings it back.",
             ["REJOIN"] = "Back into its circuit from where it is.",
@@ -1443,6 +1434,30 @@ namespace ATCRoom.TwrTrainer
         // (The user, 8 Nov: the NOW orders orange, not to mix them up with DCT TO.)
         private static readonly Brush NowBack = new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)), NowEdge = new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)),
             NowText = new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD));
+
+        // (The user, 8 Nov: G/A, CHG SIDE, BREAKUP red.)
+        private static readonly Brush UrgentBack = new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0x24)), UrgentEdge = new SolidColorBrush(Color.FromRgb(0xE0, 0x60, 0x60)),
+            UrgentText = new SolidColorBrush(Color.FromRgb(0xFD, 0xE8, 0xE8));
+
+        private static void UrgentLook(Button button)
+        {
+            button.Background = UrgentBack;
+            button.BorderBrush = UrgentEdge;
+            button.Foreground = UrgentText;
+        }
+
+        /// <summary>Buttons in columns, 4 a row, all as wide (the user, 8 Nov: they line up).</summary>
+        private static System.Windows.Controls.Primitives.UniformGrid Columns(params Button[] buttons)
+        {
+            System.Windows.Controls.Primitives.UniformGrid grid = new() { Columns = 4 };
+            foreach (Button button in buttons)
+            {
+                button.HorizontalAlignment = HorizontalAlignment.Stretch;
+                button.HorizontalContentAlignment = HorizontalAlignment.Center;
+                grid.Children.Add(button);
+            }
+            return grid;
+        }
 
         private static void NowLook(Button button)
         {
@@ -4105,9 +4120,8 @@ namespace ATCRoom.TwrTrainer
             {
                 if (name == "SIDE" && Enum.TryParse(value, out CircuitSide chosenSide))
                 {
-                    // The side of the next circuit if one is ordered, else of this one (an S over the field).
-                    if (a.NextCircuit is CircuitType nextType) commands.NextCircuit(callsign, nextType, chosenSide);
-                    else if (chosenSide != a.CircuitSide) commands.FlyCircuit(callsign, type, chosenSide);
+                    // (The user, 8 Nov: L / R only the side of the next circuit; CHG SIDE moves it now.)
+                    commands.NextSide(callsign, chosenSide);
                 }
                 else if (name == "LAND" && int.TryParse(value, out int member) && a.Formation is { } crew)
                 {
@@ -4149,7 +4163,8 @@ namespace ATCRoom.TwrTrainer
             switch (field)
             {
                 case "SIDE":
-                    commands.FlyCircuit(callsign, type, a.CircuitSide == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left);
+                case "CHGSIDE":
+                    commands.ChangeSide(callsign);
                     break;
                 case "EXTEND":
                     commands.ExtendDownwind(callsign);
@@ -4393,9 +4408,8 @@ namespace ATCRoom.TwrTrainer
                 orbitButton.BorderBrush = a.OrbitForever ? Theme.Chosen : NowEdge;
                 orbitButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
                 goAroundButton.IsEnabled = leg == "FINAL";
-                sideLeftButton.IsEnabled = sideRightButton.IsEnabled = inCircuit;
-                // (As on the label.)
-                wideButton.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit && leg is not ("MANUAL" or "GO AROUND");
+                // (As on the label; CHG SIDE also on the final: then for the circuit after it.)
+                wideButton.IsEnabled = changeSideButton.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit && leg is not ("MANUAL" or "GO AROUND");
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
                 splitButton.IsEnabled = a.SplitAllowed;

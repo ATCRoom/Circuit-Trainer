@@ -503,6 +503,74 @@ namespace ATCRoom.Sim
             });
 
         /// <summary>
+        /// Instruction L / R (the user, 8 Nov): the side of the next circuit (after the next touch and go, go-around or low
+        /// pass), never a turn now. Only before the turn of its circuit (on the upwind, joining, on the initial before the break,
+        /// on the way to the High Key) the side of this circuit too: it is not flown yet.
+        /// </summary>
+        public void SetNextSide(string callsign, CircuitSide side) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is not { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit) return;
+                if (a.Contact == GroundContact.Airborne && SideNotFlown(a))
+                {
+                    if (circuit.NextType != null) circuit.NextSide = side;
+                    if (side != circuit.Side) MoveSide(a, side);
+                    return;
+                }
+                NextSideOf(circuit, side);
+            });
+
+        /// <summary>
+        /// Instruction CHG SIDE (the user, 8 Nov): this circuit now on the other side: an S over the aerodrome to the other
+        /// downwind (before the turn of its circuit: that turn to the other side). The next circuit ordered stays as it is.
+        /// On the final (and the base, rolling): it goes on and, after it, flies on the other side, as L / R.
+        /// </summary>
+        public void ChangeSideNow(string callsign) =>
+            Instruct(callsign, Kind.Heading, a =>
+            {
+                if (a.Circuit is not { Suspended: false, Departed: false, Waiting: false, Transit: false } circuit) return;
+                CircuitSide other = circuit.Side == CircuitSide.Left ? CircuitSide.Right : CircuitSide.Left;
+                RoutePoint? target = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext] : null;
+                if (a.Contact != GroundContact.Airborne || circuit.OnFinal || target == null || target.Name is "BASE" or "FINAL")
+                {
+                    NextSideOf(circuit, other);
+                    return;
+                }
+                MoveSide(a, other);
+            });
+
+        /// <summary>The side of the next circuit (the circuit after this one, as <see cref="NextCircuit(CircuitState)"/> flies it).</summary>
+        private static void NextSideOf(CircuitState circuit, CircuitSide side)
+        {
+            CircuitType next = circuit.NextType ?? (circuit.Type is CircuitType.Overhead or CircuitType.Sfo ? CircuitType.Close : circuit.Type);
+            if (circuit.NextType == null && next == circuit.Type && side == circuit.Side) return;
+            circuit.NextType = next;
+            circuit.NextSide = side;
+            // (A BREAK NOW armed for the close pattern after it: not for another circuit.)
+            if (next != CircuitType.Close) circuit.BreakNow = false;
+        }
+
+        /// <summary>Its circuit not turned yet: on the upwind, joining it, on the initial (before the break), to the High Key.</summary>
+        private static bool SideNotFlown(SimAircraft a)
+        {
+            RoutePoint? target = a.Route != null && a.RouteNext < a.Route.Count ? a.Route[a.RouteNext] : null;
+            return a.Circuit!.Spiral || target?.Name is "UPWIND" or "GO AROUND" or "INITIAL" or "HIGH KEY" or "CLIMB" or "JOIN" or "CIRCLING";
+        }
+
+        /// <summary>This circuit on the other side now (see <see cref="ChangeSide"/>); the next circuit ordered kept.</summary>
+        private void MoveSide(SimAircraft a, CircuitSide side)
+        {
+            CircuitState circuit = a.Circuit!;
+            (CircuitType? nextType, CircuitSide nextSide) = (circuit.NextType, circuit.NextSide);
+            if (!ChangeSide(a, side, onFinal: false)) FlyCircuitNow(a, circuit.Type, side, now: true);
+            if (a.Circuit is CircuitState after)
+            {
+                after.NextType = nextType;
+                after.NextSide = nextSide;
+            }
+        }
+
+        /// <summary>
         /// Instruction (on the downwind): extend the downwind: straight on along it, at circuit height, beyond the turn to the
         /// base, until <see cref="TurnBase"/>.
         /// </summary>

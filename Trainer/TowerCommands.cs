@@ -125,6 +125,20 @@ namespace ATCRoom.TwrTrainer
             engine.SetCircuit(callsign, type, side);
         }
 
+        /// <summary>L / R (the user, 8 Nov): the side of the next circuit (before the turn of this one: this one too).</summary>
+        public void NextSide(string callsign, CircuitSide side)
+        {
+            Logged?.Invoke(callsign, "SIDE", side == CircuitSide.Left ? "L" : "R");
+            engine.SetNextSide(callsign, side);
+        }
+
+        /// <summary>CHG SIDE (the user, 8 Nov): this circuit now on the other side; on the final: the next one.</summary>
+        public void ChangeSide(string callsign)
+        {
+            Logged?.Invoke(callsign, "CHG SIDE", "");
+            engine.ChangeSideNow(callsign);
+        }
+
         /// <summary>The next circuit (the plan): flown after the next touch and go / go-around; not in a circuit: joined now.</summary>
         public void NextCircuit(string callsign, CircuitType type, CircuitSide side)
         {
