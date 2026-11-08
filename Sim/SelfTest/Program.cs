@@ -2017,6 +2017,24 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO HPAD from the downwind (Helicopter)", flown));
     }
 
+    // 63. DCT TO BASE CLS (the user, 8 Nov): from the conventional downwind, the base of the close pattern (narrower) at once,
+    // then lands; never wider than where it was.
+    {
+        SimEngine sim = NewCircuitEngine();
+        string cs = sim.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Jet");
+        sim.RunFor(20);
+        double before = Math.Abs(Frame(sim.Get(cs)!).Lateral);
+        sim.DirectTo(cs, DirectPoint.CloseBase, CircuitSide.Left);
+        List<AircraftState> flown = Fly(sim, cs, 900);
+        int onBase = flown.FindIndex(st => st.Leg == "BASE");
+        bool close = flown.Count > 0 && flown[0].Circuit == CircuitType.Close;
+        double widest = onBase > 0 ? flown.Take(onBase).Max(st => Math.Abs(Frame(st).Lateral)) : double.NaN;
+        Check(close && onBase > 0 && onBase < 300 && widest <= before + 0.2 && LandedOnRunway(flown),
+            "DCT TO BASE CLS from the conventional downwind: the close base at once, no wider, then lands",
+            $"close {close}, base at {onBase} s, widest {widest:F2} NM (was {before:F2})");
+        pictures.Add(("DCT TO BASE CLS from the conventional downwind (Jet)", flown));
+    }
+
     // 52. DCT TO BASE on the way to the final, out on the circuit side (the user, 5 Nov: it went far up and back): straight
     // to the start of the base, never past the threshold before the base, lands.
     {

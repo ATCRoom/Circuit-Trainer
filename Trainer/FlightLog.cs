@@ -6,8 +6,9 @@ using ATCRoom.Sim;
 namespace ATCRoom.TwrTrainer
 {
     /// <summary>
-    /// The log of the flights (the user, 6-7 Nov): one CSV file per session in the Logs folder (opened by Excel with any
-    /// language: "sep=;" first), made at the first event, closed with the program or when another map is opened. On top
+    /// The log of the flights (the user, 6-8 Nov): one CSV file per session (START SESSION ... END SESSION, the training or
+    /// the exam; nothing written outside one) in the Logs folder (opened by Excel with any language: "sep=;" first), closed
+    /// with the program too, or when another map is opened; an error or a crash written in it. On top
     /// the session: aerodrome, runway, start, network, the instructor's and the student's callsign and VID of the network
     /// (empty when not connected). Then a row per event: the simulation's (the snapshots compared second by second), the
     /// instructor's commands, the photos, the network traffic in range. At the end a summary per aircraft.
@@ -26,6 +27,13 @@ namespace ATCRoom.TwrTrainer
         }
 
         private StreamWriter? writer;
+        private readonly object sync = new();
+        private bool inSession;
+        private double sessionStart;
+
+        /// <summary>A session open (START SESSION), and the simulated time it started at.</summary>
+        public bool InSession => inSession;
+        public double SessionStart => sessionStart;
         private string fileName = "";
         private readonly Dictionary<string, Seen> seen = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Seen> flights = new(StringComparer.OrdinalIgnoreCase);
@@ -49,15 +57,21 @@ namespace ATCRoom.TwrTrainer
         private static string Field(string text) =>
             text.IndexOfAny([';', '"', '\n', '\r']) >= 0 ? "\"" + text.Replace("\"", "\"\"") + "\"" : text;
 
-        private static string Clock(double seconds)
+        private string Clock(double seconds)
         {
+            seconds -= sessionStart;
             seconds = Math.Max(0, seconds);
             return string.Create(CultureInfo.InvariantCulture, $"{(int)(seconds / 3600)}:{(int)(seconds % 3600 / 60):00}:{(int)(seconds % 60):00}");
         }
 
         private void Line(params string[] fields)
         {
-            if (Error != null || ended) return;
+            lock (sync) LineLocked(fields);
+        }
+
+        private void LineLocked(string[] fields)
+        {
+            if (Error != null || ended || !inSession) return;
             try
             {
                 if (writer == null)
@@ -69,7 +83,7 @@ namespace ATCRoom.TwrTrainer
                     writer.WriteLine("TWR Trainer;log of the flights");
                     writer.WriteLine($"Aerodrome;{Field(Aerodrome)}");
                     writer.WriteLine($"Runway;{Field(Runway)}");
-                    writer.WriteLine($"Started (UTC);{DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}");
+                    writer.WriteLine($"Session started (UTC);{DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}");
                     writer.WriteLine($"Network;{(Network ? "IVAO" : "")}");
                     writer.WriteLine($"Instructor callsign;{Field(InstructorCallsign)}");
                     writer.WriteLine($"Instructor VID;{Field(InstructorVid)}");
@@ -100,13 +114,13 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The network now (Aurora connected to IVAO with this callsign, or not): a row when it changes.</summary>
-        public void SetNetwork(bool connected, string callsign, double time)
+        public void SetNetwork(bool connected, string callsign, double time, bool row = true)
         {
             if (connected == Network && callsign == InstructorCallsign) return;
             Network = connected;
             InstructorCallsign = connected ? callsign : "";
             if (!connected) InstructorVid = "";
-            if (writer != null) Event(time, connected ? "NETWORK CONNECTED" : "NETWORK DISCONNECTED", detail: connected ? $"instructor {callsign}" : "");
+            if (writer != null && row) Event(time, connected ? "NETWORK CONNECTED" : "NETWORK OFF", detail: connected ? $"instructor {callsign}" : "");
         }
 
         private static string Pattern(AircraftState s) => s.Circuit switch
@@ -203,12 +217,85 @@ namespace ATCRoom.TwrTrainer
         private bool ended;
 
         /// <summary>
+        /// START SESSION (the user, 8 Nov: the training or the exam begins; nothing starts flying): a new file, the time from
+        /// 0:00:00, the aircraft already in the simulation written AT START (counted from now).
+        /// </summary>
+        public void StartSession(double time, IReadOnlyList<AircraftState> traffic, Func<string, (string Type, string Rules)> info)
+        {
+            lock (sync)
+            {
+                Close(time);
+                inSession = true;
+                sessionStart = time;
+                Event(time, "SESSION START", source: "INSTRUCTOR");
+                foreach (AircraftState s in traffic)
+                {
+                    (string type, string rules) = info(s.Callsign);
+                    Seen was = new() { Contact = s.Contact, Leg = s.Leg, InCircuit = s.Circuit != null, Flown = s.Contact == GroundContact.Airborne, Type = type, Rules = rules };
+                    seen[s.Callsign] = was;
+                    flights[s.Callsign] = was;
+                    Event(time, "AT START", s.Callsign, string.Create(CultureInfo.InvariantCulture, $"{s.PerformanceClass}, {s.Leg}, {Math.Round(s.AltitudeFt):0} ft"), pattern: Pattern(s));
+                }
+            }
+        }
+
+        /// <summary>END SESSION (or the program closing, another map): the row, the summary, the file closed.</summary>
+        public void EndSession(double time, string why = "")
+        {
+            lock (sync)
+            {
+                if (!inSession) return;
+                Event(time, "SESSION END", detail: why, source: "INSTRUCTOR");
+                Close(time);
+            }
+        }
+
+        /// <summary>Something went wrong in the program (the user, 8 Nov): a row; <paramref name="fatal"/>: it closes, the session ended.</summary>
+        public void Problem(double time, string message, bool fatal)
+        {
+            lock (sync)
+            {
+                if (!inSession) return;
+                Event(time, fatal ? "CRASH" : "ERROR", detail: message, source: "PROGRAM");
+                if (fatal) Close(time, final: true);
+            }
+        }
+
+        /// <summary>
+        /// A log left open by a program that could not close it (a PC switched off, the program killed): "ended unexpectedly"
+        /// added at its end, with the time it was last written (the user, 8 Nov). Only the newest log is looked at.
+        /// </summary>
+        public static void MarkUnfinished()
+        {
+            try
+            {
+                if (!Directory.Exists(Paths.LogsFolder)) return;
+                FileInfo? newest = new DirectoryInfo(Paths.LogsFolder).GetFiles("Log_*.csv").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                if (newest == null) return;
+                string text = File.ReadAllText(newest.FullName);
+                if (text.Contains("\nEnded (UTC);", StringComparison.Ordinal)) return;
+                File.AppendAllText(newest.FullName, string.Create(CultureInfo.InvariantCulture,
+                    $"\r\nEnded (UTC);UNEXPECTEDLY (the program did not close it);last written {newest.LastWriteTimeUtc:yyyy-MM-dd HH:mm:ss}\r\n"), new UTF8Encoding(false));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // (Not readable or writable: left as it is.)
+            }
+        }
+
+        /// <summary>
         /// The end of the session: the summary per aircraft, the file closed (the next event makes a new one; <paramref
         /// name="final"/>: none, the program closes).
         /// </summary>
         public void Close(double time, bool final = false)
         {
+            lock (sync) CloseLocked(time, final);
+        }
+
+        private void CloseLocked(double time, bool final)
+        {
             if (final) ended = true;
+            inSession = false;
             if (writer != null)
             {
                 try

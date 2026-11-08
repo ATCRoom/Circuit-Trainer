@@ -836,6 +836,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   countdown too (HELD m:ss shown), let go it goes on. The log with the names of the screen (DCT TO IP, CONV L, F/S,
   altitudes QNH).
 
+- **Group of 8 Nov afternoon (the user: "via") — WRITTEN (test 63):** DCT TO BASE CONV / BASE CLS (the base of the close
+  pattern); ← / → the side of the selected aircraft (as SIDE L / R of the label), Shift: now (SIDE NOW); START SESSION /
+  END SESSION (only the log: a new file, the time from 0:00:00, a new folder of photos; END asks first, pauses; the program
+  closing or another map ends it; outside a session no log); the list buttons ▼ WAITING LIST (flying) and REMOVE ALL
+  (waiting); in the log AURORA LOST / IVAO LOST / IVAO DATA STOPPED (aircraft flying not moving for 30 s) and RESTORED
+  after m:ss; ERROR and CRASH (the session closed); a log left open marked "ended unexpectedly" at the next start.
+
 ## Ideas for a next build (the user, 7 Nov)
 - **A "horizontal" view of the map, besides the north-up one (the user, 7 Nov):** the map turned so the runway in use lies
   horizontal on the screen (as seen from the tower); a button on the bar of the map NORTH | RWY switches, kept in the settings.

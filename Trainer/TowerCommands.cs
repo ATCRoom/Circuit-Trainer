@@ -138,7 +138,8 @@ namespace ATCRoom.TwrTrainer
             Logged?.Invoke(callsign, "DCT TO", point switch
             {
                 DirectPoint.Downwind => "DW",
-                DirectPoint.Base => "BASE",
+                DirectPoint.Base => "BASE CONV",
+                DirectPoint.CloseBase => "BASE CLS",
                 DirectPoint.InitialPoint => "IP",
                 DirectPoint.HighKey => "HK",
                 _ => $"{point}"

@@ -759,7 +759,7 @@ namespace ATCRoom.TwrTrainer
                         .. (a.CanHover ? [("PAD=END", a.WantsPad && !a.HasPad ? "HPAD?" : "HPAD", a.HasPad || a.WantsPad ? Look.On : Look.Option)] : new List<(string, string, Look)>()),
                         .. (a.LapsLeft > 1 ? [("", $"{a.LapsLeft} left", Look.Tag)] : new List<(string, string, Look)>())]);
                     // DCT TO (the user, 5 Nov): at once to the downwind, the base, the initial point, the High Key; in flight.
-                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE", Look.Command),
+                    if (airborne) rows.Add([("", "DCT TO", Look.Tag), ("DCT=Downwind", "DW", Look.Command), ("DCT=Base", "BASE CONV", Look.Command), ("DCT=CloseBase", "BASE CLS", Look.Command),
                         ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command),
                         .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())]);
                     // The orders of where it is now.

@@ -39,8 +39,12 @@ namespace ATCRoom.TwrTrainer
         private bool networkBusy, logErrorSaid;
         private DateTime networkCallsignAt = DateTime.MinValue, networkMetarAt = DateTime.MinValue;
         private string networkCallsign = "";
+        private string networkProblem = "", networkMoving = "";
+        private DateTime networkProblemSince;
+        private DateTime? networkStillSince;
         private Button ivaoButton = null!;
-        private Button northButton = null!, runwayButton = null!;
+        private Button northButton = null!, runwayButton = null!, sessionButton = null!;
+        private int sessionShown = -1;
         /// <summary>The VID found in IVAO's list for the callsign of Aurora (the user, 7 Nov), and when it was asked.</summary>
         private string networkVid = "", vidFor = "";
         private DateTime vidAskedAt = DateTime.MinValue;
@@ -267,8 +271,12 @@ namespace ATCRoom.TwrTrainer
         private readonly Dictionary<Area, TextBlock> messages = Enum.GetValues<Area>().ToDictionary(area => area,
             _ => new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = WarnBrush, Margin = new Thickness(0, 6, 0, 0) });
 
+        /// <summary>The window of this run (for the crash handlers of Program, on any thread).</summary>
+        internal static MainWindow? Current { get; private set; }
+
         public MainWindow()
         {
+            Current = this;
             commands = new TowerCommands(engine, airfield);
             string version = Assembly.GetExecutingAssembly().GetName().Version is Version v ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
             appVersion = version;
@@ -326,6 +334,10 @@ namespace ATCRoom.TwrTrainer
             ivaoButton = ActionButton("", ToggleIvao);
             ivaoButton.Margin = new Thickness(4, 0, 0, 4);
             bar.Children.Add(ivaoButton);
+            // (The user, 8 Nov: the session of the training or the exam, for the log; nothing starts flying.)
+            sessionButton = ActionButton("START SESSION", ToggleSession);
+            sessionButton.Margin = new Thickness(12, 0, 0, 4);
+            bar.Children.Add(sessionButton);
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
@@ -412,6 +424,7 @@ namespace ATCRoom.TwrTrainer
                 settings.Save();
                 timer.Stop();
                 networkTimer.Stop();
+                flightLog.EndSession(engine.Time, "the program closed");
                 flightLog.Close(engine.Time, final: true);
                 aurora.Close();
             };
@@ -442,9 +455,12 @@ namespace ATCRoom.TwrTrainer
             if (settings.MapPath.Length > 0 && File.Exists(settings.MapPath)) OpenMap(settings.MapPath, settings.Runway);
             else ShowAerodrome();
             UpdatePause();
+            // (A log left open by a program that could not close it: marked, the user 8 Nov.)
+            FlightLog.MarkUnfinished();
             lastTick = clock.Elapsed.TotalSeconds;
             timer.Start();
             ShowIvaoButton();
+            ShowSession();
             networkTimer.Start();
         }
 
@@ -460,6 +476,7 @@ namespace ATCRoom.TwrTrainer
             flightLog.Aerodrome = airfield.Code;
             flightLog.Runway = airfield.Runway?.Runway ?? "";
             flightLog.Observe(traffic, engine.Time, FlightInfo);
+            if (flightLog.InSession && (int)(engine.Time - flightLog.SessionStart) != sessionShown) ShowSession();
             if (flightLog.Error is string logError)
             {
                 if (!logErrorSaid) Say(logError);
@@ -556,6 +573,15 @@ namespace ATCRoom.TwrTrainer
             else if (e.Key == Key.Pause) { TogglePause(); e.Handled = true; }
             else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { TakePhoto(); e.Handled = true; }
             // (The user, 7 Nov: Tab the next aircraft, Shift+Tab the one before; in a text box Tab stays the next box.)
+            // (The user, 8 Nov: ← / → the side of the selected aircraft, as SIDE L / R of its label; with Shift: now, as SIDE NOW.)
+            else if (e.Key is Key.Left or Key.Right && Keyboard.FocusedElement is not TextBox && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0
+                && view.Selected is string chosen && engine.Get(chosen) is AircraftState plane && plane.Contact == GroundContact.Airborne)
+            {
+                CircuitSide side = e.Key == Key.Left ? CircuitSide.Left : CircuitSide.Right;
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) SideNow(chosen, side);
+                else LabelField(chosen, $"SIDE={side}");
+                e.Handled = true;
+            }
             else if (e.Key == Key.Tab && Keyboard.FocusedElement is not TextBox && (Keyboard.Modifiers & ~ModifierKeys.Shift) == 0)
             {
                 SelectNext((Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
@@ -906,7 +932,8 @@ namespace ATCRoom.TwrTrainer
             // (The user, 6 Nov: the buttons with the list they act on.)
             trafficPauseButton.Click += (_, _) => TogglePause();
             trafficPauseButton.Margin = new Thickness(0, 0, 4, 0);
-            Button removeAll = ActionButton("REMOVE ALL", RemoveAllAircraft);
+            // (The user, 8 Nov: the names of AuroraPAR Trainer: every aircraft back to the WAITING list; REMOVE ALL empties the list.)
+            Button removeAll = ActionButton("▼ WAITING LIST", RemoveAllAircraft);
             removeAll.Margin = new Thickness(0);
             current.Children.Add(Header(Caption("FLYING"), trafficPauseButton, removeAll));
             current.Children.Add(Legend("click: select · II freeze · ↺ its plan again · ✕ remove"));
@@ -917,7 +944,7 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(Header(Caption("WAITING"), waitingButton));
             current.Children.Add(Legend("☐ GROUP · ▶ start · ⏸ hold · ⧉ duplicate · ✕ remove"));
             current.Children.Add(planList);
-            Button clearAll = ActionButton("CLEAR ALL", ClearPlans);
+            Button clearAll = ActionButton("REMOVE ALL", ClearPlans);
             clearAll.Margin = new Thickness(0, 0, 0, 4);
             DockPanel waitingButtons = new() { Margin = new Thickness(0, 6, 0, 0), LastChildFill = false };
             DockPanel.SetDock(clearAll, Dock.Right);
@@ -985,7 +1012,8 @@ namespace ATCRoom.TwrTrainer
             Row("Final", Inline(goAroundButton), now, 62);
             Row("Change", Wrap(sideLeftButton, sideRightButton, wideButton), now, 62);
             // (DCT TO, the user 5 Nov: at once, in flight.)
-            dctButtons = [Order("DW", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Order("BASE", cs => commands.DirectTo(cs, DirectPoint.Base)),
+            dctButtons = [Order("DW", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Order("BASE CONV", cs => commands.DirectTo(cs, DirectPoint.Base)),
+                Order("BASE CLS", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
                 Order("IP", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Order("HK", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
             dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit.";
             dctButtons[1].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final.";
@@ -1173,7 +1201,7 @@ namespace ATCRoom.TwrTrainer
             ["Aircraft classes..."] = "The classes of aircraft and their performance (all aerodromes); their altitudes here: Settings › Circuits.",
             ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
-            ["REMOVE ALL"] = "Every aircraft out of the simulation (the rows stay, back to waiting).",
+            ["▼ WAITING LIST"] = "Every aircraft out of the simulation: their rows back in WAITING.",
             ["EXP TAXI"] = "Landed, rolling out: expedite taxi, at least 45 kt to the nearest exit it can still take.",
             ["ADD EXIT"] = "A runway exit: its name (empty: the next letter), then click on the runway edge where it leaves.",
             ["REMOVE EXIT"] = "Remove the exit whose name is written.",
@@ -1190,7 +1218,7 @@ namespace ATCRoom.TwrTrainer
             ["START ALL"] = "Start every aircraft of the Traffic List waiting, each after its delay (held ones stay held).",
             ["SAVE..."] = "Save the flight plans as a scenario of this aerodrome.",
             ["LOAD..."] = "Load a scenario (its flight plans replace those of the list).",
-            ["CLEAR ALL"] = "Every row out of the Traffic List (the aircraft flying go on).",
+            ["REMOVE ALL"] = "Every row out of the Traffic List (the aircraft flying go on).",
             ["▶"] = "Start this plan now.",
             ["⏸"] = "Hold this plan (it does not start); again: it goes on.",
             ["⏵"] = "Go on (it starts at its time).",
@@ -1316,7 +1344,8 @@ namespace ATCRoom.TwrTrainer
         // ----- Photos for the debriefing (the user, 6 Nov) ----------------------------------------------------------------
 
         /// <summary>The folder of the photos of this session (made at the first photo: the date and time of the start).</summary>
-        private readonly string photoSession = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+        // (A new folder at each START SESSION, the user 8 Nov; before one: the folder of this run of the program.)
+        private string photoSession = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
         private string PhotoFolder => Path.Combine(Paths.PhotosFolder, photoSession);
         private int photoCount;
         private readonly TextBlock photoText = new() { Foreground = DimBrush, FontSize = 11 };
@@ -1348,7 +1377,9 @@ namespace ATCRoom.TwrTrainer
             string folder = PhotoFolder;
             int number = ++photoCount;
             double time = Math.Max(0, engine.Time);
-            string name = string.Create(CultureInfo.InvariantCulture, $"Photo-{number:00}_T+{(int)(time / 60)}m{(int)(time % 60):00}s.png");
+            // (In a session: the time of the session, as in its log.)
+            double shown = flightLog.InSession ? Math.Max(0, time - flightLog.SessionStart) : time;
+            string name = string.Create(CultureInfo.InvariantCulture, $"Photo-{number:00}_T+{(int)(shown / 60)}m{(int)(shown % 60):00}s.png");
             // (A mark in the log of the flights, the user 6 Nov.)
             flightLog.Event(time, $"PHOTO {number}", detail: name, source: "INSTRUCTOR");
             // (Written on another thread: the simulation does not wait.)
@@ -1432,8 +1463,9 @@ namespace ATCRoom.TwrTrainer
                 return;
             }
             settings.MapPath = path;
-            // (Another map: another session of the log.)
-            flightLog.Close(engine.Time);
+            // (Another map: the session of the log ends.)
+            flightLog.EndSession(engine.Time, "another map opened");
+            ShowSession();
             // The layers of this map: those it has, on as saved (or the defaults).
             HashSet<string> present = new(airfield.Map!.Lines.Select(l => l.Category).Concat(airfield.Map.Labels.Select(l => l.Category))
                 .Concat(airfield.Map.Points.Select(p => p.Category)), StringComparer.OrdinalIgnoreCase);
@@ -2672,6 +2704,52 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>
+        /// START SESSION / END SESSION (the user, 8 Nov): the training or the exam in the log (a new file, the time from 0, a
+        /// new folder of photos); nothing starts flying. Ended: the summary written, the simulation paused (asked first).
+        /// </summary>
+        private void ToggleSession()
+        {
+            if (!flightLog.InSession)
+            {
+                photoSession = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+                photoCount = 0;
+                flightLog.Aerodrome = airfield.Code;
+                flightLog.Runway = airfield.Runway?.Runway ?? "";
+                flightLog.StartSession(engine.Time, engine.Snapshot(), FlightInfo);
+                Say(flightLog.Error ?? $"Session started: the log in {flightLog.FileName}.");
+            }
+            else
+            {
+                if (MessageBox.Show(this, "End the session? Its log is closed with the summary, and the simulation paused.", "TWR Trainer",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+                string file = flightLog.FileName;
+                flightLog.EndSession(engine.Time);
+                engine.Paused = true;
+                UpdatePause();
+                Say($"Session ended: {file}");
+            }
+            ShowSession();
+        }
+
+        private void ShowSession()
+        {
+            if (sessionButton == null) return;
+            bool on = flightLog.InSession;
+            int seconds = on ? (int)Math.Max(0, engine.Time - flightLog.SessionStart) : -1;
+            sessionShown = seconds;
+            sessionButton.Content = on ? string.Create(CultureInfo.InvariantCulture, $"END SESSION {seconds / 3600}:{seconds % 3600 / 60:00}:{seconds % 60:00}") : "START SESSION";
+            sessionButton.Background = on ? new SolidColorBrush(Color.FromRgb(0x63, 0x99, 0x22)) : Theme.OffBack;
+            sessionButton.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)) : Theme.OffText;
+            sessionButton.BorderBrush = sessionButton.Background;
+            sessionButton.Tag = on ? "on" : null;
+            sessionButton.ToolTip = on ? "The session of the training or the exam: written in the log (Logs). Click: end it (asked first)."
+                : "Start the session of the training or the exam: a new log of the flights, the time from 0:00:00, a new folder of photos. Nothing starts flying.";
+        }
+
+        /// <summary>Something went wrong (Program, the user 8 Nov): written in the log of the session; fatal: the session closed.</summary>
+        public void ProgramProblem(Exception error, bool fatal) => flightLog.Problem(engine.Time, $"{error.GetType().Name}: {error.Message}", fatal);
+
         /// <summary>NORTH / RWY: the map north up, or the runway in use across the screen (threshold left, or right); saved.</summary>
         private void SetMapTurn(int turn)
         {
@@ -2707,6 +2785,8 @@ namespace ATCRoom.TwrTrainer
             if (!settings.ShowIvao)
             {
                 networkCallsign = networkVid = vidFor = "";
+                networkProblem = networkMoving = "";
+                networkStillSince = null;
                 view.Network = [];
                 flightLog.ObserveNetwork([], engine.Time);
                 flightLog.SetNetwork(false, "", engine.Time);
@@ -2746,7 +2826,8 @@ namespace ATCRoom.TwrTrainer
                     networkCallsign = networkVid = vidFor = "";
                     view.Network = [];
                     flightLog.ObserveNetwork([], engine.Time);
-                    flightLog.SetNetwork(false, "", engine.Time);
+                    flightLog.SetNetwork(false, "", engine.Time, row: false);
+                    NetworkCondition("AURORA LOST", "Aurora does not answer (closed, or its link for other programs off)");
                     return;
                 }
                 if (DateTime.UtcNow - networkCallsignAt > TimeSpan.FromSeconds(30))
@@ -2756,7 +2837,8 @@ namespace ATCRoom.TwrTrainer
                     // (Turned off meanwhile: nothing more, the review of 7 Nov.)
                     if (!settings.ShowIvao) return;
                     networkCallsign = callsign;
-                    flightLog.SetNetwork(networkCallsign.Length > 0, networkCallsign, engine.Time);
+                    flightLog.SetNetwork(networkCallsign.Length > 0, networkCallsign, engine.Time, row: networkCallsign.Length > 0);
+                    if (networkCallsign.Length == 0) NetworkCondition("IVAO LOST", "Aurora answers but is not connected to IVAO");
                     await FindVid();
                     if (!settings.ShowIvao) return;
                 }
@@ -2788,16 +2870,46 @@ namespace ATCRoom.TwrTrainer
                 view.Network = shown;
                 flightLog.ObserveNetwork(near, engine.Time);
                 view.InvalidateVisual();
+                // The data stopped (the user, 8 Nov): aircraft that fly (above 30 kt) not moving at all for 30 s; else fine.
+                string moving = string.Join("|", near.Where(a => a.SpeedKt > 30).OrderBy(a => a.Callsign, StringComparer.Ordinal)
+                    .Select(a => string.Create(CultureInfo.InvariantCulture, $"{a.Callsign}:{a.Latitude:F5}:{a.Longitude:F5}")));
+                if (moving.Length > 0 && moving == networkMoving) networkStillSince ??= DateTime.UtcNow;
+                else networkStillSince = null;
+                networkMoving = moving;
+                if (networkCallsign.Length > 0)
+                    NetworkCondition(networkStillSince is DateTime still && DateTime.UtcNow - still > TimeSpan.FromSeconds(30) ? "IVAO DATA STOPPED" : "",
+                        "no new position of the aircraft flying for 30 s");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // (Anything unexpected from the network: tried again at the next turn, the program goes on.)
+                // (Anything unexpected from the network: tried again at the next turn, the program goes on; in the log.)
+                flightLog.Problem(engine.Time, $"IVAO: {ex.GetType().Name}: {ex.Message}", fatal: false);
             }
             finally
             {
                 networkBusy = false;
                 ShowIvaoButton();
             }
+        }
+
+        /// <summary>
+        /// The state of the network data in the log (the user, 8 Nov): AURORA LOST, IVAO LOST, IVAO DATA STOPPED when it begins,
+        /// RESTORED with how long it lasted when it is fine again ("": fine).
+        /// </summary>
+        private void NetworkCondition(string problem, string detail)
+        {
+            if (problem == networkProblem) return;
+            if (problem.Length > 0)
+            {
+                if (networkProblem.Length == 0) networkProblemSince = DateTime.UtcNow;
+                flightLog.Event(engine.Time, problem, detail: detail, source: "IVAO");
+            }
+            else
+            {
+                int gap = (int)(DateTime.UtcNow - networkProblemSince).TotalSeconds;
+                flightLog.Event(engine.Time, "RESTORED", detail: string.Create(CultureInfo.InvariantCulture, $"after {gap / 60}:{gap % 60:00} ({networkProblem})"), source: "IVAO");
+            }
+            networkProblem = problem;
         }
 
         /// <summary>RINGS on the bar of the map: the range rings shown or not (saved).</summary>
@@ -3188,7 +3300,7 @@ namespace ATCRoom.TwrTrainer
             ShowPlans();
         }
 
-        /// <summary>REMOVE ALL: every aircraft out of the simulation; the rows of the Traffic List back to waiting (the user, 3 Nov).</summary>
+        /// <summary>▼ WAITING LIST: every aircraft out of the simulation; the rows of the Traffic List back to waiting (the user, 3 Nov).</summary>
         private void RemoveAllAircraft()
         {
             engine.Clear();

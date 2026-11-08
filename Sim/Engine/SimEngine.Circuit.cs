@@ -28,7 +28,8 @@ namespace ATCRoom.Sim
     }
 
     /// <summary>Where DCT TO sends an aircraft in flight at once (the user, 5 Nov): the conventional downwind, its base, the initial point, the High Key.</summary>
-    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey }
+    /// <summary>Where DCT TO goes; CloseBase (the user, 8 Nov): the base of the close pattern, narrower than the conventional.</summary>
+    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey, CloseBase }
 
     /// <summary>Where the overhead pattern breaks.</summary>
     public enum BreakPoint
@@ -555,21 +556,22 @@ namespace ATCRoom.Sim
                 {
                     DirectPoint.InitialPoint => CircuitType.Overhead,
                     DirectPoint.HighKey => CircuitType.Sfo,
+                    DirectPoint.CloseBase => CircuitType.Close,
                     _ => CircuitType.Conventional
                 };
                 FlyCircuitNow(a, type, side, now: true);
                 // To the IP from the side it flies, not across the runway (the user, 5 Nov).
                 if (point == DirectPoint.InitialPoint && flownSide is CircuitSide flown && flown != side && a.Circuit?.Type == CircuitType.Overhead)
                     GiveRoute(a, ToInitialPoint(a, flown));
-                if (point == DirectPoint.Base && a.Circuit != null && a.Route is { Count: > 0 })
+                if (point is DirectPoint.Base or DirectPoint.CloseBase && a.Circuit != null && a.Route is { Count: > 0 })
                 {
                     // Joining it: straight to the start of the base (see TurnBase); on the circuit side already past it: the
                     // base from here (not back to it).
                     // (Only on the downwind itself, flying it: elsewhere, the user 5 Nov, straight to the start of the base.)
                     (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
-                    bool onDownwind = Math.Abs(lateral - Width(CircuitType.Conventional, a.Class, side)) < 0.3
+                    bool onDownwind = Math.Abs(lateral - Width(type, a.Class, side)) < 0.3
                         && Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 45;
-                    bool past = onDownwind && along <= BaseAlong(CircuitType.Conventional, a.Class) + 0.3;
+                    bool past = onDownwind && along <= BaseAlong(type, a.Class) + 0.3;
                     a.Route = [a.Route[a.RouteNext] with { Name = past ? "DOWNWIND" : "JOIN" }, .. a.Route.Skip(a.RouteNext + 1)];
                     a.RouteNext = 0;
                     TurnBaseOf(a);
