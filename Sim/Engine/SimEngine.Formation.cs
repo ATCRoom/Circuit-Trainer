@@ -189,6 +189,9 @@ namespace ATCRoom.Sim
         {
             SimAircraft member = lead.Copy();
             member.Callsign = callsign;
+            // (Not the leader's orbit by hand, the review of 9 Nov.)
+            member.ManualOrbit = 0;
+            member.ManualOrbitForever = false;
             if (member.Circuit != null)
             {
                 // Its own legs (a 180° turn of its own), no orbit of the leader's.

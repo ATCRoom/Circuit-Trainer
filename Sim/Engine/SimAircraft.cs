@@ -212,7 +212,7 @@ namespace ATCRoom.Sim
         public double SplitSeconds = 3;
 
         /// <summary>The formation can be split by command now (the user, 8 Nov: always, in any circuit).</summary>
-        public bool SplitAllowed => Wingmen.Count > 0;
+        public bool SplitAllowed => Wingmen.Count > 0 && Contact == GroundContact.Airborne;
 
         /// <summary>
         /// An orbit flown by hand (the user, 8 Nov: ORB L / R in MANUAL): 0 none, 1 the first half, 2 the second; on and on

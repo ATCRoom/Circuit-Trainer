@@ -4367,7 +4367,9 @@ namespace ATCRoom.TwrTrainer
             if (type == CircuitType.Sfo) items.Add(a.SfoHold ? Item("Start SFO", () => commands.HoldAtHighKey(callsign, false)) : Item("Hold at High Key", () => commands.HoldAtHighKey(callsign, true)));
             items.Add(Item("Extend downwind", () => commands.ExtendDownwind(callsign)));
             items.Add(Item("Turn base", () => commands.TurnBase(callsign)));
-            items.Add(Item("Orbit", () => commands.Orbit(callsign)));
+            items.Add(Item("Orbit left", () => commands.Orbit(callsign, false)));
+            items.Add(Item("Orbit right", () => commands.Orbit(callsign, true)));
+            if (engine.CanDirectToFinal(callsign)) items.Add(Item("DCT TO FINAL", () => commands.DirectTo(callsign, DirectPoint.Final)));
             items.Add(Item("Go around", () => commands.GoAround(callsign)));
             items.Add(Item("Rejoin the circuit", () => commands.Rejoin(callsign)));
             if (a.Leg == "LANDED") items.Add(Item("Expedite taxi", () => commands.ExpediteTaxi(callsign)));

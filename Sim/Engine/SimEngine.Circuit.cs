@@ -769,7 +769,7 @@ namespace ATCRoom.Sim
                     if (OnTrackBeforeHighKey(a, along, lateral))
                     {
                         double highKeyHeight = double.IsFinite(circuit.LapHeight) ? circuit.LapHeight : runwayElevation + a.Class.HighKeyFt;
-                        GiveRoute(a, [Point(HighKeyAlong(), 0, side, highKeyHeight, double.NaN, "HIGH KEY")]);
+                        GiveRoute(a, [Point(HighKeyAlong(), 0, side, highKeyHeight, a.Class.BestGlideKt, "HIGH KEY")]);
                         return;
                     }
                     StartSpiral(a, circuit);
@@ -985,9 +985,10 @@ namespace ATCRoom.Sim
                 // (Flown by hand, the user 8 Nov: a 360° on the spot, then the heading it had.)
                 if (a.Contact == GroundContact.Airborne && a.Navigation == NavigationMode.Manual && a.Leg is "MANUAL" or "")
                 {
-                    if (a.ManualOrbit > 0 && forever)
+                    if (a.ManualOrbit > 0)
                     {
-                        a.ManualOrbitForever = true;
+                        // (Already orbiting: Shift on and on; another ORB nothing, the review of 9 Nov.)
+                        if (forever) a.ManualOrbitForever = true;
                         return;
                     }
                     bool toRight = right ?? a.TurnRateDps >= -0.5;
@@ -1538,6 +1539,8 @@ namespace ATCRoom.Sim
                 (double alongHere, double lateralHere) = RunwayFrame(plane.X, plane.Y, circuit.Side);
                 bool sideward = !OnTrackBeforeHighKey(plane, alongHere, lateralHere);
                 if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && sideward && (circuit.Hold
+                    // (A High Key alone, the way along the final, the review of 9 Nov: onto the circle in any case.)
+                    || plane.RouteNext == plane.Route.Count - 1
                     // (Its High Key given and not there yet, the user 6 Nov: on the circle up or down to it first.)
                     || (double.IsFinite(circuit.LapHeight) && Math.Abs(plane.AltitudeFt - circuit.LapHeight) > 150))))
                 {
