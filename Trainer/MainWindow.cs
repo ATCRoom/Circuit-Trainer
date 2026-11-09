@@ -254,6 +254,9 @@ namespace ATCRoom.TwrTrainer
         private DockablePart settingsPart = null!, newPart = null!, trafficPart = null!, selectedPart = null!, stripPart = null!;
         // (The user, 6 Nov: the strip bay, here to see how it behaves; later the student's.)
         private readonly StripBay stripBay = new() { Margin = new Thickness(4) };
+        /// <summary>The student console on this PC (the user, 9 Nov), when open; the strips of the last second for it.</summary>
+        private StudentWindow? student;
+        private List<StripData> lastCoordination = [], lastContact = [];
         private Button waitingButton = null!;
         /// <summary>The colours a strip can have (the user, 6 Nov: changeable; default white, yellow, pink).</summary>
         private static readonly (string Name, Color Colour)[] StripColours =
@@ -350,6 +353,11 @@ namespace ATCRoom.TwrTrainer
             sessionButton = ActionButton("START SESSION", ToggleSession);
             sessionButton.Margin = new Thickness(12, 0, 0, 4);
             bar.Children.Add(sessionButton);
+            // (The user, 9 Nov: the student console as a second window of this program, for a second monitor.)
+            Button studentButton = ActionButton("STUDENT", OpenStudent);
+            studentButton.Margin = new Thickness(12, 0, 0, 4);
+            studentButton.ToolTip = "Opens the student console on this PC (a second window: put it on the second monitor). The student sees the traffic, the runway, the METAR and his strip bay; nothing of the instructor's commands.";
+            bar.Children.Add(studentButton);
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
@@ -435,6 +443,7 @@ namespace ATCRoom.TwrTrainer
             Loaded += (_, _) => Start();
             Closing += (_, _) =>
             {
+                student?.Close();
                 settings.Save();
                 timer.Stop();
                 networkTimer.Stop();
@@ -543,6 +552,7 @@ namespace ATCRoom.TwrTrainer
                 column.Visibility = allFloating ? Visibility.Collapsed : Visibility.Visible;
                 selectedPart.SummaryText = view.Selected ?? "";
             }
+            if (student != null && ticks % 25 == 0) FeedStudent();
         }
 
         /// <summary>The bar on the map at its place (top middle unless moved), always inside the map.</summary>
@@ -3347,6 +3357,7 @@ namespace ATCRoom.TwrTrainer
                 set(name);
                 settings.Save();
                 stripBay.Redraw();
+                student?.Bay.Redraw();
             };
             Row(label, row);
         }
@@ -3422,8 +3433,69 @@ namespace ATCRoom.TwrTrainer
                 }
             }
             stripBay.Show(coordination, contact);
+            (lastCoordination, lastContact) = (coordination, contact);
             view.Waiting = marks;
             view.InvalidateVisual();
+        }
+
+        /// <summary>The student console (the user, 9 Nov): opened, or brought to the front.</summary>
+        private void OpenStudent()
+        {
+            if (student != null)
+            {
+                if (student.WindowState == WindowState.Minimized) student.WindowState = WindowState.Normal;
+                student.Activate();
+                return;
+            }
+            settings.Parts ??= [];
+            // (Its strip bay floating on the right by default.)
+            if (!settings.Parts.TryGetValue("Student strip bay", out PartPlacement? place))
+                settings.Parts["Student strip bay"] = place = new PartPlacement { Floating = true, Width = 280, Height = 520, Left = 5000, Top = 60 };
+            student = new StudentWindow(place, settings.Save, StripBrush);
+            student.Closed += (_, _) => student = null;
+            student.Show();
+            FeedStudent();
+        }
+
+        /// <summary>
+        /// Each second: the photo of the lesson for the student (the user, 6 and 9 Nov): the traffic with its ICAO type and
+        /// flight rules, IVAO's, the runway, UTC time, the METAR and the strips; the map when another one is opened.
+        /// </summary>
+        private void FeedStudent()
+        {
+            if (student == null) return;
+            TowerView sv = student.View;
+            if (!ReferenceEquals(student.MapShown, airfield.Map) || !sv.Course.Equals(view.Course) || sv.ElevationFt != view.ElevationFt)
+            {
+                student.MapShown = airfield.Map;
+                sv.Course = view.Course;
+                sv.LengthNM = view.LengthNM;
+                sv.ElevationFt = view.ElevationFt;
+                sv.SetMap(airfield.Map, airfield.Plane);
+                sv.ShowLevel(1);
+            }
+            sv.Qfe = view.Qfe;
+            sv.CentrelineNM = view.CentrelineNM;
+            sv.LongFinalNM = view.LongFinalNM;
+            sv.Gates = view.Gates;
+            sv.Exits = view.Exits;
+            sv.Helipads = view.Helipads;
+            if (!sv.CategoriesOn.SetEquals(view.CategoriesOn))
+            {
+                sv.CategoriesOn.Clear();
+                sv.CategoriesOn.UnionWith(view.CategoriesOn);
+            }
+            List<StudentTarget> targets = [];
+            foreach (AircraftState a in view.Traffic)
+            {
+                TowerPlan? plan = plans.FirstOrDefault(p => string.Equals(p.Flying, a.Callsign, StringComparison.OrdinalIgnoreCase)
+                    || p.Members.Contains(a.Callsign, StringComparer.OrdinalIgnoreCase));
+                string type = plan != null && plan.IcaoType.Length > 0 ? plan.IcaoType : (plan is { Class.Length: > 0 } ? plan.Class : a.PerformanceClass).ToUpperInvariant();
+                targets.Add(new StudentTarget(a.Callsign, type, plan?.Ifr == true, a.X, a.Y, a.AltitudeFt, a.GroundSpeedKt, a.TrackTrue,
+                    a.Contact != GroundContact.Airborne, a.PerformanceClass.Equals("Helicopter", StringComparison.OrdinalIgnoreCase), a.Formation?.Count ?? 1));
+            }
+            student.Show(new LessonSnapshot(engine.Time, DateTime.UtcNow, engine.Paused, airfield.Code, airfield.Runway?.Runway ?? "", settings.Metar,
+                targets, view.Network, lastCoordination, lastContact));
         }
 
         /// <summary>Where a plan waiting will start (the plane, NM), and whether on the ground; null when not known (no runway, no gate).</summary>

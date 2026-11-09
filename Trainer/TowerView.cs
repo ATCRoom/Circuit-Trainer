@@ -96,6 +96,13 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The map categories drawn.</summary>
         public HashSet<string> CategoriesOn { get; } = new(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<AircraftState> Traffic { get; private set; } = [];
+        /// <summary>
+        /// The student's view (the user, 9 Nov): the aircraft of <see cref="Targets"/> with callsign, ICAO type, flight rules
+        /// (a V / I mark), altitude and speed; nothing selected, no commands, no route; the labels and the map moved by the mouse.
+        /// </summary>
+        public bool Student { get; set; }
+        /// <summary>The traffic of the student's view.</summary>
+        public IReadOnlyList<StudentTarget> Targets { get; private set; } = [];
         public string? Selected { get; private set; }
         /// <summary>A line of text at the top (PAUSED, the simulation time...).</summary>
         public string Status { get; set; } = "";
@@ -235,6 +242,24 @@ namespace ATCRoom.TwrTrainer
                 foreach (string gone in trails.Keys.Where(k => !traffic.Any(a => string.Equals(a.Callsign, k, StringComparison.OrdinalIgnoreCase))).ToList()) trails.Remove(gone);
             }
             if (Selected != null && !traffic.Any(a => string.Equals(a.Callsign, Selected, StringComparison.OrdinalIgnoreCase))) Select(null);
+            InvalidateVisual();
+        }
+
+        /// <summary>The traffic of the student's view now (each second): drawn, a dot of its trail every 4 s.</summary>
+        public void SetTargets(IReadOnlyList<StudentTarget> targets, double time)
+        {
+            Targets = targets;
+            if (time < trailTime || time - trailTime >= 4)
+            {
+                trailTime = time;
+                foreach (StudentTarget a in targets)
+                {
+                    if (!trails.TryGetValue(a.Callsign, out List<Point>? trail)) trails[a.Callsign] = trail = [];
+                    trail.Add(new Point(a.X, a.Y));
+                    if (trail.Count > 8) trail.RemoveAt(0);
+                }
+                foreach (string gone in trails.Keys.Where(k => !targets.Any(a => string.Equals(a.Callsign, k, StringComparison.OrdinalIgnoreCase))).ToList()) trails.Remove(gone);
+            }
             InvalidateVisual();
         }
 
@@ -613,6 +638,11 @@ namespace ATCRoom.TwrTrainer
             fields.Clear();
             selectedLabel = Rect.Empty;
             labelRects.Clear();
+            if (Student)
+            {
+                DrawStudentTraffic(dc, dip);
+                return;
+            }
             // The route of the selected aircraft still to fly (its circuit), faint, as it will fly it: the 180° turns as
             // half circles, the overhead's initial to the break, the close pattern's climb to the end of the runway.
             if (Traffic.FirstOrDefault(a => a.Callsign == Selected) is AircraftState chosen && chosen.Route is { } route && chosen.RouteNext >= 0 && route.Count > 0)
@@ -752,6 +782,78 @@ namespace ATCRoom.TwrTrainer
                 FormattedText heading = new($"{DraggedHeading(from, dragNow):000}", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 14, PromptBrush, dip);
                 dc.DrawText(heading, new Point(dragNow.X + 10, dragNow.Y - 18));
             }
+        }
+
+        private static readonly Typeface BoldFace = new(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        private static readonly Brush VfrBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x1A, 0x7A, 0x35)));
+        private static readonly Brush IfrBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x1D, 0x3F, 0x8A)));
+
+        /// <summary>
+        /// The student's traffic (the user, 9 Nov): the symbol, its trail and its line of 30 s, and a label of three lines:
+        /// callsign, ICAO type and the flight rules well visible (V: green on white; I: white on blue), altitude and speed.
+        /// </summary>
+        private void DrawStudentTraffic(DrawingContext dc, double dip)
+        {
+            foreach (StudentTarget a in Targets)
+            {
+                Brush brush = a.OnGround ? GroundBrush : AircraftBrush;
+                if (trails.TryGetValue(a.Callsign, out List<Point>? trail))
+                {
+                    foreach (Point p in trail) dc.DrawEllipse(brush, null, ToScreen(p.X, p.Y), 1.3, 1.3);
+                }
+                Point at = ToScreen(a.X, a.Y);
+                bool formation = a.Formation > 1;
+                double size = formation ? 8 : 4;
+                Pen pen = new(brush, formation ? 2.2 : 1.4);
+                if (a.Helicopter)
+                {
+                    StreamGeometry diamond = new();
+                    using (StreamGeometryContext c = diamond.Open())
+                    {
+                        c.BeginFigure(new Point(at.X, at.Y - size - 1), false, true);
+                        c.LineTo(new Point(at.X + size + 1, at.Y), true, false);
+                        c.LineTo(new Point(at.X, at.Y + size + 1), true, false);
+                        c.LineTo(new Point(at.X - size - 1, at.Y), true, false);
+                    }
+                    dc.DrawGeometry(null, pen, diamond);
+                }
+                else
+                {
+                    dc.DrawEllipse(null, pen, at, size, size);
+                }
+                double vector = a.GroundSpeedKt / 3600 * 30;
+                double track = a.Track * Math.PI / 180;
+                dc.DrawLine(pen, at, ToScreen(a.X + vector * Math.Sin(track), a.Y + vector * Math.Cos(track)));
+                FormattedText first = new(formation ? $"{a.Callsign} F{a.Formation}" : a.Callsign, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, brush, dip);
+                FormattedText type = new(a.Type.Length > 0 ? a.Type : "----", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, brush, dip);
+                FormattedText rules = new(a.Ifr ? "I" : "V", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, BoldFace, 12, a.Ifr ? Brushes.White : VfrBrush, dip);
+                FormattedText third = new(string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0, Math.Round((a.AltitudeFt - ElevationFt + HeightOffset) / 100)):000} {Math.Round(a.GroundSpeedKt):0}"),
+                    CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, brush, dip);
+                double line = first.Height, box = rules.Width + 6;
+                double width = Math.Max(first.Width, Math.Max(type.Width + 5 + box, third.Width));
+                Point corner = at + (labelOffsets.TryGetValue(a.Callsign, out Vector moved) ? moved : new Vector(10, -3 * line - 4));
+                Rect area = new(corner, new Size(width, 3 * line));
+                labelRects[a.Callsign] = area;
+                dc.DrawLine(new Pen(brush, 0.6), at, Nearest(area, at));
+                dc.DrawText(first, corner);
+                dc.DrawText(type, new Point(corner.X, corner.Y + line));
+                Rect mark = new(corner.X + type.Width + 5, corner.Y + line + 1, box, line - 1);
+                dc.DrawRectangle(a.Ifr ? IfrBrush : Brushes.White, a.Ifr ? null : new Pen(VfrBrush, 1.5), mark);
+                dc.DrawText(rules, new Point(mark.X + 3, corner.Y + line + 0.5));
+                dc.DrawText(third, new Point(corner.X, corner.Y + 2 * line));
+            }
+        }
+
+        /// <summary>Where an aircraft is (the plane, NM): of the traffic, or of the student's.</summary>
+        private (double X, double Y)? PositionOf(string callsign)
+        {
+            if (Student)
+            {
+                foreach (StudentTarget t in Targets) if (string.Equals(t.Callsign, callsign, StringComparison.OrdinalIgnoreCase)) return (t.X, t.Y);
+                return null;
+            }
+            foreach (AircraftState a in Traffic) if (string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase)) return (a.X, a.Y);
+            return null;
         }
 
         /// <summary>How a piece of the selected label is drawn (the user, 4 Nov: as in the panel, yellow = chosen now).</summary>
@@ -1105,6 +1207,18 @@ namespace ATCRoom.TwrTrainer
             dragCallsign = null;
             dragMark = null;
             drag = Drag.Map;
+            if (Student)
+            {
+                // (The student: the labels and the map moved, nothing else.)
+                if (LabelAt(at) is string moving)
+                {
+                    drag = Drag.Label;
+                    dragCallsign = moving;
+                    grab = at - labelRects[moving].TopLeft;
+                }
+                CaptureMouse();
+                return;
+            }
             // (An aircraft under it first, the review of 7 Nov.)
             if (pick == null && SymbolAt(at) == null && MarkAt(at) is string mark && (Selected == null || FieldAt(at) == null))
             {
@@ -1135,10 +1249,10 @@ namespace ATCRoom.TwrTrainer
             if (!panned && (at - start).Length < 5) return;
             panned = true;
             dragNow = at;
-            if (drag == Drag.Label && dragCallsign != null && Traffic.FirstOrDefault(t => t.Callsign == dragCallsign) is AircraftState owner)
+            if (drag == Drag.Label && dragCallsign != null && PositionOf(dragCallsign) is (double ox, double oy))
             {
                 // The label where the mouse takes it, kept from its aircraft.
-                labelOffsets[owner.Callsign] = (at - grab) - ToScreen(owner.X, owner.Y);
+                labelOffsets[dragCallsign] = (at - grab) - ToScreen(ox, oy);
             }
             else if (drag == Drag.Map)
             {
@@ -1157,6 +1271,11 @@ namespace ATCRoom.TwrTrainer
             ReleaseMouseCapture();
             Drag was = drag;
             drag = Drag.None;
+            if (Student)
+            {
+                InvalidateVisual();
+                return;
+            }
             if (!click)
             {
                 // A mark dragged: its point moved on release.
@@ -1210,6 +1329,7 @@ namespace ATCRoom.TwrTrainer
 
         protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
         {
+            if (Student) return;
             if (AircraftAt(e.GetPosition(this)) is string callsign)
             {
                 Select(callsign);

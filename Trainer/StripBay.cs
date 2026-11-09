@@ -36,6 +36,14 @@ namespace ATCRoom.TwrTrainer
         private List<StripData> waiting = [], flying = [];
         private string shown = "";
         private object? chosen;
+        /// <summary>The order of the strips (the user, 9 Nov: moved by hand, dragging them); a new strip goes last.</summary>
+        private readonly List<object> order = [];
+        /// <summary>A strip being dragged: not drawn again meanwhile.</summary>
+        private bool dragging;
+        /// <summary>What is dragged: the key of a strip.</summary>
+        private sealed record Moving(object Key);
+        private static readonly Brush VfrText = Frozen(Color.FromRgb(0x1A, 0x7A, 0x35));
+        private static readonly Brush IfrBack = Frozen(Color.FromRgb(0x1D, 0x3F, 0x8A));
 
         /// <summary>The colour of a strip of each kind (from the settings).</summary>
         public Func<StripKind, Brush> ColourOf { get; set; } = _ => Brushes.White;
@@ -65,7 +73,7 @@ namespace ATCRoom.TwrTrainer
             Children.Add(free);
             Children.Add(new TextBlock
             {
-                Text = "Click a strip to choose it, then a button or a free note; click a note to remove it.",
+                Text = "Click a strip to choose it, then a button or a free note; click a note to remove it. Drag a strip to change its place.",
                 Foreground = Theme.Dim, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
             });
             Draw();
@@ -89,13 +97,16 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The strips now (called each second): drawn again only when something changed.</summary>
         public void Show(List<StripData> coordinationStrips, List<StripData> contactStrips)
         {
-            waiting = coordinationStrips;
-            flying = contactStrips;
-            // (The notes of strips gone are forgotten.)
+            waiting = coordinationStrips.ToList();
+            flying = contactStrips.ToList();
+            // (The notes of strips gone are forgotten, and their places.)
             foreach (object key in notes.Keys.ToList())
                 if (!waiting.Any(s => Equals(s.Key, key)) && !flying.Any(s => Equals(s.Key, key))) notes.Remove(key);
+            order.RemoveAll(key => !waiting.Any(s => Equals(s.Key, key)) && !flying.Any(s => Equals(s.Key, key)));
+            foreach (StripData strip in waiting.Concat(flying)) if (!order.Any(key => Equals(key, strip.Key))) order.Add(strip.Key);
+            Sort();
             if (chosen != null && !waiting.Any(s => Equals(s.Key, chosen)) && !flying.Any(s => Equals(s.Key, chosen))) chosen = null;
-            if (Text() == shown) return;
+            if (dragging || Text() == shown) return;
             Draw();
         }
 
@@ -108,6 +119,43 @@ namespace ATCRoom.TwrTrainer
             if (ReferenceEquals(old, now) || Equals(old, now)) return;
             if (notes.Remove(old, out List<string>? kept)) notes[now] = kept;
             if (Equals(chosen, old)) chosen = now;
+            int at = order.FindIndex(key => Equals(key, old));
+            if (at >= 0) order[at] = now;
+        }
+
+        /// <summary>Each section in the order of the strips.</summary>
+        private void Sort()
+        {
+            int Place(StripData strip)
+            {
+                int at = order.FindIndex(key => Equals(key, strip.Key));
+                return at < 0 ? int.MaxValue : at;
+            }
+            waiting = waiting.OrderBy(Place).ToList();
+            flying = flying.OrderBy(Place).ToList();
+        }
+
+        /// <summary>Whether two strips are in the same section (a strip moves only inside its own).</summary>
+        private bool SameSection(object a, object b) =>
+            (waiting.Any(s => Equals(s.Key, a)) && waiting.Any(s => Equals(s.Key, b))) || (flying.Any(s => Equals(s.Key, a)) && flying.Any(s => Equals(s.Key, b)));
+
+        /// <summary>A strip dropped on another: before it (or after it, dropped on its lower half).</summary>
+        private void Move(object key, object onto, bool after)
+        {
+            if (Equals(key, onto) || !SameSection(key, onto)) return;
+            int from = order.FindIndex(k => Equals(k, key));
+            if (from < 0) return;
+            object moved = order[from];
+            order.RemoveAt(from);
+            int at = order.FindIndex(k => Equals(k, onto));
+            if (at < 0)
+            {
+                order.Insert(from, moved);
+                return;
+            }
+            order.Insert(after ? at + 1 : at, moved);
+            Sort();
+            Draw();
         }
 
         /// <summary>A key as text: the callsign, or the plan itself (not its content: two plans alike are two strips).</summary>
@@ -149,7 +197,7 @@ namespace ATCRoom.TwrTrainer
             first.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             first.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             TextBlock callsign = new() { Text = strip.Callsign, FontWeight = FontWeights.Bold, Foreground = StripText, FontFamily = StripFont, FontSize = 12 };
-            string right = $"{strip.Type} {(strip.Ifr ? "I" : "V")} {strip.Entry} {strip.Altitude}".Replace("  ", " ").Trim();
+            string right = $"{strip.Type} {strip.Entry} {strip.Altitude}".Replace("  ", " ").Trim();
             TextBlock rest = new() { Text = right, Foreground = StripText, FontFamily = StripFont, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(6, 0, 0, 0) };
             Grid.SetColumn(rest, 1);
             first.Children.Add(callsign);
@@ -180,24 +228,83 @@ namespace ATCRoom.TwrTrainer
                 };
                 second.Children.Add(note);
             }
-            StackPanel lines = new();
+            StackPanel lines = new() { Margin = new Thickness(4, 1, 0, 1) };
             lines.Children.Add(first);
             lines.Children.Add(second);
             Brush colour = ColourOf(strip.Kind);
+            // (The flight rules well visible, the user 9 Nov: a square on the left, V green on white, I white on blue.)
+            Border rules = new()
+            {
+                Width = 20,
+                Background = strip.Ifr ? IfrBack : Brushes.White,
+                BorderBrush = strip.Ifr ? IfrBack : VfrText,
+                BorderThickness = new Thickness(strip.Ifr ? 0 : 2),
+                Child = new TextBlock
+                {
+                    Text = strip.Ifr ? "I" : "V",
+                    FontFamily = StripFont,
+                    FontSize = 15,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = strip.Ifr ? Brushes.White : VfrText,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                },
+                ToolTip = strip.Ifr ? "IFR" : "VFR"
+            };
+            DockPanel inside = new();
+            DockPanel.SetDock(rules, Dock.Left);
+            inside.Children.Add(rules);
+            inside.Children.Add(lines);
             Border border = new()
             {
-                Child = lines,
+                Child = inside,
                 Background = colour,
                 BorderBrush = isChosen ? ChosenEdge : Darker(colour),
-                BorderThickness = isChosen ? new Thickness(5, 2, 2, 2) : new Thickness(5, 0, 0, 0),
-                Padding = new Thickness(4, 1, 4, 1),
+                BorderThickness = new Thickness(isChosen ? 2 : 1),
+                Padding = new Thickness(0, 0, 4, 0),
                 Margin = new Thickness(0, 0, 0, 2),
                 Opacity = faint ? 0.8 : 1,
                 Cursor = Cursors.Hand,
-                ToolTip = "Click: choose this strip for the notes."
+                ToolTip = "Click: choose this strip for the notes. Drag: change its place.",
+                AllowDrop = true
+            };
+            // (Moved by hand, the user 9 Nov: dragged onto another strip of its section.)
+            Point? down = null;
+            border.PreviewMouseLeftButtonDown += (_, e) => down = e.GetPosition(border);
+            border.MouseMove += (_, e) =>
+            {
+                if (down is not Point start || e.LeftButton != MouseButtonState.Pressed) return;
+                if ((e.GetPosition(border) - start).Length < 5) return;
+                down = null;
+                dragging = true;
+                try
+                {
+                    DragDrop.DoDragDrop(border, new DataObject(typeof(Moving), new Moving(strip.Key)), DragDropEffects.Move);
+                }
+                finally
+                {
+                    dragging = false;
+                }
+                if (Text() != shown) Draw();
+            };
+            border.DragOver += (_, e) =>
+            {
+                e.Effects = e.Data.GetData(typeof(Moving)) is Moving m && SameSection(m.Key, strip.Key) ? DragDropEffects.Move : DragDropEffects.None;
+                e.Handled = true;
+            };
+            border.Drop += (_, e) =>
+            {
+                if (e.Data.GetData(typeof(Moving)) is Moving m)
+                {
+                    bool after = e.GetPosition(border).Y > border.ActualHeight / 2;
+                    dragging = false;
+                    Move(m.Key, strip.Key, after);
+                }
+                e.Handled = true;
             };
             border.MouseLeftButtonUp += (_, _) =>
             {
+                down = null;
                 chosen = Equals(chosen, strip.Key) ? null : strip.Key;
                 Draw();
             };

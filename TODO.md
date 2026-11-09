@@ -1120,6 +1120,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   then recording + player; (2) the student's label: callsign, ICAO type, **flight rules well visible** (a V / I mark),
   altitude in hundreds, speed; (3) the instructor's strip bay STAYS on his screen (the instructor decides what to do with
   it); (4) mock-up of the student console first (shown 9 Nov), then the code.
+- **Group 1, student console on the same PC (the user, 9 Nov: "ok"; the strip bay resizable and closed to a small box as
+  the other parts; the strips moved by hand) — WRITTEN, local commit, waiting for the go of the build:** `Lesson.cs`
+  (StudentTarget, LessonSnapshot: the photo of each second), `StudentWindow.cs` (button STUDENT on the bar of the map; F1 / F2
+  levels; its own zoom; the strip bay a DockablePart, floating on the right by default, "Student strip bay" in the settings),
+  TowerView `Student` (label: callsign, ICAO type + V / I mark, altitude speed; labels and map dragged, nothing else; the
+  map, gates, exits, helipads, categories as the instructor's; north up), StripBay: the V / I square on the left of each strip
+  (both bays), strips dragged to change their place inside their section. Not yet: IVAO strips (moved to In contact by hand),
+  turning the student's map (NORTH / RWY).
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
