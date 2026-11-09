@@ -670,6 +670,23 @@ namespace ATCRoom.TwrTrainer
                 Point centre = ToScreen(circling.CircleX, circling.CircleY);
                 double radius = (ToScreen(circling.CircleX + circling.CircleRadius, circling.CircleY) - centre).Length;
                 dc.DrawEllipse(null, pen, centre, radius, radius);
+                // (The way to the circle, the user 9 Nov: a line to where it joins it, turning its way; inside it: none.)
+                double dx = circling.X - circling.CircleX, dy = circling.Y - circling.CircleY;
+                double distance = Math.Sqrt(dx * dx + dy * dy);
+                if (distance > circling.CircleRadius * 1.05)
+                {
+                    double from = Math.Atan2(dy, dx), spread = Math.Acos(circling.CircleRadius / distance);
+                    // Left-hand: counterclockwise (x east, y north); the tangent point where it flies the circle's way.
+                    double sense = circling.CircuitSide == CircuitSide.Left ? 1 : -1;
+                    foreach (double angle in new[] { from + spread, from - spread })
+                    {
+                        double tx = circling.CircleX + circling.CircleRadius * Math.Cos(angle), ty = circling.CircleY + circling.CircleRadius * Math.Sin(angle);
+                        double alongX = -sense * Math.Sin(angle), alongY = sense * Math.Cos(angle);
+                        if ((tx - circling.X) * alongX + (ty - circling.Y) * alongY <= 0) continue;
+                        dc.DrawLine(pen, ToScreen(circling.X, circling.Y), ToScreen(tx, ty));
+                        break;
+                    }
+                }
                 if (double.IsFinite(circling.KeyX))
                 {
                     Point key = ToScreen(circling.KeyX, circling.KeyY);
