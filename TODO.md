@@ -902,6 +902,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 - **Next group (the user, 9 Nov) — TO DO, no build yet:**
   - **BREAKUP → BREAKOUT** (the phraseology of an urgent exit from the approach / circuit; "break-up" is the splitting of
     a formation): button, label, tooltip, log, F12 list, the right-click menu; key Shift+U as now.
+  - **DCT TO FINAL, new logic** (the user, 9 Nov): always on (grey only on the ground, already on its final or landing).
+    The line through the base point, square to the runway (the base of its circuit: CONV out of the circuits, WIDE, CLS for
+    CLS / OVH / SFO). Out beyond the line: straight to the point on the final (45° at most; never nearer than the base).
+    Between the line and the runway, or beyond the runway: first the base point ON THE SIDE IT FLIES (not the side of
+    "Circuits"; only a help for a wide turn, not joining the circuit, no downwind), then the final. On the runway track
+    beyond the runway: the side it is off to / turns, aside first so as not to pass over the runway. Flying away from the
+    runway: the point on the final moved in by a full turn. Too high (the user: "calcola la migliore traiettoria"): the
+    point on the final, or the base point, moved out so that it is on the glide path there (never a climb).
+
   - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
     formation)." The button keeps the name SPLIT.
 
