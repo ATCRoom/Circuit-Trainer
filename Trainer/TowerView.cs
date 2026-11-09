@@ -733,7 +733,7 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush NowBack = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)));
         private static readonly Brush NowEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)));
         private static readonly Brush NowText = Frozen(new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD)));
-        // (The user, 8 Nov: the urgent ones, G/A, CHG SIDE, BREAKUP, red.)
+        // (The user, 8 Nov: the urgent ones, G/A, CHG SIDE, BREAKOUT, red.)
         private static readonly Brush UrgentBack = Frozen(new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0x24)));
         private static readonly Brush UrgentEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xE0, 0x60, 0x60)));
         private static readonly Brush UrgentText = Frozen(new SolidColorBrush(Color.FromRgb(0xFD, 0xE8, 0xE8)));
@@ -802,7 +802,7 @@ namespace ATCRoom.TwrTrainer
                         .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())];
                     // The orders of where it is now (the user, 8 Nov: orange; the urgent ones red, on the row below).
                     now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Now : Look.Off));
-                    now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Now : Look.Off));
+                    now.Add(("BASE", "TURN IN", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Now : Look.Off));
                     now.AddRange(OrbitPieces(a));
                     // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
                     bool breakNow = CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND"));
@@ -813,7 +813,7 @@ namespace ATCRoom.TwrTrainer
                     if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
                     urgent.Add(("GA", "G/A", a.Leg == "FINAL" ? Look.Urgent : Look.Off));
                     urgent.Add(("CHGSIDE", "CHG SIDE", airborne && !manual ? Look.Urgent : Look.Off));
-                    urgent.Add(("BREAKUP", "BREAKUP", a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE" ? Look.Urgent : Look.Off));
+                    urgent.Add(("BREAKUP", "BREAKOUT", a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE" ? Look.Urgent : Look.Off));
                 }
                 else
                 {

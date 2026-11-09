@@ -2143,8 +2143,11 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
 
     // 71-74 (the user, 8 Nov): DCT TO FINAL, ORB by hand, SPLIT in the overhead, DCT TO HK from the final.
     {
-        // 71. DCT TO FINAL from out of the circuits, 7 NM out and 2 NM aside: onto the final, no base, lands; near the
-        // aerodrome (2 NM out, 2 NM aside) not given (the base is shorter).
+        // 71. DCT TO FINAL (the user, 9 Nov: always): 7 NM out and 2 NM aside straight onto the final (no base); 2 NM out and
+        // 2 NM aside on the OTHER side of the circuit: by the base point on that side (not across the runway), lands; too high
+        // (5 NM out, 4000 ft): the point moved out, on the glide path there, lands.
+        double cc7x = CircuitCourse * Math.PI / 180;
+        double LeftOf7x(AircraftState st) => -(st.X * Math.Cos(cc7x) - st.Y * Math.Sin(cc7x));
         SimEngine sim7x = NewCircuitEngine();
         (double fx7x, double fy7x) = Place(-7, 2, CircuitSide.Left);
         string cs7x = sim7x.AddAtGate(fx7x, fy7x, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
@@ -2155,15 +2158,37 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         bool noBase7x = !flown7x.Any(st => st.Leg is "BASE" or "DOWNWIND");
         int lined7x = flown7x.FindIndex(st => st.Leg == "FINAL");
         bool aligned7x = lined7x >= 0 && flown7x.Skip(lined7x).Where(st => Frame(st).Along < -0.5).All(st => Math.Abs(Frame(st).Lateral) < 0.25);
+        Check(can7x && noBase7x && aligned7x && LandedOnRunway(flown7x),
+            "DCT TO FINAL from 7 NM out: straight onto the final (no base), lined up, lands",
+            $"given {can7x}, no base {noBase7x}, aligned {aligned7x}");
+        pictures.Add(("DCT TO FINAL from 7 NM out, 2 NM aside", flown7x));
+
         SimEngine near7x = NewCircuitEngine();
-        (double nx7x, double ny7x) = Place(-2, 2, CircuitSide.Left);
+        (double nx7x, double ny7x) = Place(-2, 2, CircuitSide.Right);
         string nc7x = near7x.AddAtGate(nx7x, ny7x, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
         near7x.RunFor(2);
-        bool notNear7x = !near7x.CanDirectToFinal(nc7x);
-        Check(can7x && noBase7x && aligned7x && LandedOnRunway(flown7x) && notNear7x,
-            "DCT TO FINAL: from out of the circuits 7 NM out onto the final (no base), lined up, lands; 2 NM out not given",
-            $"given {can7x}, no base {noBase7x}, aligned {aligned7x}, near refused {notNear7x}");
-        pictures.Add(("DCT TO FINAL from 7 NM out, 2 NM aside", flown7x));
+        near7x.DirectTo(nc7x, DirectPoint.Final, CircuitSide.Left);
+        List<AircraftState> nf7x = Fly(near7x, nc7x, 900);
+        int nFinal7x = nf7x.FindIndex(st => st.Leg == "FINAL");
+        bool viaBase7x = nf7x.Any(st => st.Leg == "BASE") && !nf7x.Any(st => st.Leg == "DOWNWIND");
+        bool ownSide7x = nFinal7x > 0 && nf7x.Take(nFinal7x).All(st => LeftOf7x(st) < 0.15);
+        Check(viaBase7x && ownSide7x && LandedOnRunway(nf7x),
+            "DCT TO FINAL from 2 NM out on the other side: by the base point on that side (not across the runway), lands",
+            $"by the base {viaBase7x}, on its side {ownSide7x}");
+        pictures.Add(("DCT TO FINAL from 2 NM out, the other side", nf7x));
+
+        SimEngine high7x = NewCircuitEngine();
+        (double hx7x, double hy7x) = Place(-5, 1, CircuitSide.Left);
+        string hc7x = high7x.AddAtGate(hx7x, hy7x, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light", arrivalHeightFt: 4000);
+        high7x.RunFor(2);
+        high7x.DirectTo(hc7x, DirectPoint.Final, CircuitSide.Left);
+        List<AircraftState> hf7x = Fly(high7x, hc7x, 1200);
+        int hFinal7x = hf7x.FindIndex(st => st.Leg == "FINAL");
+        double climb7x = hf7x.Zip(hf7x.Skip(1), (p, q) => q.AltitudeFt - p.AltitudeFt).DefaultIfEmpty(0).Max();
+        Check(hFinal7x > 0 && climb7x < 60 && LandedOnRunway(hf7x),
+            "DCT TO FINAL too high (5 NM out, 4000 ft): the point moved out, never a climb, lands",
+            $"on the final at {hFinal7x} s, most climb in a second {climb7x:F0} ft");
+        pictures.Add(("DCT TO FINAL too high", hf7x));
 
         // 72. ORB L flown by hand (after a BREAKUP): a 360° to the left, then the heading it had, still by hand.
         sim7x = NewCircuitEngine();

@@ -229,10 +229,16 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBlock selectedText = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBox headingBox = new() { Width = 55 }, heightBox = new() { Width = 55 }, speedKtBox = new() { Width = 55 };
         // The selected aircraft: each button an order at once.
-        private readonly ChoiceRow<CircuitType> selCircuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => "From the next circuit (on the ground: CONV or WIDE only): " + ChoiceTip(t));
-        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => "The side of the next circuit (before the turn of this one, on the upwind or the initial: this one too): " + ChoiceTip(t));
-        private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Short)), (_, t) => "At the end of this final: " + ChoiceTip(t));
-        private readonly ChoiceRow<BreakPoint> selBreakRow = new(TowerCommands.Breaks.Select(b => (b.Break, b.Short)), (_, t) => ChoiceTip("break " + t));
+        // (Aircraft control, the user 9 Nov: full names, in columns.)
+        private readonly ChoiceRow<CircuitType> selCircuitRow = new([(CircuitType.Conventional, "Conventional circuit"), (CircuitType.Close, "Close pattern"),
+            (CircuitType.Wide, "Wide circuit"), (CircuitType.Overhead, "Overhead join"), (CircuitType.Sfo, "Sim. Flame Out")],
+            (type, _) => "From the next circuit (on the ground: conventional or wide only): " + ChoiceTip(TowerCommands.Circuits.First(c => c.Type == type).Short)) { MinItemWidth = ButtonColumn };
+        private readonly ChoiceRow<CircuitSide> selSideRow = new([(CircuitSide.Left, "Left-hand"), (CircuitSide.Right, "Right-hand")],
+            (side, _) => "The side of the next circuit (before the turn of this one, on the upwind or the initial: this one too): " + ChoiceTip(side == CircuitSide.Left ? "L" : "R")) { MinItemWidth = ButtonColumn };
+        private readonly ChoiceRow<EndAction> selEndRow = new(TowerCommands.Ends.Select(e => (e.End, e.Text)),
+            (end, _) => "At the end of this final: " + ChoiceTip(TowerCommands.Ends.First(e => e.End == end).Short)) { MinItemWidth = ButtonColumn };
+        private readonly ChoiceRow<BreakPoint> selBreakRow = new([(BreakPoint.Beginning, "Runway beginning"), (BreakPoint.Middle, "Midfield"), (BreakPoint.End, "Runway end"), (BreakPoint.Standby, "Standby for break")],
+            (where, _) => ChoiceTip("break " + TowerCommands.Breaks.First(b => b.Break == where).Short)) { MinItemWidth = ButtonColumn };
         private readonly StackPanel selectedPanel = new();
         /// <summary>The layer over the map where the parts taken out of the column float (empty: clicks go to the map).</summary>
         private readonly Canvas layer = new();
@@ -691,13 +697,13 @@ namespace ATCRoom.TwrTrainer
                 "  C           change side now (CHG SIDE)\n" +
                 "  B           break now\n" +
                 "  E           extend downwind\n" +
-                "  N           base now\n" +
+                "  N           turn in now\n" +
                 "  O           orbit, the side lit (both: the side it turns; Shift+O: on and on; orbiting on and on: go on)\n" +
                 "  G           go around\n" +
-                "  W           wide now\n" +
+                "  W           wide circuit now\n" +
                 "  H           hold at the High Key / start SFO (as its button)\n" +
                 "  X           expedite taxi\n" +
-                "  U / Shift+U split / breakup\n" +
+                "  U / Shift+U split formation / breakout\n" +
                 "  R           rejoin its circuit\n" +
                 "  Del         remove (asked first)\n\n" +
                 "VALUES\n" +
@@ -749,16 +755,16 @@ namespace ATCRoom.TwrTrainer
             }
             // (The user, 4 Nov: Aerodrome and Simulation one part, Settings, where Aerodrome was.)
             if (!settings.Parts.ContainsKey("Settings") && settings.Parts.TryGetValue("Aerodrome", out PartPlacement? old)) settings.Parts["Settings"] = old;
-            settingsPart = new DockablePart("Settings", settingsContent, panel, layer, Placement("Settings"), settings.Save);
+            settingsPart = new DockablePart("Settings", "⚙", settingsContent, panel, layer, Placement("Settings"), settings.Save);
             // (The user, 7 Nov: the names of AuroraPAR Trainer; the places saved under the old names kept.)
-            newPart = new DockablePart("Traffic generation", newContent, panel, layer, Placement("New aircraft"), settings.Save);
+            newPart = new DockablePart("Traffic generation", "✎", newContent, panel, layer, Placement("New aircraft"), settings.Save);
             // (The user, 3 Nov: the flight plans as a part of their own, named as in the PAR trainer.)
-            trafficPart = new DockablePart("Traffic List", trafficContent, panel, layer, Placement("Traffic List"), settings.Save);
-            selectedPart = new DockablePart("Aircraft control", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
+            trafficPart = new DockablePart("Traffic List", "☰", trafficContent, panel, layer, Placement("Traffic List"), settings.Save);
+            selectedPart = new DockablePart("Aircraft control", "✈", selectedContent, panel, layer, Placement("Selected aircraft"), settings.Save);
             // (Floating by default, narrow, the user 6 Nov.)
             if (!settings.Parts.ContainsKey("Strip bay")) settings.Parts["Strip bay"] = new PartPlacement { Floating = true, Width = 260, Height = 420, Left = 380, Top = 60 };
             stripBay.ColourOf = StripBrush;
-            stripPart = new DockablePart("Strip bay", stripBay, panel, layer, Placement("Strip bay"), settings.Save);
+            stripPart = new DockablePart("Strip bay", "▤", stripBay, panel, layer, Placement("Strip bay"), settings.Save);
 
             // (The user, 6 Nov: the look of the panels and of the strips, at the top of Settings.)
             current = Section("Appearance", null, false);
@@ -1092,124 +1098,148 @@ namespace ATCRoom.TwrTrainer
             current.Children.Add(selectedText);
             current.Children.Add(selectedPanel);
 
-            // (The user, 8 Nov: as the label, in its order and with its names; by phases; the keys beside the buttons.)
+            // (The user, 9 Nov: full names, a symbol, the key on the right; columns that fit the width of the panel.)
             Button Order(string text, Action<string> action) => ActionButton(text, () => WithSelected(action));
-            Button Keyed(string text, string key, Action<string> action, bool now = false, bool urgent = false)
+            Button Keyed(string symbol, string text, string key, string tip, Action<string> action, bool now = false, bool urgent = false)
             {
                 Button button = Order(text, action);
-                string tip = button.ToolTip as string ?? text;
+                button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                DockPanel content = new();
+                TextBlock mark = new()
+                {
+                    Text = symbol,
+                    FontFamily = SymbolFont,
+                    Width = 16,
+                    TextAlignment = TextAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    RenderTransformOrigin = new Point(0.5, 0.5)
+                };
+                DockPanel.SetDock(mark, Dock.Left);
+                content.Children.Add(mark);
                 if (key.Length > 0)
                 {
-                    StackPanel content = new() { Orientation = Orientation.Horizontal };
-                    content.Children.Add(new TextBlock { Text = text });
-                    content.Children.Add(new TextBlock { Text = key, FontSize = 9, Opacity = 0.65, Margin = new Thickness(3, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
-                    button.Content = content;
-                    tip += $" Key: {key}.";
+                    TextBlock keyText = new() { Text = key, FontSize = 9, Opacity = 0.65, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                    DockPanel.SetDock(keyText, Dock.Right);
+                    content.Children.Add(keyText);
                 }
-                button.ToolTip = tip;
+                content.Children.Add(new TextBlock { Text = text, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+                button.Content = content;
+                button.ToolTip = key.Length > 0 ? $"{tip} Key: {key}." : tip;
                 if (now) NowLook(button);
                 if (urgent) UrgentLook(button);
                 return button;
             }
+            Grid PanelRow(string label, UIElement control, Panel into)
+            {
+                Grid grid = Row(label, control, into, 72);
+                if (grid.Children[0] is TextBlock text)
+                {
+                    text.VerticalAlignment = VerticalAlignment.Top;
+                    text.Margin = new Thickness(0, 3, 0, 0);
+                }
+                return grid;
+            }
+            void Line(Panel into, bool urgentLine = false) => into.Children.Add(new Border
+            {
+                Height = 1,
+                Margin = new Thickness(0, 5, 0, 5),
+                Background = urgentLine ? new SolidColorBrush(Color.FromRgb(0x5A, 0x2E, 0x2E)) : Theme.Section
+            });
 
             StackPanel values = Group("1 · Altitude, speed and heading",
-                "A box: the value now; the mouse wheel, or type + Enter (Esc: back). ALT, SPD: it keeps its circuit (AUTO: its circuit's). HDG: out of its circuit, you fly it; REJOIN: back in.", selectedPanel);
+                "A box: the value now; the mouse wheel, or type + Enter (Esc: back). Altitude, speed: it keeps its circuit (Auto: its circuit's). Heading: out of its circuit, you fly it; Rejoin circuit: back in.", selectedPanel);
             foreach (TextBox box in new[] { heightBox, speedKtBox, headingBox })
             {
                 box.Width = 40;
                 box.TextAlignment = TextAlignment.Center;
                 box.Margin = new Thickness(0, 0, 6, 4);
             }
-            heightBox.ToolTip = "The altitude (ALT, hundreds of ft: 25 = 2500; or the feet) or the height (HGT): Enter. Mouse wheel: ±100 ft. Key: L.";
+            heightBox.ToolTip = "The altitude (hundreds of ft: 25 = 2500; or the feet), or the height with QFE: Enter. Mouse wheel: ±100 ft. Key: L.";
             speedKtBox.ToolTip = "The speed (kt): Enter. Mouse wheel: ±10 kt. Key: K.";
-            headingBox.ToolTip = "A heading (°, true): Enter; it leaves its circuit (MANUAL). Mouse wheel: ±5°. Or drag from its symbol on the map. Key: V.";
-            Grid altLine = Row("ALT", altPresets, values, 40);
+            headingBox.ToolTip = "A heading (°, true): Enter; it leaves its circuit (flown by hand, MANUAL). Mouse wheel: ±5°. Or drag from its symbol on the map. Key: V.";
+            Grid altLine = Row("Altitude", altPresets, values, 72);
             heightName = (TextBlock)altLine.Children[0];
-            Row("SPD", speedPresets, values, 40);
+            Row("Speed", speedPresets, values, 72);
             altPresets.Children.Add(heightBox);
             speedPresets.Children.Add(speedKtBox);
-            rejoinButton = Keyed("REJOIN", "R", commands.Rejoin);
-            rejoinButton.ToolTip = "Back into its circuit (from MANUAL, a heading). Key: R.";
-            // (The user, 8 Nov: the words with the box, REJOIN below it.)
-            Row("HDG", Wrap(headingBox, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 40);
-            Row("", Inline(rejoinButton), values, 40);
+            rejoinButton = Keyed("↩", "Rejoin circuit", "R", "Back into its circuit (from MANUAL: flown by hand after a heading or a breakout).", commands.Rejoin);
+            // (The user, 8 Nov: the words with the box, Rejoin below it.)
+            Row("Heading", Wrap(headingBox, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 72);
+            PanelRow("", Columns(rejoinButton), values);
             ValueBox(heightBox, "ALT");
             ValueBox(speedKtBox, "SPD");
             ValueBox(headingBox, "HDG");
 
-            StackPanel next = Group("2 · Next circuit", "PATTERN, SIDE (L / R), BREAK: the next circuit, from the next touch and go or go-around. END: the end of this final.", selectedPanel);
-            Row("PATTERN", selCircuitRow, next, 62);
-            // Another circuit: its side at this runway (then L / R to change it). Both from the next circuit.
+            StackPanel next = Group("2 · Next circuit", "Pattern, side, break: the next circuit, from the next touch and go or go-around. End: the end of this final.", selectedPanel);
+            PanelRow("Pattern", selCircuitRow, next);
+            // Another circuit: its side at this runway (then Left-hand / Right-hand to change it). Both from the next circuit.
             selCircuitRow.Picked += type => WithSelected(cs =>
             {
                 CircuitSide side = engine.SideFor(type);
                 selSideRow.Show(side);
                 commands.NextCircuit(cs, type, side);
             });
-            Row("SIDE", selSideRow, next, 62);
-            // (As SIDE of the label, the user 8 Nov: only the side of the next circuit; CHG SIDE moves it now.)
+            PanelRow("Side", selSideRow, next);
+            // (As SIDE of the label, the user 8 Nov: only the side of the next circuit; Change side moves it now.)
             selSideRow.Picked += side => WithSelected(cs => LabelField(cs, $"SIDE={side}"));
             // (Only for the overhead and the close pattern, the user 5 Nov: the others have no break.)
-            selBreakGrid = Row("BREAK", selBreakRow, next, 62);
+            selBreakGrid = PanelRow("Break", selBreakRow, next);
             selBreakRow.Picked += where => WithSelected(cs => commands.SetBreak(cs, where));
-            selBreakPointGrid = Row("", Inline(ActionButton("BREAK AT A POINT", () => WithSelected(cs =>
-                view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))))), next, 62);
-            Row("END", selEndRow, next, 62);
+            Button breakPoint = ActionButton("At a point...", () => WithSelected(cs =>
+                view.AskPoint($"{cs}: click where it breaks (along the runway)  -  Esc: cancel", (x, y) => commands.SetBreakAt(cs, x, y))));
+            breakPoint.ToolTip = "The break at a point of the runway: click it on the map (Esc: cancel).";
+            selBreakPointGrid = PanelRow("", Columns(breakPoint), next);
+            PanelRow("End", selEndRow, next);
             selEndRow.Picked += end => WithSelected(cs =>
             {
                 if (engine.Get(cs) is { CanHover: true } heli && (heli.HasPad || heli.WantsPad)) commands.Helipad(cs, double.NaN, double.NaN);
                 commands.SetEnd(cs, end);
             });
             // (Helicopters, the user 5 Nov: the end of the final on a helipad.)
-            padEndButton = ActionButton("HPAD", () => WithSelected(cs => PadMenu(cs, now: false)));
+            padEndButton = ActionButton("Helipad...", () => WithSelected(cs => PadMenu(cs, now: false)));
             padEndButton.ToolTip = "Helicopter: the final ends on a helipad (a registered one, or a point clicked on the map).";
-            padEndLine = Row("", Inline(padEndButton), next, 62);
+            padEndLine = PanelRow("", Columns(padEndButton), next);
             // (A formation: who lands, as LAND of the label.)
-            landLine = Row("LAND", landPanel, next, 62);
+            landLine = PanelRow("Land", landPanel, next);
             landLine.Visibility = Visibility.Collapsed;
 
             StackPanel now = Group("3 · Now, in the circuit", "At once. Blue: where it goes; orange: what it does now; red: the urgent ones (grey: not where it is).", selectedPanel);
-            // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov.)
-            dctButtons = [Keyed("DW CONV", "F1", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Keyed("DW CLS", "F2", cs => commands.DirectTo(cs, DirectPoint.CloseDownwind)),
-                Keyed("BASE CONV", "F3", cs => commands.DirectTo(cs, DirectPoint.Base)), Keyed("BASE CLS", "F4", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
-                Keyed("IP", "F5", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Keyed("HK", "F6", cs => commands.DirectTo(cs, DirectPoint.HighKey)),
-                Keyed("FINAL", "F7", cs => commands.DirectTo(cs, DirectPoint.Final))];
-            dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit. Key: F1.";
-            dctButtons[1].ToolTip = "At once onto the downwind of the close pattern (narrower). Key: F2.";
-            dctButtons[2].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final. Key: F3.";
-            dctButtons[3].ToolTip = "At once straight to the start of the base of the close pattern (narrower), then the final. Key: F4.";
-            dctButtons[4].ToolTip = "At once straight to the initial point, then the overhead. Key: F5.";
-            dctButtons[5].ToolTip = "At once straight to the High Key, then the SFO (on the final: along it to the High Key). Key: F6.";
-            dctButtons[6].ToolTip = "At once onto the final (a turn of 45° at most), down the glide path, then its END. Out of the circuits, in the WIDE or on the way to the IP, when that is shorter than its base. Key: F7.";
-            padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
-            padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
+            // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov; FINAL, the user 9 Nov.)
+            dctButtons = [Keyed("➝", "Downwind conv.", "F1", "At once onto the downwind of the conventional circuit.", cs => commands.DirectTo(cs, DirectPoint.Downwind)),
+                Keyed("➝", "Downwind close", "F2", "At once onto the downwind of the close pattern (narrower).", cs => commands.DirectTo(cs, DirectPoint.CloseDownwind)),
+                Keyed("⇲", "Base conv.", "F3", "At once straight to the start of the base of the conventional circuit, then the final.", cs => commands.DirectTo(cs, DirectPoint.Base)),
+                Keyed("⇲", "Base close", "F4", "At once straight to the start of the base of the close pattern (narrower), then the final.", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
+                Keyed("◎", "Initial point", "F5", "At once straight to the initial point, then the overhead.", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)),
+                Keyed("⤒", "High Key", "F6", "At once straight to the High Key, then the SFO (on the final: along it to the High Key).", cs => commands.DirectTo(cs, DirectPoint.HighKey)),
+                Keyed("⇥", "Final", "F7", "At once onto the final: from out beyond the base straight onto it (45° at most); nearer, by the base point on the side it flies; too high, farther out. Then down the glide path and its end.", cs => commands.DirectTo(cs, DirectPoint.Final))];
+            padNowButton = Keyed("⌂", "Helipad...", "", "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.", cs => PadMenu(cs, now: true));
             dctButtons = [.. dctButtons, padNowButton];
-            Row("DCT TO", Columns(dctButtons), now, 62);
-            // (The user, 8 Nov: 4 a row, in columns; the urgent ones, G/A, CHG SIDE, BREAKUP, red on the row below.)
-            extendButton = Keyed("EXT DWN", "E", commands.ExtendDownwind, now: true);
-            baseButton = Keyed("BASE", "N", commands.TurnBase, now: true);
+            PanelRow("Direct to", Columns(dctButtons), now);
+            Line(now);
+            extendButton = Keyed("⟷", "Extend downwind", "E", "On the downwind: straight on beyond the turn to the base, until Turn in now.", commands.ExtendDownwind, now: true);
+            baseButton = Keyed("↪", "Turn in now", "N", "On the downwind (also extended, or in an orbit): turn in now towards the final, by a short base. Still joining: straight to the start of the base.", commands.TurnBase, now: true);
+            breakNowButton = Keyed("⤵", "Break now", "B", "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft). Also during a touch and go before a close pattern: it turns above 400 ft (another break point: cancelled).", commands.BreakNow, now: true);
             // ORB L / ORB R (the user, 8 Nov): one orbit to that side; Shift: on and on; orbiting on and on, a click goes on.
-            orbitLeftButton = Keyed("ORB L", "O", cs => OrbitOrder(cs, false), now: true);
-            orbitRightButton = Keyed("ORB R", "O", cs => OrbitOrder(cs, true), now: true);
-            Row("NOW", Columns(extendButton, baseButton, orbitLeftButton, orbitRightButton), now, 62);
-            breakNowButton = Keyed("BREAK NOW", "B", commands.BreakNow, now: true);
+            orbitLeftButton = Keyed("↺", "Orbit left", "O", "One orbit (360°) to the left, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.", cs => OrbitOrder(cs, false), now: true);
+            orbitRightButton = Keyed("↻", "Orbit right", "O", "One orbit (360°) to the right, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.", cs => OrbitOrder(cs, true), now: true);
             // (The user, 8 Nov: the wide circuit on its own side at this runway, not the side it flies now.)
-            wideButton = Keyed("WIDE NOW", "W", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.SideFor(CircuitType.Wide)), now: true);
-            // (One button, the user 8 Nov: HOLD HK, or START SFO when on hold; it sends what it shows.)
-            holdButton = Keyed("HOLD HK", "H", cs => commands.HoldAtHighKey(cs, ButtonText(holdButton) != "START SFO"), now: true);
-            holdButton.ToolTip = "SFO. HOLD HK: it waits circling over the High Key. On hold, START SFO: it starts at the next pass over the High Key. Key: H.";
-            splitButton = Keyed("SPLIT", "U", commands.Split, now: true);
-            Row("", Columns(breakNowButton, wideButton, holdButton, splitButton), now, 62);
-            goAroundButton = Keyed("G/A", "G", commands.GoAround, urgent: true);
-            changeSideButton = Keyed("CHG SIDE", "C", commands.ChangeSide, urgent: true);
-            breakupButton = Keyed("BREAKUP", "⇧U", commands.Breakup, urgent: true);
-            expTaxiButton = Keyed("EXP TAXI", "X", commands.ExpediteTaxi, now: true);
-            Row("", Columns(goAroundButton, changeSideButton, breakupButton, expTaxiButton), now, 62);
+            wideButton = Keyed("⏥", "Wide circuit now", "W", "This circuit becomes the wide one now, on the side of the WIDE at this runway.", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.SideFor(CircuitType.Wide)), now: true);
+            // (One button, the user 8 Nov: Hold at High Key, or Start SFO when on hold; it sends what it shows.)
+            holdButton = Keyed("⬭", "Hold at High Key", "H", "SFO. Hold at High Key: it waits circling over the High Key. On hold, Start SFO: it starts at the next pass over the High Key.", cs => commands.HoldAtHighKey(cs, ButtonText(holdButton) != "Start SFO"), now: true);
+            splitButton = Keyed("⇶", "Split formation", "U", "Formation break-up: each aircraft on its own, one interval after the other.", commands.Split, now: true);
+            expTaxiButton = Keyed("↴", "Expedite taxi", "X", "Landed: off the runway quickly.", commands.ExpediteTaxi, now: true);
+            PanelRow("Now", Columns(extendButton, baseButton, breakNowButton, orbitLeftButton, orbitRightButton, wideButton, holdButton, splitButton, expTaxiButton), now);
+            Line(now, urgentLine: true);
+            goAroundButton = Keyed("⏫", "Go around", "G", "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.", commands.GoAround, urgent: true);
+            changeSideButton = Keyed("⇄", "Change side", "C", "This circuit now on the other side: an S over the aerodrome onto the other downwind (on the initial, the upwind: the turn to the other side). The next circuit ordered stays. On the final: it goes on, then the other side.", commands.ChangeSide, urgent: true);
+            breakupButton = Keyed("↫", "Breakout", "⇧U", "Out of the circuit at once: on the downwind a turn away from the runway to 90° from it; on the base on round past the final. Then flown by hand (MANUAL) at its altitude, until Rejoin circuit.", commands.Breakup, urgent: true);
+            PanelRow("Urgent", Columns(goAroundButton, changeSideButton, breakupButton), now);
 
-            Button removeButton = Keyed("REMOVE", "Del", cs => RemoveAsked(cs));
+            Button removeButton = Keyed("✕", "Remove aircraft", "Del", "Remove this aircraft (asked first).", cs => RemoveAsked(cs));
             removeButton.Background = removeButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x26, 0x26));
             DockPanel bottom = new() { Margin = new Thickness(0, 4, 0, 0), LastChildFill = false };
-            TextBlock keysNote = new() { Text = "F12: all the keys · Right click on an aircraft: its menu", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+            TextBlock keysNote = new() { Text = "F12: all the keys · Right click on an aircraft: its menu", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
             DockPanel.SetDock(removeButton, Dock.Right);
             bottom.Children.Add(removeButton);
             bottom.Children.Add(keysNote);
@@ -1370,16 +1400,12 @@ namespace ATCRoom.TwrTrainer
             ["Remove runway"] = "Remove the runway in use (and the same runway the other way) from the aerodrome file.",
             ["Import heights..."] = "The altitudes of the classes of another aerodrome of TWR Trainer copied here (the same altitudes, QNH); asked before replacing.",
             ["Aircraft classes..."] = "The classes of aircraft and their performance (all aerodromes); their altitudes here: Settings › Circuits.",
-            ["SPLIT"] = "The formation splits now: each one an aircraft of its own, the wingmen one interval after the other (overhead, close, SFO: only at the break, by itself).",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
             ["▼ WAITING LIST"] = "Every aircraft out of the simulation: their rows back in WAITING.",
-            ["EXP TAXI"] = "Landed, rolling out: expedite taxi, at least 45 kt to the nearest exit it can still take.",
             ["ADD EXIT"] = "A runway exit: its name (empty: the next letter), then click on the runway edge where it leaves.",
             ["REMOVE EXIT"] = "Remove the exit whose name is written.",
             ["Apply METAR"] = "Take the wind from the METAR line and show it on the map.",
             ["Get METAR"] = "The newest METAR of this aerodrome from the internet (aviationweather.gov, by its ICAO code): into the box, its wind applied.",
-            ["Level 1 (F1)"] = "The aerodrome and its circuits (10 NM, or the view saved on it).",
-            ["Level 2 (F2)"] = "The area around the aerodrome (20 NM, or the view saved on it): gates, initial point, long final.",
             ["Remove all aircraft"] = "Remove all the aircraft flying (the flight plans stay).",
             ["ADD GATE"] = "Click the entry gate on the map: a VRP gives its name (or the name written). At least 5 NM out.",
             ["REMOVE GATE"] = "Remove the gate written (or the one chosen in Start from).",
@@ -1394,30 +1420,7 @@ namespace ATCRoom.TwrTrainer
             ["⏸"] = "Hold this plan (it does not start); again: it goes on.",
             ["⏵"] = "Go on (it starts at its time).",
             ["⧉"] = "Duplicate: the next callsign, one minute later.",
-            ["✕"] = "Remove this plan.",
-            ["BREAK AT A POINT"] = "Overhead and close: click on the map where it breaks (along the runway).",
-            ["BREAK NOW"] = "Overhead on the initial, close on the upwind: it breaks now (close: above 400 ft). Also during a touch and go before a close pattern: it turns above 400 ft (another break point: cancelled).",
-            ["HOLD HK"] = "SFO: it waits circling over the High Key (until START SFO).",
-            ["START SFO"] = "SFO: at the next pass over the High Key it starts the flame out pattern.",
-            ["EXTEND DWN"] = "On the downwind: straight on beyond the base turn, until TURN BASE.",
-            ["TURN BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
-            ["ORBIT"] = "One orbit (360°) away from the runway, then on. Shift+click: orbits until CONTINUE.",
-            ["ORBIT ∞"] = "Orbits until CONTINUE (this button while it orbits).",
-            ["EXT DWN"] = "On the downwind: straight on beyond the base turn, until BASE.",
-            ["BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
-            ["ORB L"] = "One orbit (360°) to the left, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.",
-            ["ORB R"] = "One orbit (360°) to the right, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.",
-            ["G/A"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
-            ["EXP TAXI"] = "Landed: off the runway quickly.",
-            ["SPLIT"] = "The formation splits (each aircraft on its own).",
-            ["CONTINUE"] = "The orbits end: on along its circuit from here.",
-            ["GO AROUND"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
-            ["CHG SIDE"] = "This circuit now on the other side: an S over the aerodrome onto the other downwind (on the initial, the upwind: the turn to the other side). The next circuit ordered stays. On the final: it goes on, then the other side.",
-            ["WIDE NOW"] = "Out to the wide circuit now (to make room).",
-            ["GO"] = "Give it: the aircraft leaves its circuit (MANUAL); REJOIN brings it back.",
-            ["REJOIN"] = "Back into its circuit from where it is.",
-            ["BREAKUP"] = "Out of the circuits: on the downwind a turn away from the runway, on the base on turning past the final. Then MANUAL.",
-            ["REMOVE"] = "Remove this aircraft (asked first)."
+            ["✕"] = "Remove this plan."
         };
 
         private static readonly Brush ActionBack = new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0x86));
@@ -1449,7 +1452,7 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush NowBack = new SolidColorBrush(Color.FromRgb(0x8A, 0x4A, 0x1C)), NowEdge = new SolidColorBrush(Color.FromRgb(0xD0, 0x80, 0x3A)),
             NowText = new SolidColorBrush(Color.FromRgb(0xFB, 0xEB, 0xDD));
 
-        // (The user, 8 Nov: G/A, CHG SIDE, BREAKUP red.)
+        // (The user, 8 Nov: G/A, CHG SIDE, BREAKOUT red.)
         private static readonly Brush UrgentBack = new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0x24)), UrgentEdge = new SolidColorBrush(Color.FromRgb(0xE0, 0x60, 0x60)),
             UrgentText = new SolidColorBrush(Color.FromRgb(0xFD, 0xE8, 0xE8));
 
@@ -1460,27 +1463,41 @@ namespace ATCRoom.TwrTrainer
             button.Foreground = UrgentText;
         }
 
-        /// <summary>Buttons in columns, 4 a row, all as wide (the user, 8 Nov: they line up).</summary>
-        private static System.Windows.Controls.Primitives.UniformGrid Columns(params Button[] buttons)
+        /// <summary>The narrowest column of the buttons of Aircraft control (the user, 9 Nov: as many as fit, lined up).</summary>
+        private const double ButtonColumn = 150;
+
+        /// <summary>The font of the symbols on the buttons (plain, not coloured).</summary>
+        private static readonly FontFamily SymbolFont = new("Segoe UI Symbol");
+
+        /// <summary>Buttons in columns as wide as each other, as many as fit the width (the user, 9 Nov).</summary>
+        private static ColumnsPanel Columns(params Button[] buttons)
         {
-            System.Windows.Controls.Primitives.UniformGrid grid = new() { Columns = 4 };
+            ColumnsPanel grid = new() { MinItemWidth = ButtonColumn };
             foreach (Button button in buttons)
             {
                 button.HorizontalAlignment = HorizontalAlignment.Stretch;
-                button.HorizontalContentAlignment = HorizontalAlignment.Center;
+                button.Margin = new Thickness(0, 0, 4, 4);
                 grid.Children.Add(button);
             }
             return grid;
         }
 
-        /// <summary>The text of a button (made by Keyed: its first text).</summary>
+        /// <summary>The text of a button (made by Keyed: its last text, after the symbol and the key).</summary>
         private static string ButtonText(Button button) =>
-            button.Content is StackPanel { Children.Count: > 0 } panel && panel.Children[0] is TextBlock text ? text.Text : button.Content as string ?? "";
+            button.Content is Panel { Children.Count: > 0 } panel && panel.Children[^1] is TextBlock text ? text.Text : button.Content as string ?? "";
 
         private static void SetButtonText(Button button, string value)
         {
-            if (button.Content is StackPanel { Children.Count: > 0 } panel && panel.Children[0] is TextBlock text) text.Text = value;
+            if (button.Content is Panel { Children.Count: > 0 } panel && panel.Children[^1] is TextBlock text) text.Text = value;
             else button.Content = value;
+        }
+
+        /// <summary>The symbol of a button made by Keyed (its first text), turned as a mirror for a left turn (the user, 9 Nov).</summary>
+        private static void SymbolTurned(Button button, string symbol, bool mirrored)
+        {
+            if (button.Content is not Panel { Children.Count: > 0 } panel || panel.Children[0] is not TextBlock mark) return;
+            mark.Text = symbol;
+            mark.RenderTransform = mirrored ? new ScaleTransform(-1, 1) : Transform.Identity;
         }
 
         /// <summary>ORB L / R (button, label, key O): orbiting on and on, CONTINUE; Shift: on and on; else one orbit.</summary>
@@ -1571,12 +1588,12 @@ namespace ATCRoom.TwrTrainer
                 presetsFor = key;
                 altPresets.Children.Clear();
                 altPresets.Children.Add(heightBox);
-                altPresets.Children.Add(Preset("AUTO", "ALT=AUTO", "Its circuit's altitude again."));
+                altPresets.Children.Add(Preset("Auto", "ALT=AUTO", "Its circuit's altitude again."));
                 foreach (double h in TowerView.HeightChoices)
                     altPresets.Children.Add(Preset($"{Math.Round((h + HeightOffset) / 100):000}", $"ALT={h:0}", $"{Math.Round((h + HeightOffset) / 100) * 100:0} ft; it keeps its circuit."));
                 speedPresets.Children.Clear();
                 speedPresets.Children.Add(speedKtBox);
-                speedPresets.Children.Add(Preset("AUTO", "SPD=AUTO", "Its circuit's speed again."));
+                speedPresets.Children.Add(Preset("Auto", "SPD=AUTO", "Its circuit's speed again."));
                 foreach (double v in speeds) speedPresets.Children.Add(Preset($"{v:0}", $"SPD={v:0}", $"{v:0} kt; it keeps its circuit."));
                 landPanel.Children.Clear();
                 if (a.Formation is { Count: > 1 } crew)
@@ -2018,7 +2035,7 @@ namespace ATCRoom.TwrTrainer
             if (arrivalName == null) return;
             arrivalName.Text = $"{HeightWord} ft";
             exitAltName.Text = $"Exit {HeightWord.ToLowerInvariant()} ft";
-            heightName.Text = qfe ? "HGT" : "ALT";
+            heightName.Text = qfe ? "Height" : "Altitude";
             hkName.Text = $"HK {HeightWord.ToLowerInvariant()} ft";
             heightBox.ToolTip = qfe ? "The height above the runway (hundreds of ft: 25 = 2500; or the feet): Enter. Mouse wheel: ±100 ft. Key: L."
                 : "The altitude (QNH, hundreds of ft: 25 = 2500; or the feet): Enter. Mouse wheel: ±100 ft. Key: L.";
@@ -4351,9 +4368,11 @@ namespace ATCRoom.TwrTrainer
             CircuitType type = a.Circuit ?? CircuitType.Conventional;
             MenuItem circuit = new() { Header = "Next circuit" };
             foreach (MenuItem item in CircuitItems(callsign)) circuit.Items.Add(item);
-            MenuItem side = new() { Header = "Side now" };
-            side.Items.Add(Item("Left", () => commands.FlyCircuit(callsign, type, CircuitSide.Left), a.CircuitSide == CircuitSide.Left));
-            side.Items.Add(Item("Right", () => commands.FlyCircuit(callsign, type, CircuitSide.Right), a.CircuitSide == CircuitSide.Right));
+            // (As the label and the panel, the user 8 Nov: the side of the next circuit; Change side moves it now.)
+            CircuitSide nextSide = a.NextCircuit != null ? a.NextSide : a.CircuitSide;
+            MenuItem side = new() { Header = "Side of the next circuit" };
+            side.Items.Add(Item("Left-hand", () => commands.NextSide(callsign, CircuitSide.Left), nextSide == CircuitSide.Left));
+            side.Items.Add(Item("Right-hand", () => commands.NextSide(callsign, CircuitSide.Right), nextSide == CircuitSide.Right));
             MenuItem end = new() { Header = "At the end" };
             foreach (MenuItem item in EndItems(callsign, a.EndAction)) end.Items.Add(item);
             List<MenuItem> items = [circuit, side, end];
@@ -4362,19 +4381,21 @@ namespace ATCRoom.TwrTrainer
                 MenuItem where = new() { Header = "Break" };
                 foreach (MenuItem item in BreakItems(callsign, a.Break)) where.Items.Add(item);
                 items.Add(where);
-                items.Add(Item("BREAK NOW", () => commands.BreakNow(callsign)));
+                items.Add(Item("Break now", () => commands.BreakNow(callsign)));
             }
             if (type == CircuitType.Sfo) items.Add(a.SfoHold ? Item("Start SFO", () => commands.HoldAtHighKey(callsign, false)) : Item("Hold at High Key", () => commands.HoldAtHighKey(callsign, true)));
             items.Add(Item("Extend downwind", () => commands.ExtendDownwind(callsign)));
-            items.Add(Item("Turn base", () => commands.TurnBase(callsign)));
+            items.Add(Item("Turn in now", () => commands.TurnBase(callsign)));
             items.Add(Item("Orbit left", () => commands.Orbit(callsign, false)));
             items.Add(Item("Orbit right", () => commands.Orbit(callsign, true)));
-            if (engine.CanDirectToFinal(callsign)) items.Add(Item("DCT TO FINAL", () => commands.DirectTo(callsign, DirectPoint.Final)));
+            if (engine.CanDirectToFinal(callsign)) items.Add(Item("Direct to final", () => commands.DirectTo(callsign, DirectPoint.Final)));
             items.Add(Item("Go around", () => commands.GoAround(callsign)));
-            items.Add(Item("Rejoin the circuit", () => commands.Rejoin(callsign)));
+            items.Add(Item("Change side", () => commands.ChangeSide(callsign)));
+            items.Add(Item("Breakout", () => commands.Breakup(callsign)));
+            items.Add(Item("Rejoin circuit", () => commands.Rejoin(callsign)));
             if (a.Leg == "LANDED") items.Add(Item("Expedite taxi", () => commands.ExpediteTaxi(callsign)));
             if (a?.CanHover == true) items.Add(Item("Helipad...", () => PadMenu(callsign, now: false)));
-            items.Add(Item("Remove", () => commands.Remove(callsign)));
+            items.Add(Item("Remove aircraft", () => RemoveAsked(callsign)));
             return items;
         }
 
@@ -4437,7 +4458,16 @@ namespace ATCRoom.TwrTrainer
                     selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);
                 // (The user, 8 Nov: also during the touch and go, before a close pattern: it turns above 400 ft.)
                 breakNowButton.IsEnabled = engine.CanBreakNow(a.Callsign);
-                SetButtonText(holdButton, sfo && a.SfoHold ? "START SFO" : "HOLD HK");
+                SetButtonText(holdButton, sfo && a.SfoHold ? "Start SFO" : "Hold at High Key");
+                SymbolTurned(holdButton, sfo && a.SfoHold ? "↧" : "⬭", false);
+                // (The user, 9 Nov: the arrows turned with the side it turns, not with the map: as a mirror for a left turn.)
+                bool leftTurns = (a.Circuit != null && !a.Transit ? a.CircuitSide : engine.SideFor(CircuitType.Conventional)) == CircuitSide.Left;
+                SymbolTurned(baseButton, "↪", leftTurns);
+                SymbolTurned(breakNowButton, "⤵", leftTurns);
+                // (Breakout away from the runway: the other way.)
+                SymbolTurned(breakupButton, "↫", leftTurns);
+                SymbolTurned(dctButtons[2], "⇲", engine.SideFor(CircuitType.Conventional) == CircuitSide.Left);
+                SymbolTurned(dctButtons[3], "⇲", engine.SideFor(CircuitType.Close) == CircuitSide.Left);
                 holdButton.IsEnabled = sfo && (a.SfoHold || leg is "CLIMB" or "HIGH KEY");
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS"

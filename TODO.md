@@ -899,7 +899,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     within a small distance of the track until the High Key, then the hold within 0.2 NM of the circle, the climb never
     turning back, the final aligned.
 
-- **Next group (the user, 9 Nov) — TO DO, no build yet:**
+- **Group of 9 Nov afternoon (the user: "vai") — WRITTEN (test 71 for the new DCT TO FINAL):** all the items below, and:
+  - **Parked windows** (the user, 9 Nov): a floating window closed (▾) becomes a small box in the top right corner of the
+    map (from the right, in the order closed) with its symbol and ▾ (back where it was, its size); double click: back into
+    the column; its name and summary in the tooltip; a message: the box lit yellow a moment. Symbols: ⚙ Settings,
+    ✎ Traffic generation, ☰ Traffic List, ✈ Aircraft control, ▤ Strip bay.
+  - **The tooltips** of the panel, the label, the right-click menu and the F12 list checked with the new names.
+  - **The manual at the end** (the user, 9 Nov), when everything is ready and decided.
+- **(was: Next group, the user 9 Nov):**
   - **BREAKUP → BREAKOUT** (the phraseology of an urgent exit from the approach / circuit; "break-up" is the splitting of
     a formation): button, label, tooltip, log, F12 list, the right-click menu; key Shift+U as now.
   - **DCT TO FINAL, new logic** (the user, 9 Nov): always on (grey only on the ground, already on its final or landing).

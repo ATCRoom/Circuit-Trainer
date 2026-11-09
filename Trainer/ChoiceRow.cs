@@ -9,7 +9,7 @@ namespace ATCRoom.TwrTrainer
     /// chooses the value and tells it (<see cref="Picked"/>); the value shown can also be set from outside (the state of
     /// the selected aircraft), but not for a few seconds after a click (so a chained click uses the value just chosen).
     /// </summary>
-    internal sealed class ChoiceRow<T> : WrapPanel
+    internal sealed class ChoiceRow<T> : ColumnsPanel
     {
         private static readonly Brush OnBack = new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A));
         private static readonly Brush OnText = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A));

@@ -49,9 +49,17 @@ namespace ATCRoom.TwrTrainer
         private readonly Button dockedToggle, floatToggle;
         private Point? dragStart;
         private Point dragFrom;
+        private readonly string title;
+        /// <summary>Closed while floating (the user, 9 Nov): parked in the top right corner of the map as a small box, its symbol.</summary>
+        private readonly Border pill;
+        private readonly TextBlock pillSymbol;
+        private static readonly Dictionary<Canvas, List<DockablePart>> Parked = [];
+        private static readonly Brush FlashBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)));
+        private const double PillWidth = 46, PillGap = 4, PillMargin = 8;
 
-        public DockablePart(string title, FrameworkElement content, Panel column, Canvas layer, PartPlacement place, Action changed)
+        public DockablePart(string title, string symbol, FrameworkElement content, Panel column, Canvas layer, PartPlacement place, Action changed)
         {
+            this.title = title;
             this.content = content;
             this.layer = layer;
             this.place = place;
@@ -146,6 +154,43 @@ namespace ATCRoom.TwrTrainer
             };
             floating.PreviewMouseDown += (_, _) => System.Windows.Controls.Panel.SetZIndex(floating, ++topZ);
             layer.Children.Add(floating);
+
+            // Parked (closed while floating): its symbol and ▾ (back where it was); a double click: back into the column.
+            pillSymbol = new TextBlock
+            {
+                Text = symbol,
+                FontFamily = new FontFamily("Segoe UI Symbol"),
+                FontSize = 15,
+                Foreground = TextBrush,
+                Width = 18,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            StackPanel pillInside = new() { Orientation = Orientation.Horizontal };
+            pillInside.Children.Add(pillSymbol);
+            Button reopen = BarButton("▾", "Open it again where it was.", () => SetOpen(true));
+            reopen.Width = 18;
+            pillInside.Children.Add(reopen);
+            pill = new Border
+            {
+                Background = BarBrush,
+                BorderBrush = EdgeBrush,
+                BorderThickness = new Thickness(1.5),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(3, 2, 3, 2),
+                Width = PillWidth,
+                Child = pillInside,
+                Visibility = Visibility.Collapsed,
+                ToolTip = title
+            };
+            pill.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.ClickCount < 2) return;
+                Dock();
+                e.Handled = true;
+            };
+            System.Windows.Controls.Panel.SetZIndex(pill, 100000);
+            layer.Children.Add(pill);
             layer.SizeChanged += (_, _) => Fit();
             Show();
         }
@@ -160,6 +205,7 @@ namespace ATCRoom.TwrTrainer
             {
                 summary = value;
                 if (DateTime.UtcNow >= flashUntil) dockedSummary.Text = floatSummary.Text = value;
+                if (DateTime.UtcNow >= flashUntil) pill.ToolTip = value.Length > 0 ? $"{title} · {value}" : title;
             }
         }
 
@@ -174,11 +220,17 @@ namespace ATCRoom.TwrTrainer
         {
             flashUntil = DateTime.UtcNow.AddSeconds(6);
             dockedSummary.Text = floatSummary.Text = text;
+            // (Parked: the box lit yellow a moment, the message in its tooltip.)
+            pill.BorderBrush = FlashBrush;
+            pill.ToolTip = $"{title} · {text}";
             System.Windows.Threading.DispatcherTimer back = new() { Interval = TimeSpan.FromSeconds(6.2) };
             back.Tick += (_, _) =>
             {
                 back.Stop();
-                if (DateTime.UtcNow >= flashUntil) dockedSummary.Text = floatSummary.Text = summary;
+                if (DateTime.UtcNow < flashUntil) return;
+                dockedSummary.Text = floatSummary.Text = summary;
+                pill.BorderBrush = EdgeBrush;
+                pill.ToolTip = summary.Length > 0 ? $"{title} · {summary}" : title;
             };
             back.Start();
         }
@@ -249,8 +301,15 @@ namespace ATCRoom.TwrTrainer
             dockedHost.Content = null;
             floatHost.Content = null;
             if (place.Floating) floatHost.Content = content; else dockedHost.Content = content;
+            bool parked = place.Floating && !place.Open;
             docked.Visibility = place.Floating ? Visibility.Collapsed : Visibility.Visible;
-            floating.Visibility = place.Floating ? Visibility.Visible : Visibility.Collapsed;
+            floating.Visibility = place.Floating && !parked ? Visibility.Visible : Visibility.Collapsed;
+            pill.Visibility = parked ? Visibility.Visible : Visibility.Collapsed;
+            // (Parked in the order they were closed, from the right.)
+            if (!Parked.TryGetValue(layer, out List<DockablePart>? row)) Parked[layer] = row = [];
+            if (parked && !row.Contains(this)) row.Add(this);
+            if (!parked) row.Remove(this);
+            foreach (DockablePart other in row) other.PlacePill();
             dockedHost.Visibility = place.Open ? Visibility.Visible : Visibility.Collapsed;
             floatHost.Visibility = place.Open ? Visibility.Visible : Visibility.Collapsed;
             dockedToggle.Content = floatToggle.Content = place.Open ? "▴" : "▾";
@@ -290,9 +349,20 @@ namespace ATCRoom.TwrTrainer
             e.Handled = true;
         }
 
+        /// <summary>Parked: in the top right corner of the map, after the ones parked before it (from the right).</summary>
+        private void PlacePill()
+        {
+            if (pill.Visibility != Visibility.Visible || !Parked.TryGetValue(layer, out List<DockablePart>? row)) return;
+            int index = row.IndexOf(this);
+            if (index < 0) return;
+            Canvas.SetLeft(pill, Math.Max(0, layer.ActualWidth - PillMargin - (index + 1) * PillWidth - index * PillGap));
+            Canvas.SetTop(pill, PillMargin);
+        }
+
         /// <summary>Floating: inside the view (the whole bar at least), at its size (smaller when the view is).</summary>
         private void Fit()
         {
+            PlacePill();
             if (!place.Floating || layer.ActualWidth <= 0 || layer.ActualHeight <= 0) return;
             double width = Math.Min(Math.Max(MinWidth, place.Width), Math.Max(MinWidth, layer.ActualWidth - 8));
             floating.Width = width;

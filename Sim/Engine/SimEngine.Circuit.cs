@@ -1078,23 +1078,12 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// DCT TO FINAL can be given now (the user, 8 Nov): out of the circuits (crossing, flown by hand, joining one, on its
-        /// way to the IP) or in the WIDE, and a 45° turn towards the runway would meet the final farther out than where its
-        /// base joins it: straight to the final is shorter than the base.
+        /// DCT TO FINAL can be given now (the user, 9 Nov: always), but on the ground, already on its final, landing.
         /// </summary>
         private bool FinalDirectable(SimAircraft a)
         {
             if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return false;
-            CircuitState? circuit = a.Circuit;
-            string leg = a.Leg;
-            bool outside = circuit == null || circuit.Suspended || circuit.Transit || leg is "JOIN" or "CIRCLING" or "MANUAL" or ""
-                || (circuit.Type == CircuitType.Wide && !circuit.OnFinal && leg is not ("FINAL" or "BASE"));
-            if (!outside || circuit is { Departed: true } || circuit is { Spiral: true, Suspended: false } || circuit is { StraightIn: true, Suspended: false }) return false;
-            CircuitSide side = circuit?.Side ?? CircuitSide.Left;
-            (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
-            CircuitType baseOf = circuit?.Type == CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
-            double baseOut = Math.Max(0.5, -BaseAlong(baseOf, a.Class));
-            return -along - Math.Abs(lateral) >= baseOut;
+            return !(a.Circuit is { Suspended: false, Waiting: false } c && (c.OnFinal || a.Leg == "FINAL"));
         }
 
         /// <summary>DCT TO FINAL can be given now (see <see cref="FinalDirectable"/>).</summary>
@@ -1104,8 +1093,14 @@ namespace ATCRoom.Sim
         }
 
         /// <summary>
-        /// DCT TO FINAL: a turn of 45° at most onto the final, lined up, down the glide path, then its END. Out of the circuits:
-        /// the conventional at this runway afterwards.
+        /// DCT TO FINAL (the user, 9 Nov). The line through the base point (of its circuit: the conventional out of the circuits,
+        /// the WIDE, the close one for CLS / OVH / SFO), square to the runway:
+        /// - out beyond it: straight to the final (a turn of 45° at most), never nearer than the base;
+        /// - between it and the runway, or beyond the runway: first the base point on the side it flies (not the side of its
+        ///   circuit: only a help for a wide turn onto the final, no downwind), then the final;
+        /// - too high: the point on the final, or the base point, moved out until it is on the glide path there (never a climb);
+        /// - flying away from the runway: the point on the final moved in by a full turn.
+        /// Then lined up, down the glide path, its END.
         /// </summary>
         private void DirectToFinal(SimAircraft a)
         {
@@ -1121,22 +1116,63 @@ namespace ATCRoom.Sim
             CircuitState circuit = a.Circuit;
             // (A crossing aircraft lands here: the conventional after it.)
             if (circuit.Transit) circuit.Type = CircuitType.Conventional;
+            CircuitType baseOf = circuit.Type switch
+            {
+                CircuitType.Wide => CircuitType.Wide,
+                CircuitType.Close or CircuitType.Overhead or CircuitType.Sfo => CircuitType.Close,
+                _ => CircuitType.Conventional
+            };
             circuit.Suspended = circuit.Waiting = circuit.Transit = circuit.Departed = false;
             circuit.Turning = circuit.Spiral = circuit.Extended = false;
             circuit.OnFinal = false;
             circuit.Hold = false;
             circuit.BreakNow = false;
-            CircuitSide side = circuit.Side;
-            (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
+
+            // The side it flies: where it is off the runway track (on it: the side it turns to, else the side of its circuit).
+            (double alongL, double lateralL) = RunwayFrame(a.X, a.Y, CircuitSide.Left);
+            CircuitSide flies = Math.Abs(lateralL) >= 0.2 ? (lateralL > 0 ? CircuitSide.Left : CircuitSide.Right)
+                : Math.Abs(a.TurnRateDps) > 0.5 ? (a.TurnRateDps < 0 ? CircuitSide.Left : CircuitSide.Right) : circuit.Side;
+            (double along, double lateral) = RunwayFrame(a.X, a.Y, flies);
+            lateral = Math.Abs(lateral);
+            double outNow = -along;
             double glide = GlideFeetPerNM();
-            // Onto the final where a 45° turn meets it (nearly on it: a little ahead).
-            double meet = Math.Min(along + Math.Max(Math.Abs(lateral), 0.3), -0.5);
-            double height = Math.Min(a.AltitudeFt, runwayElevation + -meet * glide);
-            GiveRoute(a,
-            [
-                Point(meet, 0, side, height, a.Class.ApproachSpeedKt, "JOIN"),
-                Point(0, 0, side, double.NaN, a.Class.FinalSpeedKt, "FINAL")
-            ]);
+            // Out at least as far as it needs to be on the glide path (never a climb).
+            double highOut = Math.Max(0, a.AltitudeFt - runwayElevation) / glide;
+            double baseOut = Math.Max(0.5, -BaseAlong(baseOf, a.Class));
+            double knots = Math.Max(Math.Max(30, a.GroundSpeedKt), a.Class.ApproachSpeedKt);
+            double turnRate = Math.Min(MaxTurnRate, RateForBank(a.Class.CircuitBankDegrees, knots));
+            double turnRadius = knots / 3600 / (turnRate * Math.PI / 180);
+            double OnGlide(double outOnFinal) => Math.Min(a.AltitudeFt, runwayElevation + outOnFinal * glide);
+
+            if (outNow >= baseOut)
+            {
+                // Beyond the line: straight onto the final (45°), never nearer than the base nor below the glide path.
+                double meet = Math.Max(Math.Max(outNow - Math.Max(lateral, 0.3), baseOut), highOut);
+                // (Flying away from the runway: a full turn first, the point on the final nearer.)
+                bool away = Math.Abs(Wrap(a.HeadingTrue - glidePathCourse)) > 90;
+                if (away) meet = Math.Max(Math.Max(baseOut, highOut), Math.Min(meet, outNow - Math.Max(lateral, 0.3)) - 2 * turnRadius);
+                if (meet <= outNow - 0.3)
+                {
+                    GiveRoute(a,
+                    [
+                        Point(-meet, 0, flies, OnGlide(meet), a.Class.ApproachSpeedKt, "JOIN"),
+                        Point(0, 0, flies, double.NaN, a.Class.FinalSpeedKt, "FINAL")
+                    ]);
+                    circuit.StraightIn = true;
+                    return;
+                }
+            }
+
+            // Between the line and the runway, beyond the runway, or too high: by the base point on the side it flies.
+            double baseAt = Math.Max(baseOut, highOut);
+            double width = Math.Max(Width(baseOf, a.Class, flies), Math.Min(lateral, 2 * Width(baseOf, a.Class, flies)));
+            List<RoutePoint> route = [];
+            // (On the runway track or near it, beyond the base: aside first, not back over the runway.)
+            if (lateral < 0.6 * width && along > -baseAt) route.Add(Point(along, width, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "JOIN"));
+            route.Add(Point(-baseAt, width, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "BASE"));
+            route.Add(Point(-baseAt, 0, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "FINAL"));
+            route.Add(Point(0, 0, flies, double.NaN, a.Class.FinalSpeedKt, "FINAL"));
+            GiveRoute(a, route);
             circuit.StraightIn = true;
         }
 

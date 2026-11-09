@@ -115,7 +115,7 @@ namespace ATCRoom.TwrTrainer
 
         public void Breakup(string callsign)
         {
-            Logged?.Invoke(callsign, "BREAKUP", "");
+            Logged?.Invoke(callsign, "BREAKOUT", "");
             engine.Breakup(callsign);
         }
 
@@ -178,7 +178,7 @@ namespace ATCRoom.TwrTrainer
 
         public void TurnBase(string callsign)
         {
-            Logged?.Invoke(callsign, "TURN BASE", "");
+            Logged?.Invoke(callsign, "TURN IN", "");
             engine.TurnBase(callsign);
         }
 
