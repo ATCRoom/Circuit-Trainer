@@ -1146,6 +1146,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   The student: IVAO from his own Aurora (IVAO on his bar), callsign / VID from IVAO when connected, else Settings › Network
   (My callsign, My VID); in the instructor's log STUDENT with callsign and VID. NORTH / RWY on the student's map (kept).
   Strips: the orange line where a dragged strip goes; the notes follow the plan when it starts (also on the student's side).
+- **Recording and replay: ATCRoom Replay, an app of its own (the user, 9 Nov: "si ok") — DECIDED, steps:** as ATCRoom Map
+  Creator (a shared folder copied into both projects, its own download). One recording format for TWR Trainer and AuroraPAR v2
+  Trainer: a photo each second (position of each aircraft and the lines of its label already as text), events, the student's
+  notes, PHOTO marks; no map inside. Each trainer writes its files; ATCRoom Replay plays them (also the student at home, with
+  no trainer and no map). Steps: (1) the common format, recording in TWR Trainer, Replay with the top view; (2) recording in
+  AuroraPAR v2 Trainer (its RDR seen at once in the top view); (3) the PAR view in Replay. Before the code: a mock-up of the
+  player. The IVAO strips (B) stay in TWR Trainer, apart.
+- **The log for AuroraPAR v2 Trainer too (the user, 9 Nov: to make the two programs alike)** — to design with the user.
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
