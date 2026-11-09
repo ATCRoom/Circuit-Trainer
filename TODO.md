@@ -943,7 +943,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
     formation)." The button keeps the name SPLIT.
 
-- **Group of 9 Nov evening (the user) — WRITTEN:** the two items below, and ATCRoom Map Creator a SEPARATE download (not beside TWR Trainer, its own artifact; the hint of the map points to github.com/ATCRoom/MapCreator/releases). **To do:** the repository ATCRoom/MapCreator (decided by the user 9 Nov), its source, workflow and releases; TWR Trainer's own future update check must look only at its own tags.
+- **Group of 9 Nov evening (the user) — WRITTEN:** the two items below, and ATCRoom Map Creator a SEPARATE download (not beside TWR Trainer, its own artifact; the hint of the map points to github.com/ATCRoom/MapCreator/releases). **Done 9 Nov:** the repository ATCRoom/MapCreator (created by the user), the source of MapCreator/, its workflow and the release v2.0.0; TWR Trainer's own future update check must look only at its own tags.
   - **SFO climbing / on hold: its circle drawn** (the user, 9 Nov: "solo il primo"): while it climbs on the circle of the
     High Key or holds there (no route then, so nothing was drawn), the selected aircraft shows that circle dashed as the
     other ways, with a mark on the High Key point. Not the SFO pattern ahead (only after START SFO, as now).

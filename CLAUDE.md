@@ -33,6 +33,7 @@ Progetto fratello: **ATCRoom/AuroraPAR-v2** (AuroraPAR v2 e AuroraPAR v2 Trainer
 ## Codice condiviso con AuroraPAR-v2
 - La casa di **ATCRoom Map Creator** e della libreria delle mappe (`MapCreator/`) è QUESTO repository.
 - Prima di ogni nuova release di AuroraPAR v2 Trainer (in ATCRoom/AuroraPAR-v2), ricopiare `MapCreator/` da qui in AuroraPAR-v2.
+- ATCRoom Map Creator si scarica a parte (deciso il 9 novembre): le sue release sono in **ATCRoom/MapCreator**. Prima di ogni release del Map Creator ricopiare lì `MapCreator/` e `docs/MAP-FORMAT.md` e alzare `<Version>`.
 - Il motore (`Sim/Engine`) qui è una copia che cambia per la torre: una correzione trovata in uno dei due si riporta a mano nell'altro quando serve.
 - Il formato delle mappe deve restare compatibile all'indietro: un Map Creator non deve mai perdere ciò che non conosce.
 
