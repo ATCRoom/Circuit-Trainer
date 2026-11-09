@@ -1,7 +1,8 @@
 # Builds TWR Trainer on GitHub's Windows machines at every push.
 # The simulation engine and the maps library with their self-tests, TWR Trainer (the instructor's window, step 4a) and
-# ATCRoom Map Creator. Both programs are attached to each run as one artifact (Actions tab -> latest run -> Artifacts; a
-# GitHub account is needed to download it). They do not require .NET to be installed. No release yet.
+# ATCRoom Map Creator. Each program is attached to each run as its own artifact (Actions tab -> latest run -> Artifacts; a
+# GitHub account is needed to download them); the Map Creator is a separate download (the user, 9 Nov). They do not
+# require .NET to be installed. No release yet.
 name: Build
 
 on:
