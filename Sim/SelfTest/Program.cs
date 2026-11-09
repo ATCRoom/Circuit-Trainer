@@ -2140,6 +2140,86 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("R on the initial of the overhead", flown));
     }
 
+    // 71-74 (the user, 8 Nov): DCT TO FINAL, ORB by hand, SPLIT in the overhead, DCT TO HK from the final.
+    {
+        // 71. DCT TO FINAL from out of the circuits, 7 NM out and 2 NM aside: onto the final, no base, lands; near the
+        // aerodrome (2 NM out, 2 NM aside) not given (the base is shorter).
+        SimEngine sim7x = NewCircuitEngine();
+        (double fx7x, double fy7x) = Place(-7, 2, CircuitSide.Left);
+        string cs7x = sim7x.AddAtGate(fx7x, fy7x, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        sim7x.RunFor(2);
+        bool can7x = sim7x.CanDirectToFinal(cs7x);
+        sim7x.DirectTo(cs7x, DirectPoint.Final, CircuitSide.Left);
+        List<AircraftState> flown7x = Fly(sim7x, cs7x, 900);
+        bool noBase7x = !flown7x.Any(st => st.Leg is "BASE" or "DOWNWIND");
+        int lined7x = flown7x.FindIndex(st => st.Leg == "FINAL");
+        bool aligned7x = lined7x >= 0 && flown7x.Skip(lined7x).Where(st => Frame(st).Along < -0.5).All(st => Math.Abs(Frame(st).Lateral) < 0.25);
+        SimEngine near7x = NewCircuitEngine();
+        (double nx7x, double ny7x) = Place(-2, 2, CircuitSide.Left);
+        string nc7x = near7x.AddAtGate(nx7x, ny7x, CircuitEntry.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        near7x.RunFor(2);
+        bool notNear7x = !near7x.CanDirectToFinal(nc7x);
+        Check(can7x && noBase7x && aligned7x && LandedOnRunway(flown7x) && notNear7x,
+            "DCT TO FINAL: from out of the circuits 7 NM out onto the final (no base), lined up, lands; 2 NM out not given",
+            $"given {can7x}, no base {noBase7x}, aligned {aligned7x}, near refused {notNear7x}");
+        pictures.Add(("DCT TO FINAL from 7 NM out, 2 NM aside", flown7x));
+
+        // 72. ORB L flown by hand (after a BREAKUP): a 360° to the left, then the heading it had, still by hand.
+        sim7x = NewCircuitEngine();
+        cs7x = sim7x.AddInCircuit(CircuitStart.Downwind, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Light");
+        sim7x.RunFor(10);
+        sim7x.Breakup(cs7x);
+        sim7x.RunFor(60);
+        double h07x = sim7x.Get(cs7x)!.HeadingTrue;
+        sim7x.Orbit(cs7x, right: false);
+        double turned7x = 0, last7x = h07x;
+        for (int t7x = 0; t7x < 240; t7x++)
+        {
+            sim7x.RunFor(1);
+            double h7x = sim7x.Get(cs7x)!.HeadingTrue;
+            turned7x += SimEngine.Wrap(h7x - last7x);
+            last7x = h7x;
+        }
+        AircraftState after7x = sim7x.Get(cs7x)!;
+        Check(turned7x < -330 && turned7x > -400 && Math.Abs(SimEngine.Wrap(after7x.HeadingTrue - h07x)) < 5 && after7x.Leg == "MANUAL",
+            "ORB L flown by hand: one 360° to the left, then the heading it had, still MANUAL",
+            $"turned {turned7x:F0}°, heading {after7x.HeadingTrue:F0} (was {h07x:F0}), {after7x.Leg}");
+
+        // 73. SPLIT in the overhead before the break (the user, 8 Nov: always): both fly it, one after the other, both land.
+        sim7x = NewCircuitEngine();
+        cs7x = sim7x.AddInCircuit(CircuitStart.InitialPoint, CircuitType.Overhead, CircuitSide.Left, EndAction.FullStop, "VIPER01", "Jet");
+        sim7x.MakeFormation(cs7x, 2);
+        sim7x.RunFor(5);
+        bool allowed7x = sim7x.Get(cs7x)?.SplitAllowed == true;
+        sim7x.SplitFormation(cs7x);
+        sim7x.RunFor(2);
+        bool both7x = sim7x.Get("VIPER02") != null;
+        bool leadLanded7x = false, wingLanded7x = false;
+        for (int t7x = 0; t7x < 900 && !(leadLanded7x && wingLanded7x); t7x++)
+        {
+            sim7x.RunFor(1);
+            leadLanded7x |= sim7x.Get(cs7x)?.Leg == "LANDED";
+            wingLanded7x |= sim7x.Get("VIPER02")?.Leg == "LANDED";
+        }
+        Check(allowed7x && both7x && leadLanded7x && wingLanded7x, "SPLIT in the overhead before the break: two aircraft, both land",
+            $"allowed {allowed7x}, split {both7x}, landed {leadLanded7x} / {wingLanded7x}");
+
+        // 74. DCT TO HK from the long final: along the runway track to the High Key, then the circle (on hold).
+        sim7x = NewCircuitEngine();
+        cs7x = sim7x.AddInCircuit(CircuitStart.LongFinal, CircuitType.Conventional, CircuitSide.Left, EndAction.FullStop, performanceClass: "Turboprop");
+        sim7x.RunFor(5);
+        sim7x.DirectTo(cs7x, DirectPoint.HighKey, CircuitSide.Left);
+        flown7x = Fly(sim7x, cs7x, 900);
+        int hold7x = flown7x.FindIndex(st => st.Leg == "HOLD");
+        // (Before the circle: from the order to the start of the hold.)
+        List<AircraftState> before7x = flown7x.Take(Math.Max(0, hold7x)).ToList();
+        bool onTrack7x = before7x.All(st => Math.Abs(Frame(st).Lateral) < 0.35);
+        double offTrack7x = before7x.Select(st => Math.Abs(Frame(st).Lateral)).DefaultIfEmpty(0).Max();
+        Check(onTrack7x && hold7x > 0, "DCT TO HK from the long final: along the runway track to the High Key, then on hold on its circle",
+            $"farthest off the track before it {offTrack7x:F2} NM, on hold at {hold7x} s");
+        pictures.Add(("DCT TO HK from the long final", flown7x));
+    }
+
     // 52. DCT TO BASE on the way to the final, out on the circuit side (the user, 5 Nov: it went far up and back): straight
     // to the start of the base, never past the threshold before the base, lands.
     {

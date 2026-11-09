@@ -216,7 +216,7 @@ namespace ATCRoom.TwrTrainer
         private Grid landLine = null!;
         private string presetsFor = "";
         private Grid padEndLine = null!;
-        private Button breakNowButton = null!, holdButton = null!, startSfoButton = null!, extendButton = null!, baseButton = null!, orbitButton = null!,
+        private Button breakNowButton = null!, holdButton = null!, extendButton = null!, baseButton = null!, orbitLeftButton = null!, orbitRightButton = null!,
             goAroundButton = null!, changeSideButton = null!, wideButton = null!, rejoinButton = null!, breakupButton = null!;
         private readonly ChoiceRow<CircuitType> circuitRow = new(TowerCommands.Circuits.Select(c => (c.Type, c.Short)), (_, t) => ChoiceTip(t));
         private readonly ChoiceRow<CircuitSide?> sideRow = new([(null, "AD"), (CircuitSide.Left, "L"), (CircuitSide.Right, "R")], (_, t) => ChoiceTip(t));
@@ -423,6 +423,7 @@ namespace ATCRoom.TwrTrainer
             view.FieldWheel += LabelWheel;
             view.SpeedChoices = SpeedChoices;
             view.CanBreakNow = engine.CanBreakNow;
+            view.CanDirectToFinal = engine.CanDirectToFinal;
             view.MenuAsked += callsign => OpenMenu(Menu(callsign));
             view.HeadingDragged += (callsign, heading) => { commands.Heading(callsign, heading); Say($"{callsign}: heading {heading:000} (out of the circuit; REJOIN brings it back).", Area.Selected); };
             Loaded += (_, _) => Start();
@@ -622,8 +623,8 @@ namespace ATCRoom.TwrTrainer
             Button? button = key switch
             {
                 Key.F1 => dctButtons[0], Key.F2 => dctButtons[1], Key.F3 => dctButtons[2], Key.F4 => dctButtons[3], Key.F5 => dctButtons[4], Key.F6 => dctButtons[5],
-                Key.B => breakNowButton, Key.E => extendButton, Key.N => baseButton, Key.O => orbitButton, Key.G => goAroundButton,
-                Key.W => wideButton, Key.H => holdButton, Key.S => startSfoButton, Key.U => shift ? breakupButton : splitButton,
+                Key.B => breakNowButton, Key.E => extendButton, Key.N => baseButton, Key.O => OrbitKeyButton(), Key.G => goAroundButton,
+                Key.W => wideButton, Key.H => holdButton, Key.U => shift ? breakupButton : splitButton, Key.F7 => dctButtons[6],
                 Key.X => expTaxiButton, Key.R => rejoinButton, Key.C => changeSideButton,
                 _ => null
             };
@@ -660,7 +661,17 @@ namespace ATCRoom.TwrTrainer
             return false;
         }
 
-        private static string KeyName(Key key, bool shift) => (shift ? "Shift+" : "") + key switch { Key.F1 or Key.F2 or Key.F3 or Key.F4 or Key.F5 or Key.F6 => key.ToString(), _ => key.ToString().ToUpperInvariant() };
+        /// <summary>Key O: the ORB lit; both lit: the side it already turns (else right).</summary>
+        private Button OrbitKeyButton()
+        {
+            if (view.Selected is not string cs || engine.Get(cs) is not AircraftState a) return orbitRightButton;
+            ShowSelectedValues();
+            if (orbitLeftButton.IsEnabled && !orbitRightButton.IsEnabled) return orbitLeftButton;
+            if (orbitRightButton.IsEnabled && !orbitLeftButton.IsEnabled) return orbitRightButton;
+            return a.TurnRateDps < -0.5 ? orbitLeftButton : orbitRightButton;
+        }
+
+        private static string KeyName(Key key, bool shift) => (shift ? "Shift+" : "") + key switch { Key.F1 or Key.F2 or Key.F3 or Key.F4 or Key.F5 or Key.F6 or Key.F7 => key.ToString(), _ => key.ToString().ToUpperInvariant() };
 
         /// <summary>F12: the list of the keys (the user, 8 Nov).</summary>
         private void ShowKeys()
@@ -674,16 +685,17 @@ namespace ATCRoom.TwrTrainer
                 "DCT TO\n" +
                 "  F1 F2       DW CONV, DW CLS\n" +
                 "  F3 F4       BASE CONV, BASE CLS\n" +
-                "  F5 F6       IP, HK\n\n" +
+                "  F5 F6       IP, HK\n" +
+                "  F7          FINAL\n\n" +
                 "NOW\n" +
                 "  C           change side now (CHG SIDE)\n" +
                 "  B           break now\n" +
                 "  E           extend downwind\n" +
                 "  N           base now\n" +
-                "  O           orbit (Shift+O: on and on; orbiting on and on: go on)\n" +
+                "  O           orbit, the side lit (both: the side it turns; Shift+O: on and on; orbiting on and on: go on)\n" +
                 "  G           go around\n" +
                 "  W           wide now\n" +
-                "  H / S       hold at the High Key / start SFO\n" +
+                "  H           hold at the High Key / start SFO (as its button)\n" +
                 "  X           expedite taxi\n" +
                 "  U / Shift+U split / breakup\n" +
                 "  R           rejoin its circuit\n" +
@@ -1160,13 +1172,15 @@ namespace ATCRoom.TwrTrainer
             // (DCT TO, the user 5 Nov: at once, in flight; DW CLS and BASE CLS, the user 8 Nov.)
             dctButtons = [Keyed("DW CONV", "F1", cs => commands.DirectTo(cs, DirectPoint.Downwind)), Keyed("DW CLS", "F2", cs => commands.DirectTo(cs, DirectPoint.CloseDownwind)),
                 Keyed("BASE CONV", "F3", cs => commands.DirectTo(cs, DirectPoint.Base)), Keyed("BASE CLS", "F4", cs => commands.DirectTo(cs, DirectPoint.CloseBase)),
-                Keyed("IP", "F5", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Keyed("HK", "F6", cs => commands.DirectTo(cs, DirectPoint.HighKey))];
+                Keyed("IP", "F5", cs => commands.DirectTo(cs, DirectPoint.InitialPoint)), Keyed("HK", "F6", cs => commands.DirectTo(cs, DirectPoint.HighKey)),
+                Keyed("FINAL", "F7", cs => commands.DirectTo(cs, DirectPoint.Final))];
             dctButtons[0].ToolTip = "At once onto the downwind of the conventional circuit. Key: F1.";
             dctButtons[1].ToolTip = "At once onto the downwind of the close pattern (narrower). Key: F2.";
             dctButtons[2].ToolTip = "At once straight to the start of the base of the conventional circuit, then the final. Key: F3.";
             dctButtons[3].ToolTip = "At once straight to the start of the base of the close pattern (narrower), then the final. Key: F4.";
             dctButtons[4].ToolTip = "At once straight to the initial point, then the overhead. Key: F5.";
-            dctButtons[5].ToolTip = "At once straight to the High Key, then the SFO. Key: F6.";
+            dctButtons[5].ToolTip = "At once straight to the High Key, then the SFO (on the final: along it to the High Key). Key: F6.";
+            dctButtons[6].ToolTip = "At once onto the final (a turn of 45° at most), down the glide path, then its END. Out of the circuits, in the WIDE or on the way to the IP, when that is shorter than its base. Key: F7.";
             padNowButton = Order("HPAD", cs => PadMenu(cs, now: true));
             padNowButton.ToolTip = "Helicopter: at once straight to a helipad (a registered one, or a point clicked on the map), a full stop there.";
             dctButtons = [.. dctButtons, padNowButton];
@@ -1174,21 +1188,18 @@ namespace ATCRoom.TwrTrainer
             // (The user, 8 Nov: 4 a row, in columns; the urgent ones, G/A, CHG SIDE, BREAKUP, red on the row below.)
             extendButton = Keyed("EXT DWN", "E", commands.ExtendDownwind, now: true);
             baseButton = Keyed("BASE", "N", commands.TurnBase, now: true);
-            // ORB (as the label): one orbit; Shift: on and on; orbiting on and on, a click goes on along its circuit.
-            orbitButton = Keyed("ORB", "O", cs =>
-            {
-                if (engine.Get(cs)?.OrbitForever == true) commands.Continue(cs);
-                else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(cs);
-                else commands.Orbit(cs);
-            }, now: true);
+            // ORB L / ORB R (the user, 8 Nov): one orbit to that side; Shift: on and on; orbiting on and on, a click goes on.
+            orbitLeftButton = Keyed("ORB L", "O", cs => OrbitOrder(cs, false), now: true);
+            orbitRightButton = Keyed("ORB R", "O", cs => OrbitOrder(cs, true), now: true);
+            Row("NOW", Columns(extendButton, baseButton, orbitLeftButton, orbitRightButton), now, 62);
             breakNowButton = Keyed("BREAK NOW", "B", commands.BreakNow, now: true);
-            Row("NOW", Columns(extendButton, baseButton, orbitButton, breakNowButton), now, 62);
             // (The user, 8 Nov: the wide circuit on its own side at this runway, not the side it flies now.)
             wideButton = Keyed("WIDE NOW", "W", cs => commands.FlyCircuit(cs, CircuitType.Wide, engine.SideFor(CircuitType.Wide)), now: true);
-            holdButton = Keyed("HOLD HK", "H", cs => commands.HoldAtHighKey(cs, true), now: true);
-            startSfoButton = Keyed("START SFO", "S", cs => commands.HoldAtHighKey(cs, false), now: true);
+            // (One button, the user 8 Nov: HOLD HK, or START SFO when on hold; it sends what it shows.)
+            holdButton = Keyed("HOLD HK", "H", cs => commands.HoldAtHighKey(cs, ButtonText(holdButton) != "START SFO"), now: true);
+            holdButton.ToolTip = "SFO. HOLD HK: it waits circling over the High Key. On hold, START SFO: it starts at the next pass over the High Key. Key: H.";
             splitButton = Keyed("SPLIT", "U", commands.Split, now: true);
-            Row("", Columns(wideButton, holdButton, startSfoButton, splitButton), now, 62);
+            Row("", Columns(breakNowButton, wideButton, holdButton, splitButton), now, 62);
             goAroundButton = Keyed("G/A", "G", commands.GoAround, urgent: true);
             changeSideButton = Keyed("CHG SIDE", "C", commands.ChangeSide, urgent: true);
             breakupButton = Keyed("BREAKUP", "⇧U", commands.Breakup, urgent: true);
@@ -1394,7 +1405,8 @@ namespace ATCRoom.TwrTrainer
             ["ORBIT ∞"] = "Orbits until CONTINUE (this button while it orbits).",
             ["EXT DWN"] = "On the downwind: straight on beyond the base turn, until BASE.",
             ["BASE"] = "On the downwind: turn base now (also during an orbit). Still joining the circuit: straight to the start of the base.",
-            ["ORB"] = "One orbit (360°) away from the runway, then on. Shift: orbits on and on (thick border); then a click: on along its circuit.",
+            ["ORB L"] = "One orbit (360°) to the left, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.",
+            ["ORB R"] = "One orbit (360°) to the right, then on. In its circuit only the side away from the runway; flown by hand: then the heading it had. Shift: on and on (thick border); then a click: on.",
             ["G/A"] = "Only on the final: it stops descending, passes the threshold and keeps the runway heading until a new order.",
             ["EXP TAXI"] = "Landed: off the runway quickly.",
             ["SPLIT"] = "The formation splits (each aircraft on its own).",
@@ -1459,6 +1471,24 @@ namespace ATCRoom.TwrTrainer
                 grid.Children.Add(button);
             }
             return grid;
+        }
+
+        /// <summary>The text of a button (made by Keyed: its first text).</summary>
+        private static string ButtonText(Button button) =>
+            button.Content is StackPanel { Children.Count: > 0 } panel && panel.Children[0] is TextBlock text ? text.Text : button.Content as string ?? "";
+
+        private static void SetButtonText(Button button, string value)
+        {
+            if (button.Content is StackPanel { Children.Count: > 0 } panel && panel.Children[0] is TextBlock text) text.Text = value;
+            else button.Content = value;
+        }
+
+        /// <summary>ORB L / R (button, label, key O): orbiting on and on, CONTINUE; Shift: on and on; else one orbit.</summary>
+        private void OrbitOrder(string callsign, bool right)
+        {
+            if (engine.Get(callsign)?.OrbitForever == true) commands.Continue(callsign);
+            else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(callsign, right);
+            else commands.Orbit(callsign, right);
         }
 
         private static void NowLook(Button button)
@@ -4184,9 +4214,12 @@ namespace ATCRoom.TwrTrainer
                     commands.HoldAtHighKey(callsign, false);
                     break;
                 case "ORBIT":
-                    // (Shift + click: orbits until clicked again, the user 4 Nov.)
-                    if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) commands.OrbitForever(callsign);
-                    else commands.Orbit(callsign);
+                case "ORBR":
+                    // (Shift + click: orbits until clicked again, the user 4 Nov; L / R, the user 8 Nov.)
+                    OrbitOrder(callsign, true);
+                    break;
+                case "ORBL":
+                    OrbitOrder(callsign, false);
                     break;
                 case "REJOIN":
                     commands.Rejoin(callsign);
@@ -4391,6 +4424,8 @@ namespace ATCRoom.TwrTrainer
                 string leg = a.Leg;
                 bool sfo = a.Circuit == CircuitType.Sfo, inCircuit = a.Circuit != null && a.Contact == GroundContact.Airborne && leg is not ("MANUAL" or "GO AROUND" or "DEPARTURE");
                 foreach (Button dct in dctButtons) dct.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit;
+                // (DCT TO FINAL, the user 8 Nov: also out of the circuits, when shorter than its base.)
+                dctButtons[6].IsEnabled = engine.CanDirectToFinal(a.Callsign);
                 // (The helipad: helicopters only; DCT TO HPAD also out of a circuit.)
                 padNowButton.Visibility = padEndLine.Visibility = a.CanHover ? Visibility.Visible : Visibility.Collapsed;
                 padNowButton.IsEnabled = a.CanHover && a.Contact == GroundContact.Airborne && !a.Transit;
@@ -4400,15 +4435,21 @@ namespace ATCRoom.TwrTrainer
                     selCircuitRow.SetEnabled(pattern, a.Contact == GroundContact.Airborne || pattern is CircuitType.Conventional or CircuitType.Wide);
                 // (The user, 8 Nov: also during the touch and go, before a close pattern: it turns above 400 ft.)
                 breakNowButton.IsEnabled = engine.CanBreakNow(a.Callsign);
-                holdButton.IsEnabled = sfo && !a.SfoHold && leg is "CLIMB" or "HIGH KEY";
-                startSfoButton.IsEnabled = sfo && a.SfoHold;
+                SetButtonText(holdButton, sfo && a.SfoHold ? "START SFO" : "HOLD HK");
+                holdButton.IsEnabled = sfo && (a.SfoHold || leg is "CLIMB" or "HIGH KEY");
                 extendButton.IsEnabled = leg is "DOWNWIND" or "ORBIT" or "ORBITS";
                 baseButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS"
                     || (leg == "JOIN" && a.Circuit is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close);
-                // ORB: one orbit (Shift: on and on); orbiting on and on, a thick border and a click goes on along its circuit.
-                orbitButton.IsEnabled = a.OrbitForever || (inCircuit && leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING") || leg == "TRANSIT";
-                orbitButton.BorderBrush = a.OrbitForever ? Theme.Chosen : NowEdge;
-                orbitButton.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
+                // ORB L / R: in its circuit the side away from the runway; out of it (crossing, by hand, joining) both; orbiting on
+                // and on, a thick border and a click goes on.
+                (bool orbitLeft, bool orbitRight) = TowerView.OrbitSides(a);
+                orbitLeftButton.IsEnabled = orbitLeft;
+                orbitRightButton.IsEnabled = orbitRight;
+                foreach (Button orbit in new[] { orbitLeftButton, orbitRightButton })
+                {
+                    orbit.BorderBrush = a.OrbitForever ? Theme.Chosen : NowEdge;
+                    orbit.BorderThickness = new Thickness(a.OrbitForever ? 3 : 1);
+                }
                 goAroundButton.IsEnabled = leg == "FINAL";
                 // (As on the label; CHG SIDE also on the final: then for the circuit after it.)
                 wideButton.IsEnabled = changeSideButton.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit && leg is not ("MANUAL" or "GO AROUND");

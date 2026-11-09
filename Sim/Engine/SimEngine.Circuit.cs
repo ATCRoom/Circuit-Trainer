@@ -29,7 +29,7 @@ namespace ATCRoom.Sim
 
     /// <summary>Where DCT TO sends an aircraft in flight at once (the user, 5 Nov): the conventional downwind, its base, the initial point, the High Key.</summary>
     /// <summary>Where DCT TO goes; CloseBase (the user, 8 Nov): the base of the close pattern, narrower than the conventional.</summary>
-    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey, CloseBase, CloseDownwind }
+    public enum DirectPoint { Downwind, Base, InitialPoint, HighKey, CloseBase, CloseDownwind, Final }
 
     /// <summary>Where the overhead pattern breaks.</summary>
     public enum BreakPoint
@@ -602,7 +602,13 @@ namespace ATCRoom.Sim
             Instruct(callsign, Kind.Heading, a =>
             {
                 if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return;
+                if (point == DirectPoint.Final)
+                {
+                    DirectToFinal(a);
+                    return;
+                }
                 EndOrbit(a);
+                a.ManualOrbit = 0;
                 CircuitSide? flownSide = null;
                 if (a.Circuit is CircuitState was)
                 {
@@ -758,6 +764,14 @@ namespace ATCRoom.Sim
                 {
                     // Straight to the High Key: climbing on the circle over the field, on hold there (until "start SFO").
                     circuit.Hold = true;
+                    // (On the final before the High Key, the user 8 Nov: on along the runway track to the High Key, where the
+                    // circle is tangent to it, and onto it there; no cutting across to the side of the circle.)
+                    if (OnTrackBeforeHighKey(a, along, lateral))
+                    {
+                        double highKeyHeight = double.IsFinite(circuit.LapHeight) ? circuit.LapHeight : runwayElevation + a.Class.HighKeyFt;
+                        GiveRoute(a, [Point(HighKeyAlong(), 0, side, highKeyHeight, double.NaN, "HIGH KEY")]);
+                        return;
+                    }
                     StartSpiral(a, circuit);
                     return;
                 }
@@ -968,6 +982,22 @@ namespace ATCRoom.Sim
         public void Orbit(string callsign, bool? right = null, bool forever = false) =>
             Instruct(callsign, Kind.Heading, a =>
             {
+                // (Flown by hand, the user 8 Nov: a 360° on the spot, then the heading it had.)
+                if (a.Contact == GroundContact.Airborne && a.Navigation == NavigationMode.Manual && a.Leg is "MANUAL" or "")
+                {
+                    if (a.ManualOrbit > 0 && forever)
+                    {
+                        a.ManualOrbitForever = true;
+                        return;
+                    }
+                    bool toRight = right ?? a.TurnRateDps >= -0.5;
+                    a.ManualOrbit = 1;
+                    a.ManualOrbitForever = forever;
+                    a.ManualOrbitHeading = a.HeadingTrue;
+                    a.TurnDirection = toRight ? TurnDirection.Right : TurnDirection.Left;
+                    a.TargetHeading = a.ManualOrbitTarget = Normalize(a.HeadingTrue + (toRight ? 180 : -180));
+                    return;
+                }
                 CircuitState? circuit = a.Circuit;
                 if (circuit is { Orbit: > 0 } && forever)
                 {
@@ -1004,7 +1034,118 @@ namespace ATCRoom.Sim
         private static double RateForBank(SimAircraft plane) => RateForBank(plane.Class.CircuitBankDegrees, plane.SpeedKt);
 
         /// <summary>Instruction "continue" (after orbits): the orbit ends now, on along its circuit from here.</summary>
-        public void ContinueAfterOrbit(string callsign) => Instruct(callsign, Kind.Heading, EndOrbit);
+        public void ContinueAfterOrbit(string callsign) => Instruct(callsign, Kind.Heading, a =>
+        {
+            if (a.ManualOrbit > 0)
+            {
+                // By hand: it rolls out on the heading it had (on turning the same way).
+                a.ManualOrbit = 0;
+                a.ManualOrbitForever = false;
+                a.TargetHeading = a.ManualOrbitHeading;
+                return;
+            }
+            EndOrbit(a);
+        });
+
+        /// <summary>An orbit by hand (see <see cref="SimAircraft.ManualOrbit"/>): the second half, on and on, the end; a heading given: no more.</summary>
+        private static void ManualOrbitStep(SimAircraft plane)
+        {
+            if (plane.ManualOrbit == 0) return;
+            if (plane.StickX != 0 || plane.Navigation != NavigationMode.Manual || plane.Contact != GroundContact.Airborne
+                || Math.Abs(Wrap(plane.TargetHeading - plane.ManualOrbitTarget)) > 0.01)
+            {
+                plane.ManualOrbit = 0;
+                plane.ManualOrbitForever = false;
+                return;
+            }
+            double error = Math.Abs(Wrap(plane.HeadingTrue - plane.TargetHeading));
+            if (plane.ManualOrbit == 1 && error <= 60)
+            {
+                plane.ManualOrbit = 2;
+                plane.TargetHeading = plane.ManualOrbitTarget = plane.ManualOrbitHeading;
+            }
+            else if (plane.ManualOrbit == 2 && plane.ManualOrbitForever && error <= 60)
+            {
+                plane.ManualOrbit = 1;
+                plane.TargetHeading = plane.ManualOrbitTarget = Normalize(plane.ManualOrbitHeading + 180);
+            }
+            else if (plane.ManualOrbit == 2 && error <= 0.5)
+            {
+                plane.ManualOrbit = 0;
+                plane.TurnDirection = TurnDirection.Shortest;
+            }
+        }
+
+        /// <summary>
+        /// DCT TO FINAL can be given now (the user, 8 Nov): out of the circuits (crossing, flown by hand, joining one, on its
+        /// way to the IP) or in the WIDE, and a 45° turn towards the runway would meet the final farther out than where its
+        /// base joins it: straight to the final is shorter than the base.
+        /// </summary>
+        private bool FinalDirectable(SimAircraft a)
+        {
+            if (a.Contact != GroundContact.Airborne || double.IsNaN(glidePathCourse)) return false;
+            CircuitState? circuit = a.Circuit;
+            string leg = a.Leg;
+            bool outside = circuit == null || circuit.Suspended || circuit.Transit || leg is "JOIN" or "CIRCLING" or "MANUAL" or ""
+                || (circuit.Type == CircuitType.Wide && !circuit.OnFinal && leg is not ("FINAL" or "BASE"));
+            if (!outside || circuit is { Departed: true } || circuit is { Spiral: true, Suspended: false } || circuit is { StraightIn: true, Suspended: false }) return false;
+            CircuitSide side = circuit?.Side ?? CircuitSide.Left;
+            (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
+            CircuitType baseOf = circuit?.Type == CircuitType.Wide ? CircuitType.Wide : CircuitType.Conventional;
+            double baseOut = Math.Max(0.5, -BaseAlong(baseOf, a.Class));
+            return -along - Math.Abs(lateral) >= baseOut;
+        }
+
+        /// <summary>DCT TO FINAL can be given now (see <see cref="FinalDirectable"/>).</summary>
+        public bool CanDirectToFinal(string callsign)
+        {
+            lock (sync) return Find(callsign) is SimAircraft a && FinalDirectable(a);
+        }
+
+        /// <summary>
+        /// DCT TO FINAL: a turn of 45° at most onto the final, lined up, down the glide path, then its END. Out of the circuits:
+        /// the conventional at this runway afterwards.
+        /// </summary>
+        private void DirectToFinal(SimAircraft a)
+        {
+            if (!FinalDirectable(a)) return;
+            EndOrbit(a);
+            a.ManualOrbit = 0;
+            a.ManualOrbitForever = false;
+            if (a.Circuit == null)
+            {
+                a.Class = Here(a.Class);
+                a.Circuit = new CircuitState { Type = CircuitType.Conventional, Side = SideFor(CircuitType.Conventional), End = EndAction.FullStop };
+            }
+            CircuitState circuit = a.Circuit;
+            // (A crossing aircraft lands here: the conventional after it.)
+            if (circuit.Transit) circuit.Type = CircuitType.Conventional;
+            circuit.Suspended = circuit.Waiting = circuit.Transit = circuit.Departed = false;
+            circuit.Turning = circuit.Spiral = circuit.Extended = false;
+            circuit.OnFinal = false;
+            circuit.Hold = false;
+            circuit.BreakNow = false;
+            CircuitSide side = circuit.Side;
+            (double along, double lateral) = RunwayFrame(a.X, a.Y, side);
+            double glide = GlideFeetPerNM();
+            // Onto the final where a 45° turn meets it (nearly on it: a little ahead).
+            double meet = Math.Min(along + Math.Max(Math.Abs(lateral), 0.3), -0.5);
+            double height = Math.Min(a.AltitudeFt, runwayElevation + -meet * glide);
+            GiveRoute(a,
+            [
+                Point(meet, 0, side, height, a.Class.ApproachSpeedKt, "JOIN"),
+                Point(0, 0, side, double.NaN, a.Class.FinalSpeedKt, "FINAL")
+            ]);
+            circuit.StraightIn = true;
+        }
+
+        /// <summary>
+        /// SFO: on the final before the High Key, flying along it (the user, 8 Nov): straight on to the High Key, where the
+        /// circle is tangent to the runway track.
+        /// </summary>
+        private bool OnTrackBeforeHighKey(SimAircraft plane, double along, double lateral) =>
+            along < HighKeyAlong() - 0.1
+            && (Math.Abs(lateral) <= 0.3 || (Math.Abs(lateral) < 1.0 && Math.Abs(Wrap(plane.HeadingTrue - glidePathCourse)) < 60));
 
         /// <summary>An orbit going on ends now: on along the leg it was flying, from here.</summary>
         private static void EndOrbit(SimAircraft a)
@@ -1395,7 +1536,7 @@ namespace ATCRoom.Sim
                 // (On the runway track: straight on to the High Key, where the track is tangent to its circle, and onto it there;
                 // off the track: at once.)
                 (double alongHere, double lateralHere) = RunwayFrame(plane.X, plane.Y, circuit.Side);
-                bool sideward = Math.Abs(lateralHere) > 0.3 || alongHere >= HighKeyAlong() - 0.1;
+                bool sideward = !OnTrackBeforeHighKey(plane, alongHere, lateralHere);
                 if ((name is "UPWIND" or "GO AROUND" && plane.AltitudeFt - runwayElevation > WaveoffTurnHeight && sideward) || (name == "HIGH KEY" && sideward && (circuit.Hold
                     // (Its High Key given and not there yet, the user 6 Nov: on the circle up or down to it first.)
                     || (double.IsFinite(circuit.LapHeight) && Math.Abs(plane.AltitudeFt - circuit.LapHeight) > 150))))

@@ -5,7 +5,7 @@ namespace ATCRoom.Sim
     /// (their callsigns reserved) until they split; then each one is an aircraft of its own. The rules of the user:
     /// - the overhead pattern splits only at the break, the close pattern at its 180° turn to the downwind, the SFO at the
     ///   High Key (each wingman after the one before by the split interval);
-    /// - from the long final (straight in) and in the conventional and the wide circuit it can be split at any time;
+    /// - by command (SPLIT) at any time (the user, 8 Nov), each one after the one before by the interval;
     /// - on the short final the members chosen land together (any of them; from the long final all of them can, from a
     ///   circuit at most 2), the others go around, each one alone, flying the close pattern;
     /// - callsigns in sequence: VIPER01 leads VIPER02, 03...; VIPER02 leads VIPER03, 04...
@@ -63,12 +63,16 @@ namespace ATCRoom.Sim
                 .Select(i => stem + (number + i).ToString(new string('0', digits), System.Globalization.CultureInfo.InvariantCulture)).ToList();
         }
 
-        /// <summary>Instruction: the formation splits now (not before the break of the overhead, the close pattern, the SFO).</summary>
+        /// <summary>Instruction: the formation splits now (the user, 8 Nov: always; in its circuit each one after the one before).</summary>
         public void SplitFormation(string callsign) =>
             Instruct(callsign, Kind.Formation, a =>
             {
                 if (a.Wingmen.Count == 0 || a.Contact != GroundContact.Airborne || !a.SplitAllowed) return;
+                bool spiral = a.Circuit is { Spiral: true, Suspended: false };
+                int before = spawned.Count;
                 Split(a);
+                // (Climbing to the High Key: each one on the same circle, after its interval straight on.)
+                if (spiral) foreach (SimAircraft wingman in spawned.Skip(before)) if (wingman.Circuit != null) wingman.Circuit.Spiral = true;
             });
 
         /// <summary>Which members land together on the short final (index 0 the leader); the others go around. At once.</summary>

@@ -772,6 +772,7 @@ namespace ATCRoom.Sim
                     LandingRoll(plane);
                     continue;
                 }
+                ManualOrbitStep(plane);
                 CircuitStep(plane);
                 FollowRoute(plane);
                 Turn(plane);

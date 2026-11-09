@@ -100,10 +100,11 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
-        public void OrbitForever(string callsign)
+        /// <summary>ORB L / ORB R (the user, 8 Nov): one orbit to that side (null: away from the runway, or the side it turns); on and on.</summary>
+        public void OrbitForever(string callsign, bool? right = null)
         {
-            Logged?.Invoke(callsign, "ORBIT (on and on)", "");
-            engine.Orbit(callsign, forever: true);
+            Logged?.Invoke(callsign, "ORBIT (on and on)", right == null ? "" : right.Value ? "R" : "L");
+            engine.Orbit(callsign, right, forever: true);
         }
 
         public void Continue(string callsign)
@@ -157,6 +158,7 @@ namespace ATCRoom.TwrTrainer
                 DirectPoint.CloseBase => "BASE CLS",
                 DirectPoint.InitialPoint => "IP",
                 DirectPoint.HighKey => "HK",
+                DirectPoint.Final => "FINAL",
                 _ => $"{point}"
             });
             engine.DirectTo(callsign, point, engine.SideFor(point switch
@@ -297,10 +299,10 @@ namespace ATCRoom.TwrTrainer
             engine.BreakNow(callsign);
         }
 
-        public void Orbit(string callsign)
+        public void Orbit(string callsign, bool? right = null)
         {
-            Logged?.Invoke(callsign, "ORBIT", "");
-            engine.Orbit(callsign);
+            Logged?.Invoke(callsign, "ORBIT", right == null ? "" : right.Value ? "R" : "L");
+            engine.Orbit(callsign, right);
         }
 
         /// <summary>SFO: hold at the High Key (circling over the field) or start it (at the next pass over the High Key).</summary>

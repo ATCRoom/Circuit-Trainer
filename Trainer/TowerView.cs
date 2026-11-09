@@ -121,6 +121,32 @@ namespace ATCRoom.TwrTrainer
         public double? PendingSpeedKt { get; set; }
         /// <summary>The speeds offered under the label's speed field for an aircraft (its class), set by the window.</summary>
         public Func<AircraftState, IReadOnlyList<double>>? SpeedChoices { get; set; }
+        /// <summary>DCT TO FINAL can be given now (the user, 8 Nov: out of the circuits or in the WIDE, shorter than its base).</summary>
+        public Func<string, bool>? CanDirectToFinal { get; set; }
+
+        /// <summary>
+        /// ORB L / ORB R lit (the user, 8 Nov): in its circuit (the downwind, the upwind, the crosswind) only the side away from
+        /// the runway; crossing, joining, flown by hand both; orbiting on and on both (a click: on).
+        /// </summary>
+        public static (bool Left, bool Right) OrbitSides(AircraftState a)
+        {
+            if (a.Contact != GroundContact.Airborne) return (false, false);
+            if (a.OrbitForever) return (true, true);
+            if (a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" && a.Circuit != null && !a.Transit)
+                return (a.CircuitSide == CircuitSide.Right, a.CircuitSide == CircuitSide.Left);
+            bool both = a.Leg is "JOIN" or "CIRCLING" or "TRANSIT" || (a.Navigation == NavigationMode.Manual && a.Leg is "MANUAL" or "");
+            return (both, both);
+        }
+
+        /// <summary>ORB L and ORB R on the label (see <see cref="OrbitSides"/>).</summary>
+        private static IEnumerable<(string Field, string Text, Look Look)> OrbitPieces(AircraftState a)
+        {
+            (bool left, bool right) = OrbitSides(a);
+            Look Of(bool on) => a.OrbitForever ? Look.Thick : on ? Look.Now : Look.Off;
+            yield return (a.OrbitForever ? "CONTINUE" : "ORBL", "ORB L", Of(left));
+            yield return (a.OrbitForever ? "CONTINUE" : "ORBR", "ORB R", Of(right));
+        }
+
         /// <summary>BREAK NOW can be given now (also during the touch and go before a close pattern).</summary>
         public Func<string, bool>? CanBreakNow { get; set; }
         /// <summary>The heights offered under the label's height field (ft above the field).</summary>
@@ -772,12 +798,12 @@ namespace ATCRoom.TwrTrainer
                     if (airborne) dct = [("DCT=Downwind", "DW CONV", Look.Command), ("DCT=CloseDownwind", "DW CLS", Look.Command),
                         ("DCT=Base", "BASE CONV", Look.Command), ("DCT=CloseBase", "BASE CLS", Look.Command),
                         ("DCT=InitialPoint", "IP", Look.Command), ("DCT=HighKey", "HK", Look.Command),
+                        ("DCT=Final", "FINAL", CanDirectToFinal?.Invoke(a.Callsign) == true ? Look.Command : Look.Off),
                         .. (a.CanHover ? [("PAD=NOW", "HPAD", Look.Command)] : new List<(string, string, Look)>())];
                     // The orders of where it is now (the user, 8 Nov: orange; the urgent ones red, on the row below).
-                    bool orbit = airborne && !manual && a.Leg is "DOWNWIND" or "EXT DOWNWIND" or "UPWIND" or "CROSSWIND" or "JOIN" or "CIRCLING";
                     now.Add(("EXTEND", "EXT DWN", a.Leg == "DOWNWIND" ? Look.Now : Look.Off));
                     now.Add(("BASE", "BASE", a.Leg is "DOWNWIND" or "EXT DOWNWIND" || (a.Leg == "JOIN" && type is CircuitType.Conventional or CircuitType.Wide or CircuitType.Close) ? Look.Now : Look.Off));
-                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", orbit ? Look.Now : Look.Off));
+                    now.AddRange(OrbitPieces(a));
                     // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
                     bool breakNow = CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND"));
                     now.Add(("BREAKNOW", "BREAK NOW", breakNow ? Look.Now : Look.Off));
@@ -791,8 +817,9 @@ namespace ATCRoom.TwrTrainer
                 }
                 else
                 {
-                    // Crossing, or not in a circuit: its orbits, back onto its way.
-                    now.Add(a.OrbitForever ? ("CONTINUE", "ORB", Look.Thick) : ("ORBIT", "ORB", a.Leg == "TRANSIT" ? Look.Now : Look.Off));
+                    // Crossing, or not in a circuit: its orbits, back onto its way; straight to the final.
+                    if (airborne) dct = [("DCT=Final", "FINAL", CanDirectToFinal?.Invoke(a.Callsign) == true ? Look.Command : Look.Off)];
+                    now.AddRange(OrbitPieces(a));
                     now.Add(("REJOIN", "REJOIN", a.Leg is "MANUAL" or "" ? Look.Command : Look.Off));
                     if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));
                 }

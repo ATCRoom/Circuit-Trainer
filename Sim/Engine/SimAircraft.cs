@@ -211,9 +211,16 @@ namespace ATCRoom.Sim
         public List<bool> Lands = [];
         public double SplitSeconds = 3;
 
-        /// <summary>The formation can be split by command now: not before the break of the overhead, the close pattern, the SFO.</summary>
-        public bool SplitAllowed => Wingmen.Count > 0
-            && !(Circuit is { Suspended: false, Waiting: false, Transit: false, Departed: false, StraightIn: false } c && c.Type is CircuitType.Overhead or CircuitType.Close or CircuitType.Sfo);
+        /// <summary>The formation can be split by command now (the user, 8 Nov: always, in any circuit).</summary>
+        public bool SplitAllowed => Wingmen.Count > 0;
+
+        /// <summary>
+        /// An orbit flown by hand (the user, 8 Nov: ORB L / R in MANUAL): 0 none, 1 the first half, 2 the second; on and on
+        /// until CONTINUE; the heading it had (it rolls out on it); the heading it was given last (another one: no more orbit).
+        /// </summary>
+        public int ManualOrbit;
+        public bool ManualOrbitForever;
+        public double ManualOrbitHeading, ManualOrbitTarget;
 
         /// <summary>A copy of this aircraft (a member of its formation splitting off): its own circuit and route, no wingmen.</summary>
         public SimAircraft Copy()
@@ -247,7 +254,7 @@ namespace ATCRoom.Sim
             Route, Route != null ? RouteNext : -1, Route != null && !AltitudeGiven, Route != null && !SpeedGiven, Navigation,
             Circuit?.Type, Circuit?.Side ?? CircuitSide.Left, Circuit?.End ?? EndAction.FullStop, Leg,
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
-            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true, Circuit?.Transit == true,
+            Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true || (ManualOrbit > 0 && ManualOrbitForever), Circuit?.Transit == true,
             Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
             Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi, Class.CanHover, Circuit?.HasPad ?? false, Circuit?.WantsPad ?? false);
     }

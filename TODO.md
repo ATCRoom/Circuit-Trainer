@@ -871,7 +871,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   of about 180° onto the initial (no IP + 2 NM; only if the turn fits in its width). And: Aircraft control, the HDG row: "HDG [078] or drag from its symbol", REJOIN on the row
   below (under the box), not between the box and the words.
 
-- **Next group (the user, 8 Nov night) — TO DO, no build yet:**
+- **Group of 9 Nov (the user: "procedi ora") — WRITTEN (tests 71-74; DCT TO FINAL key F7, HOLD HK / START SFO key H):**
   - **DCT TO FINAL** (new button in DCT TO, label and panel, with a key): for an aircraft out of the circuits, in the WIDE,
     or on its way to the IP (it changes its mind). Enabled when a 45° intercept towards the runway meets the final farther
     out than where the base joins it (the class's base): then straight to the final is shorter than the base. On the map:
