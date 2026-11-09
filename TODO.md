@@ -914,7 +914,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - **Aircraft control with full names** (the user, 9 Nov; the label keeps its short names, no symbols):
     - Columns that adapt to the width of the panel (it can be resized): all the buttons of a group as wide (a minimum
       width), as many columns as fit, so they stay lined up.
-    - Full names: Conventional circuit, Close pattern, Wide circuit, Overhead join, SFO (forced landing); Left-hand,
+    - Full names: Conventional circuit, Close pattern, Wide circuit, Overhead join, Sim. Flame Out; Left-hand,
       Right-hand; Runway beginning, Midfield, Runway end, Standby for break, At a point...; Full stop, Touch and go, Low
       approach, Low pass, Departure; Downwind conv., Downwind close, Base conv., Base close, Initial point, High Key, Final;
       Extend downwind, Turn base, Break now, Orbit left, Orbit right, Wide circuit now, Hold at High Key / Start SFO, Split
