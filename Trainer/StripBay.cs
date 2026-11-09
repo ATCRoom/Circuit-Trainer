@@ -271,8 +271,7 @@ namespace ATCRoom.TwrTrainer
                 Margin = new Thickness(0, 0, 0, 2),
                 Opacity = faint ? 0.8 : 1,
                 Cursor = Cursors.Hand,
-                ToolTip = "Click: choose this strip for the notes. Drag: change its place.",
-                AllowDrop = true
+                ToolTip = "Click: choose this strip for the notes. Drag: change its place."
             };
             // (Moved by hand, the user 9 Nov: dragged onto another strip of its section.)
             Point? down = null;
@@ -295,26 +294,33 @@ namespace ATCRoom.TwrTrainer
             };
             // (Where it will go, the user 9 Nov: an orange line above or below the strip under the mouse; none where it cannot.)
             System.Windows.Shapes.Rectangle above = Line(VerticalAlignment.Top), below = Line(VerticalAlignment.Bottom);
+            // (The whole place of the strip takes the drop, the gap under it too; the review of 9 Nov.)
+            Grid holder = new() { Background = Brushes.Transparent, AllowDrop = true };
             void ShowLine(bool? after)
             {
                 above.Visibility = after == false ? Visibility.Visible : Visibility.Hidden;
                 below.Visibility = after == true ? Visibility.Visible : Visibility.Hidden;
             }
-            border.DragOver += (_, e) =>
+            holder.DragOver += (_, e) =>
             {
                 bool allowed = e.Data.GetData(typeof(Moving)) is Moving m && SameSection(m.Key, strip.Key);
                 e.Effects = allowed ? DragDropEffects.Move : DragDropEffects.None;
                 bool own = e.Data.GetData(typeof(Moving)) is Moving self && Equals(self.Key, strip.Key);
-                ShowLine(allowed && !own ? e.GetPosition(border).Y > border.ActualHeight / 2 : null);
+                ShowLine(allowed && !own ? e.GetPosition(holder).Y > holder.ActualHeight / 2 : null);
                 e.Handled = true;
             };
-            border.DragLeave += (_, _) => ShowLine(null);
-            border.Drop += (_, e) =>
+            holder.DragLeave += (_, e) =>
+            {
+                // (Only when the mouse is really out, not passing over a part of the strip.)
+                Point at = e.GetPosition(holder);
+                if (at.X < 0 || at.Y < 0 || at.X >= holder.ActualWidth || at.Y >= holder.ActualHeight) ShowLine(null);
+            };
+            holder.Drop += (_, e) =>
             {
                 ShowLine(null);
                 if (e.Data.GetData(typeof(Moving)) is Moving m)
                 {
-                    bool after = e.GetPosition(border).Y > border.ActualHeight / 2;
+                    bool after = e.GetPosition(holder).Y > holder.ActualHeight / 2;
                     dragging = false;
                     Move(m.Key, strip.Key, after);
                 }
@@ -326,7 +332,6 @@ namespace ATCRoom.TwrTrainer
                 chosen = Equals(chosen, strip.Key) ? null : strip.Key;
                 Draw();
             };
-            Grid holder = new();
             holder.Children.Add(border);
             holder.Children.Add(above);
             holder.Children.Add(below);

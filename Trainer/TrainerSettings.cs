@@ -81,7 +81,7 @@ namespace ATCRoom.TwrTrainer
         public bool ShowIvao { get; set; }
         /// <summary>The map: 0 north up; 1 the runway in use across the screen, its threshold on the left; 2 on the right (the user, 7 Nov).</summary>
         public int MapTurn { get; set; }
-        /// <summary>The instructor's VID on the network, typed (used when IVAO's list does not give it; the user, 7 Nov).</summary>
+        /// <summary>My VID on the network, typed (used when IVAO's list does not give it; the user, 7 Nov): the instructor's, or the student's in a lesson.</summary>
         public string InstructorVid { get; set; } = "";
         /// <summary>My callsign (the user, 9 Nov): the student's in the log of the lesson when he is not connected to IVAO.</summary>
         public string MyCallsign { get; set; } = "";

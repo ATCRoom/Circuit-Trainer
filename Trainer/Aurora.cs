@@ -172,6 +172,9 @@ namespace ATCRoom.TwrTrainer
             client = null;
         }
 
+        /// <summary>The connection let go for now (connected again by the next <see cref="TryConnect"/>).</summary>
+        public void Release() => Disconnect();
+
         public void Close()
         {
             closed = true;

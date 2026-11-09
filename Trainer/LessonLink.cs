@@ -41,6 +41,7 @@ namespace ATCRoom.TwrTrainer
         public string Session { get; } = Guid.NewGuid().ToString("N")[..8];
 
         private readonly string channel;
+        private readonly byte[] key;
         private readonly string clientId = "twrtrainer-lesson-" + Guid.NewGuid().ToString("N")[..12];
         private readonly MqttFactory factory = new();
         private volatile IMqttClient? client;
@@ -61,6 +62,8 @@ namespace ATCRoom.TwrTrainer
             Code = code;
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes("TWR Trainer lesson " + code));
             channel = "atcroom/twr/lesson/v1/" + Convert.ToHexString(hash)[..20].ToLowerInvariant();
+            // (The relays are public: every message encrypted with a key from the code, the review of 9 Nov; the map never readable by others.)
+            key = SHA256.HashData(Encoding.UTF8.GetBytes("TWR Trainer lesson key " + code));
             Log($"Lesson: start as {role}");
             _ = Task.Run(Run);
         }
@@ -216,7 +219,7 @@ namespace ATCRoom.TwrTrainer
                 {
                     MqttApplicationMessage message = new MqttApplicationMessageBuilder()
                         .WithTopic(OwnTopic)
-                        .WithPayload(payload)
+                        .WithPayload(Seal(payload))
                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
                         .Build();
                     using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
@@ -240,8 +243,11 @@ namespace ATCRoom.TwrTrainer
             {
                 if (e.ApplicationMessage.Topic == OtherTopic)
                 {
-                    Interlocked.Exchange(ref lastHeardTicks, DateTime.UtcNow.Ticks);
-                    Received?.Invoke(Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
+                    if (Open(e.ApplicationMessage.PayloadSegment) is string text)
+                    {
+                        Interlocked.Exchange(ref lastHeardTicks, DateTime.UtcNow.Ticks);
+                        Received?.Invoke(text);
+                    }
                 }
             }
             catch (Exception)
@@ -249,6 +255,36 @@ namespace ATCRoom.TwrTrainer
                 // A malformed message is ignored.
             }
             return Task.CompletedTask;
+        }
+
+        /// <summary>A message encrypted (AES-GCM): its nonce, its tag, then the text.</summary>
+        private byte[] Seal(string payload)
+        {
+            byte[] plain = Encoding.UTF8.GetBytes(payload);
+            byte[] sealedMessage = new byte[12 + 16 + plain.Length];
+            Span<byte> nonce = sealedMessage.AsSpan(0, 12), tag = sealedMessage.AsSpan(12, 16), cipher = sealedMessage.AsSpan(28);
+            RandomNumberGenerator.Fill(nonce);
+            using AesGcm aes = new(key, 16);
+            aes.Encrypt(nonce, plain, cipher, tag);
+            return sealedMessage;
+        }
+
+        /// <summary>A message of the other side opened; null when it is not one of this lesson (another code, or damaged).</summary>
+        private string? Open(ArraySegment<byte> data)
+        {
+            if (data.Array == null || data.Count < 28) return null;
+            ReadOnlySpan<byte> all = data.AsSpan();
+            byte[] plain = new byte[all.Length - 28];
+            try
+            {
+                using AesGcm aes = new(key, 16);
+                aes.Decrypt(all[..12], all[28..], all[12..28], plain);
+                return Encoding.UTF8.GetString(plain);
+            }
+            catch (CryptographicException)
+            {
+                return null;
+            }
         }
 
         /// <summary>What the link does, in Logs\Link.log (kept small): to understand a problem of the network.</summary>

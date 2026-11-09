@@ -359,10 +359,10 @@ namespace ATCRoom.TwrTrainer
             studentButton.ToolTip = "Opens the student console on this PC (a second window: put it on the second monitor). The student sees the traffic, the runway, the METAR and his strip bay; nothing of the instructor's commands.";
             bar.Children.Add(studentButton);
             // (The user, 9 Nov: the lesson between two PCs, instructor or student.)
-            Button lessonButton = ActionButton("LESSON", OpenLessonWindow);
+            lessonButton = ActionButton("LESSON", OpenLessonWindow);
             lessonButton.Margin = new Thickness(4, 0, 0, 4);
-            lessonButton.ToolTip = "A lesson between two PCs: start one (a code for the student), or join one as the student.";
             bar.Children.Add(lessonButton);
+            ShowLessonButton();
             lessonTimer.Tick += (_, _) => LessonTick();
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
@@ -895,7 +895,7 @@ namespace ATCRoom.TwrTrainer
             // (The user, 7 Nov: the instructor's VID for the log; found in IVAO's list when connected, else this one.)
             current = Section("Network", null, false);
             Note("IVAO through Aurora on this PC (IVAO on the bar of the map). Your VID goes in the log of the flights: found by itself from your callsign when connected, else the one written here.");
-            vidBox.ToolTip = "Your IVAO VID (a number): used when IVAO's list of who is connected does not give it.";
+            vidBox.ToolTip = "Your IVAO VID (a number): used when IVAO's list of who is connected does not give it (as the student of a lesson too).";
             Row("My VID", vidBox);
             vidBox.LostFocus += (_, _) => ApplyVid();
             vidBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyVid(); };
@@ -3533,6 +3533,21 @@ namespace ATCRoom.TwrTrainer
         /// <summary>Strips whose plan changed (UPDATE) a moment ago: the student's notes follow them (old key, new key, until).</summary>
         private readonly List<(string Old, string New, double Until)> lessonRekeys = [];
         private Window? lessonWindow;
+        private Button? lessonButton;
+
+        /// <summary>LESSON lit while a lesson is on (the review of 9 Nov), with its code in the tooltip.</summary>
+        private void ShowLessonButton()
+        {
+            if (lessonButton == null) return;
+            bool on = lesson != null;
+            lessonButton.Background = on ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)) : ActionBack;
+            lessonButton.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A)) : ActionText;
+            lessonButton.BorderBrush = lessonButton.Background;
+            lessonButton.Tag = on ? "on" : null;
+            lessonButton.Content = on ? $"LESSON {lesson!.Code}" : "LESSON";
+            lessonButton.ToolTip = on ? $"A lesson is on: code {lesson!.Code}. Click: its window (STOP LESSON there)."
+                : "A lesson between two PCs: start one (a code for the student), or join one as the student.";
+        }
 
         /// <summary>A lesson code: 6 letters and digits easy to read aloud (no O / 0, I / 1).</summary>
         private static string NewLessonCode()
@@ -3549,6 +3564,7 @@ namespace ATCRoom.TwrTrainer
             studentMap = studentCallsign = studentVid = "";
             lessonTicks = 0;
             lessonTimer.Start();
+            ShowLessonButton();
             flightLog.Event(engine.Time, "LESSON", detail: $"started, code {lesson.Code}", source: "INSTRUCTOR");
         }
 
@@ -3558,6 +3574,7 @@ namespace ATCRoom.TwrTrainer
             lessonTimer.Stop();
             lesson.Dispose();
             lesson = null;
+            ShowLessonButton();
             flightLog.Event(engine.Time, "LESSON", detail: "ended", source: "INSTRUCTOR");
         }
 
@@ -3591,7 +3608,8 @@ namespace ATCRoom.TwrTrainer
                 }));
                 return;
             }
-            if (mapPack is (string id, List<string> pieces) && studentMap != id && lesson.OtherPresent)
+            // (Not just before the photo: one message at a time on the link, the photo must not be dropped; the review of 9 Nov.)
+            if (lessonTicks % 4 != 3 && mapPack is (string id, List<string> pieces) && studentMap != id && lesson.OtherPresent)
             {
                 int index = pieceNext++ % pieces.Count;
                 lesson.Send(LessonMessages.Write(new MapPiece { Id = id, Index = index, Count = pieces.Count, Data = pieces[index] }));
@@ -3600,6 +3618,18 @@ namespace ATCRoom.TwrTrainer
 
         /// <summary>The student's message: the map he has; his callsign and VID in the log when they change.</summary>
         private void FromStudent(string json)
+        {
+            try
+            {
+                FromStudentMessage(json);
+            }
+            catch (Exception ex) when (ex is NullReferenceException or ArgumentException or InvalidOperationException)
+            {
+                // (A message that cannot be used is dropped; the review of 9 Nov.)
+            }
+        }
+
+        private void FromStudentMessage(string json)
         {
             if (lesson == null || LessonMessages.KindOf(json) != "s" || LessonMessages.Read<StudentMessage>(json) is not StudentMessage message) return;
             studentMap = message.Map ?? "";
@@ -3717,9 +3747,14 @@ namespace ATCRoom.TwrTrainer
         private void JoinLesson(string code)
         {
             student?.Close();
+            // (This window hidden: its simulation paused and its IVAO off meanwhile, the review of 9 Nov; one Aurora client only.)
+            if (!engine.Paused) TogglePause();
+            networkTimer.Stop();
+            aurora.Release();
             StudentWindow remote = new(settings, StripBrush, new LessonLink(LessonRole.Student, code), appVersion);
             remote.Closed += (_, _) =>
             {
+                networkTimer.Start();
                 Show();
                 Activate();
             };

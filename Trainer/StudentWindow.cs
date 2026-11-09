@@ -146,7 +146,7 @@ namespace ATCRoom.TwrTrainer
                 linkTimer.Start();
                 Closed += (_, _) =>
                 {
-                    linkTimer.Stop();
+                    linkTimer?.Stop();
                     link.Dispose();
                     aurora.Close();
                 };
@@ -225,9 +225,28 @@ namespace ATCRoom.TwrTrainer
         /// <summary>A message of the instructor: the photo of the second, or a piece of the map.</summary>
         private void Receive(string json)
         {
+            // (A message that cannot be used is dropped, never an error on the screen; the review of 9 Nov.)
+            try
+            {
+                ReceiveMessage(json);
+            }
+            catch (Exception ex) when (ex is NullReferenceException or ArgumentException or InvalidOperationException or FormatException or IndexOutOfRangeException)
+            {
+            }
+        }
+
+        private void ReceiveMessage(string json)
+        {
             switch (LessonMessages.KindOf(json))
             {
-                case "snap" when LessonMessages.Read<InstructorMessage>(json) is InstructorMessage message:
+                case "snap" when LessonMessages.Read<InstructorMessage>(json) is InstructorMessage message && message.Ad != null:
+                    message.Traffic ??= [];
+                    message.Coordination ??= [];
+                    message.Contact ??= [];
+                    message.Ad.Gates ??= [];
+                    message.Ad.Exits ??= [];
+                    message.Ad.Helipads ??= [];
+                    message.Ad.Categories ??= [];
                     lastMessage = message;
                     foreach (string[] pair in message.Rekeys ?? []) if (pair is [string old, string now]) Bay.Rekey(old, now);
                     plane = new LessonPlane(message.Ad.Latitude, message.Ad.Longitude, message.Ad.Heading);
@@ -236,7 +255,7 @@ namespace ATCRoom.TwrTrainer
                         message.Traffic, [], message.Coordination.Select(LessonMessages.FromLink).ToList(), message.Contact.Select(LessonMessages.FromLink).ToList()),
                         LinkText());
                     break;
-                case "map" when LessonMessages.Read<MapPiece>(json) is MapPiece piece:
+                case "map" when LessonMessages.Read<MapPiece>(json) is MapPiece { Id: not null, Data: not null } piece:
                     TakePiece(piece);
                     break;
             }
