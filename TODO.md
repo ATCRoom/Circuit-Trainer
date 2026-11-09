@@ -927,6 +927,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
       U+21AB. The others as in the mock-up: Downwind conv. / close ➝, Initial point ◎, Orbit left ↺, Orbit right ↻, Break
       now ⤵, Change side ⇄, Remove aircraft ✕.
 
+  - **TURN BASE → TURN IN** (the user, 9 Nov: it was mixed up with DCT TO BASE): label TURN IN, panel "↪ Turn in now",
+    key N; the same order (turn in before the base point, or on command after EXTEND DOWNWIND).
+  - **Arrows turned with the side** (proposed 9 Nov, to confirm): mirrored by the side it turns, not by the map: Turn in
+    ↪, Break now ⤵, Base ⇲ towards its side; Breakout ↫ away from the runway. Fixed: orbits, Change side, Extend downwind,
+    Wide, Final, Downwind, High Key, Go around. Out of the circuits: the side of "Circuits".
+
   - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
     formation)." The button keeps the name SPLIT.
 
