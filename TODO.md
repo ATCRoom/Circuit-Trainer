@@ -943,6 +943,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
     formation)." The button keeps the name SPLIT.
 
+- **Next group (the user, 9 Nov afternoon) — TO DO, no build yet:**
+  - **WIDE NOW grey on the final and rolling** (the user: "A"): there it only became the next circuit, after a touch and
+    go or go-around, never flown with F/S (from LONG FINAL it looked dead). For the WIDE after the final: Pattern → Wide
+    circuit; at once: G/A, then WIDE NOW. The same on the label and the panel.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
