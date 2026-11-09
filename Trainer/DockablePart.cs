@@ -55,7 +55,7 @@ namespace ATCRoom.TwrTrainer
         private readonly TextBlock pillSymbol;
         private static readonly Dictionary<Canvas, List<DockablePart>> Parked = [];
         private static readonly Brush FlashBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)));
-        private const double PillWidth = 46, PillGap = 4, PillMargin = 8;
+        private const double PillWidth = 52, PillGap = 4, PillMargin = 8;
 
         public DockablePart(string title, string symbol, FrameworkElement content, Panel column, Canvas layer, PartPlacement place, Action changed)
         {
@@ -170,6 +170,7 @@ namespace ATCRoom.TwrTrainer
             pillInside.Children.Add(pillSymbol);
             Button reopen = BarButton("▾", "Open it again where it was.", () => SetOpen(true));
             reopen.Width = 18;
+            reopen.Margin = new Thickness(2, 0, 0, 0);
             pillInside.Children.Add(reopen);
             pill = new Border
             {
@@ -186,6 +187,8 @@ namespace ATCRoom.TwrTrainer
             pill.MouseLeftButtonDown += (_, e) =>
             {
                 if (e.ClickCount < 2) return;
+                // (Back into the column open, the review of 9 Nov.)
+                place.Open = true;
                 Dock();
                 e.Handled = true;
             };

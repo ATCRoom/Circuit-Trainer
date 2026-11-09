@@ -1132,7 +1132,7 @@ namespace ATCRoom.TwrTrainer
             }
             Grid PanelRow(string label, UIElement control, Panel into)
             {
-                Grid grid = Row(label, control, into, 72);
+                Grid grid = Row(label, control, into, 64);
                 if (grid.Children[0] is TextBlock text)
                 {
                     text.VerticalAlignment = VerticalAlignment.Top;
@@ -1158,14 +1158,14 @@ namespace ATCRoom.TwrTrainer
             heightBox.ToolTip = "The altitude (hundreds of ft: 25 = 2500; or the feet), or the height with QFE: Enter. Mouse wheel: ±100 ft. Key: L.";
             speedKtBox.ToolTip = "The speed (kt): Enter. Mouse wheel: ±10 kt. Key: K.";
             headingBox.ToolTip = "A heading (°, true): Enter; it leaves its circuit (flown by hand, MANUAL). Mouse wheel: ±5°. Or drag from its symbol on the map. Key: V.";
-            Grid altLine = Row("Altitude", altPresets, values, 72);
+            Grid altLine = Row("Altitude", altPresets, values, 64);
             heightName = (TextBlock)altLine.Children[0];
-            Row("Speed", speedPresets, values, 72);
+            Row("Speed", speedPresets, values, 64);
             altPresets.Children.Add(heightBox);
             speedPresets.Children.Add(speedKtBox);
             rejoinButton = Keyed("↩", "Rejoin circuit", "R", "Back into its circuit (from MANUAL: flown by hand after a heading or a breakout).", commands.Rejoin);
             // (The user, 8 Nov: the words with the box, Rejoin below it.)
-            Row("Heading", Wrap(headingBox, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 72);
+            Row("Heading", Wrap(headingBox, new TextBlock { Text = "or drag from its symbol", Foreground = DimBrush, FontSize = 11, VerticalAlignment = VerticalAlignment.Center }), values, 64);
             PanelRow("", Columns(rejoinButton), values);
             ValueBox(heightBox, "ALT");
             ValueBox(speedKtBox, "SPD");
@@ -1464,7 +1464,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The narrowest column of the buttons of Aircraft control (the user, 9 Nov: as many as fit, lined up).</summary>
-        private const double ButtonColumn = 150;
+        private const double ButtonColumn = 118;
 
         /// <summary>The font of the symbols on the buttons (plain, not coloured).</summary>
         private static readonly FontFamily SymbolFont = new("Segoe UI Symbol");
@@ -1492,12 +1492,20 @@ namespace ATCRoom.TwrTrainer
             else button.Content = value;
         }
 
+        private static readonly ScaleTransform Mirror = Frozen(new ScaleTransform(-1, 1));
+
+        private static T Frozen<T>(T item) where T : Freezable
+        {
+            item.Freeze();
+            return item;
+        }
+
         /// <summary>The symbol of a button made by Keyed (its first text), turned as a mirror for a left turn (the user, 9 Nov).</summary>
         private static void SymbolTurned(Button button, string symbol, bool mirrored)
         {
             if (button.Content is not Panel { Children.Count: > 0 } panel || panel.Children[0] is not TextBlock mark) return;
             mark.Text = symbol;
-            mark.RenderTransform = mirrored ? new ScaleTransform(-1, 1) : Transform.Identity;
+            mark.RenderTransform = mirrored ? Mirror : Transform.Identity;
         }
 
         /// <summary>ORB L / R (button, label, key O): orbiting on and on, CONTINUE; Shift: on and on; else one orbit.</summary>

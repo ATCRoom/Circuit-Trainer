@@ -1122,6 +1122,13 @@ namespace ATCRoom.Sim
                 CircuitType.Close or CircuitType.Overhead or CircuitType.Sfo => CircuitType.Close,
                 _ => CircuitType.Conventional
             };
+            // (A departure back in the circuits: it lands at the end, the review of 9 Nov.)
+            if (circuit.Departed || circuit.End == EndAction.Departure)
+            {
+                circuit.End = circuit.FinalEnd == EndAction.Departure ? EndAction.FullStop : circuit.FinalEnd;
+                circuit.LeaveAfterLast = false;
+                circuit.DepartPhase = 0;
+            }
             circuit.Suspended = circuit.Waiting = circuit.Transit = circuit.Departed = false;
             circuit.Turning = circuit.Spiral = circuit.Extended = false;
             circuit.OnFinal = false;
@@ -1129,14 +1136,15 @@ namespace ATCRoom.Sim
             circuit.BreakNow = false;
 
             // The side it flies: where it is off the runway track (on it: the side it turns to, else the side of its circuit).
-            (double alongL, double lateralL) = RunwayFrame(a.X, a.Y, CircuitSide.Left);
+            (_, double lateralL) = RunwayFrame(a.X, a.Y, CircuitSide.Left);
             CircuitSide flies = Math.Abs(lateralL) >= 0.2 ? (lateralL > 0 ? CircuitSide.Left : CircuitSide.Right)
                 : Math.Abs(a.TurnRateDps) > 0.5 ? (a.TurnRateDps < 0 ? CircuitSide.Left : CircuitSide.Right) : circuit.Side;
             (double along, double lateral) = RunwayFrame(a.X, a.Y, flies);
             lateral = Math.Abs(lateral);
             double outNow = -along;
             double glide = GlideFeetPerNM();
-            // Out at least as far as it needs to be on the glide path (never a climb).
+            // The way it needs to come down to the runway on the glide path (never a climb): it descends on the way to the
+            // final too, as in its circuit (the review of 9 Nov); the points moved out only as far as needed.
             double highOut = Math.Max(0, a.AltitudeFt - runwayElevation) / glide;
             double baseOut = Math.Max(0.5, -BaseAlong(baseOf, a.Class));
             double knots = Math.Max(Math.Max(30, a.GroundSpeedKt), a.Class.ApproachSpeedKt);
@@ -1147,10 +1155,12 @@ namespace ATCRoom.Sim
             if (outNow >= baseOut)
             {
                 // Beyond the line: straight onto the final (45°), never nearer than the base nor below the glide path.
-                double meet = Math.Max(Math.Max(outNow - Math.Max(lateral, 0.3), baseOut), highOut);
+                double meet = Math.Max(outNow - Math.Max(lateral, 0.3), baseOut);
+                // (Too high: the point farther out until the way to it and the final are long enough.)
+                while (meet < outNow - 0.3 && Math.Sqrt((outNow - meet) * (outNow - meet) + lateral * lateral) + meet < highOut) meet += 0.1;
                 // (Flying away from the runway: a full turn first, the point on the final nearer.)
                 bool away = Math.Abs(Wrap(a.HeadingTrue - glidePathCourse)) > 90;
-                if (away) meet = Math.Max(Math.Max(baseOut, highOut), Math.Min(meet, outNow - Math.Max(lateral, 0.3)) - 2 * turnRadius);
+                if (away) meet = Math.Max(Math.Max(baseOut, highOut - 2 * turnRadius), Math.Min(meet, outNow - Math.Max(lateral, 0.3)) - 2 * turnRadius);
                 if (meet <= outNow - 0.3)
                 {
                     GiveRoute(a,
@@ -1164,13 +1174,16 @@ namespace ATCRoom.Sim
             }
 
             // Between the line and the runway, beyond the runway, or too high: by the base point on the side it flies.
-            double baseAt = Math.Max(baseOut, highOut);
             double width = Math.Max(Width(baseOf, a.Class, flies), Math.Min(lateral, 2 * Width(baseOf, a.Class, flies)));
+            // (Too high: the base point farther out until the way to it, the base and the final are long enough.)
+            double baseAt = baseOut;
+            while (baseAt < 25 && Math.Sqrt((outNow - baseAt) * (outNow - baseAt) + (lateral - width) * (lateral - width)) + width + baseAt < highOut) baseAt += 0.1;
             List<RoutePoint> route = [];
             // (On the runway track or near it, beyond the base: aside first, not back over the runway.)
-            if (lateral < 0.6 * width && along > -baseAt) route.Add(Point(along, width, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "JOIN"));
-            route.Add(Point(-baseAt, width, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "BASE"));
-            route.Add(Point(-baseAt, 0, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "FINAL"));
+            if (lateral < 0.6 * width && along > -baseAt) route.Add(Point(along, width, flies, OnGlide(baseAt + width), a.Class.ApproachSpeedKt, "JOIN"));
+            // (A point's name is the leg to it: to the base point JOIN, along the base BASE, then the final, the review of 9 Nov.)
+            route.Add(Point(-baseAt, width, flies, OnGlide(baseAt + width), a.Class.ApproachSpeedKt, "JOIN"));
+            route.Add(Point(-baseAt, 0, flies, OnGlide(baseAt), a.Class.ApproachSpeedKt, "BASE"));
             route.Add(Point(0, 0, flies, double.NaN, a.Class.FinalSpeedKt, "FINAL"));
             GiveRoute(a, route);
             circuit.StraightIn = true;
