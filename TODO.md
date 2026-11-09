@@ -1116,6 +1116,10 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   Trainer); nothing different for the student.
 - **New fields of an aircraft (New aircraft, plans, label, strip, log):** **flight rules VFR / IFR**; **ICAO type** free text
   (F16, TOR, EUFI, C172...; no list; the class stays for the performance).
+- **The user, 9 Nov (decided):** (1) the student console FIRST (same PC, second window), then the link between two PCs,
+  then recording + player; (2) the student's label: callsign, ICAO type, **flight rules well visible** (a V / I mark),
+  altitude in hundreds, speed; (3) the instructor's strip bay STAYS on his screen (the instructor decides what to do with
+  it); (4) mock-up of the student console first (shown 9 Nov), then the code.
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
