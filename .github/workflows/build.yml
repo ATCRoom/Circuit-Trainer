@@ -45,19 +45,21 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish-mapcreator
 
-      # TWR Trainer: the program (one exe), with the Map Creator beside it.
+      # ATCRoom Map Creator: a separate download (the user, 9 Nov), its own artifact here.
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ATCRoomMapCreator-win-x64
+          path: publish-mapcreator/ATCRoomMapCreator.exe
+
+      # TWR Trainer: the program (one exe); ATCRoom Map Creator is downloaded on its own (the user, 9 Nov).
       - name: Build TWR Trainer
         run: >
           dotnet publish Trainer/TWRTrainer.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish-trainer
 
-      - name: Put the Map Creator beside TWR Trainer
-        run: Copy-Item publish-mapcreator/ATCRoomMapCreator.exe publish-trainer/
-
       - uses: actions/upload-artifact@v5
         with:
           name: TWRTrainer-win-x64
           path: |
             publish-trainer/TWRTrainer.exe
-            publish-trainer/ATCRoomMapCreator.exe

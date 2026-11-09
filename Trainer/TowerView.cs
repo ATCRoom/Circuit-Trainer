@@ -663,6 +663,20 @@ namespace ATCRoom.TwrTrainer
                 }
                 dc.DrawGeometry(null, pen, path);
             }
+            // (SFO climbing or on hold, the user 9 Nov: no route then; its circle over the field and the High Key point.)
+            if (Traffic.FirstOrDefault(a => a.Callsign == Selected) is AircraftState circling && circling.CircleRadius > 0 && double.IsFinite(circling.CircleX))
+            {
+                Pen pen = new(RouteBrush, 1) { DashStyle = new DashStyle([3, 4], 0) };
+                Point centre = ToScreen(circling.CircleX, circling.CircleY);
+                double radius = (ToScreen(circling.CircleX + circling.CircleRadius, circling.CircleY) - centre).Length;
+                dc.DrawEllipse(null, pen, centre, radius, radius);
+                if (double.IsFinite(circling.KeyX))
+                {
+                    Point key = ToScreen(circling.KeyX, circling.KeyY);
+                    dc.DrawLine(new Pen(RouteBrush, 1.5), key + new Vector(-5, -5), key + new Vector(5, 5));
+                    dc.DrawLine(new Pen(RouteBrush, 1.5), key + new Vector(-5, 5), key + new Vector(5, -5));
+                }
+            }
             // (The selected one last: its label on top.)
             foreach (AircraftState a in Traffic.OrderBy(t => t.Callsign == Selected))
             {
@@ -807,7 +821,8 @@ namespace ATCRoom.TwrTrainer
                     // (Also during the touch and go before a close pattern, the user 8 Nov: it turns above 400 ft.)
                     bool breakNow = CanBreakNow?.Invoke(a.Callsign) ?? ((shown == CircuitType.Overhead && a.Leg == "INITIAL") || (type == CircuitType.Close && a.Leg is "UPWIND" or "GO AROUND"));
                     now.Add(("BREAKNOW", "BREAK NOW", breakNow ? Look.Now : Look.Off));
-                    now.Add(("WIDENOW", "WIDE NOW", airborne && !manual ? Look.Now : Look.Off));
+                    // (Not on the final, the user 9 Nov: there it was only the next circuit, never flown with F/S.)
+                    now.Add(("WIDENOW", "WIDE NOW", airborne && !manual && a.Leg != "FINAL" ? Look.Now : Look.Off));
                     if (type == CircuitType.Sfo && a.Leg is "CLIMB" or "HOLD" or "HIGH KEY") now.Add(a.SfoHold ? ("START", "START SFO", Look.Now) : ("HOLD", "HOLD HK", Look.Now));
                     if (manual) now.Add(("REJOIN", "REJOIN", Look.Command));
                     if (a.Formation is { Count: > 1 }) now.Add(("SPLIT", "SPLIT", a.SplitAllowed ? Look.Now : Look.Off));

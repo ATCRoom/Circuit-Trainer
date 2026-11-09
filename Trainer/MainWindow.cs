@@ -1904,7 +1904,7 @@ namespace ATCRoom.TwrTrainer
         private void ShowAerodrome()
         {
             view.Hint = airfield.Map == null
-                ? "Open a map (Settings › Map: Open map...).\nNo map yet? Make one with ATCRoomMapCreator.exe, beside this program."
+                ? "Open a map (Settings › Map: Open map...).\nNo map yet? Make one with ATCRoom Map Creator, a separate download (github.com/ATCRoom/MapCreator/releases)."
                 : airfield.Runway == null ? "Place the runway in use: in Settings › Map write its name and elevation, then Place on the map." : "";
             view.InvalidateVisual();
             updating = true;
@@ -4493,6 +4493,8 @@ namespace ATCRoom.TwrTrainer
                 goAroundButton.IsEnabled = leg == "FINAL";
                 // (As on the label; CHG SIDE also on the final: then for the circuit after it.)
                 wideButton.IsEnabled = changeSideButton.IsEnabled = a.Contact == GroundContact.Airborne && a.Circuit != null && !a.Transit && leg is not ("MANUAL" or "GO AROUND");
+                // (Wide circuit now not on the final, the user 9 Nov: there it was only the next circuit, never flown with F/S.)
+                if (leg == "FINAL") wideButton.IsEnabled = false;
                 rejoinButton.IsEnabled = a.Contact == GroundContact.Airborne && (a.Circuit == null || leg is "MANUAL" or "GO AROUND");
                 breakupButton.IsEnabled = leg is "DOWNWIND" or "EXT DOWNWIND" or "ORBIT" or "ORBITS" or "BASE";
                 splitButton.IsEnabled = a.SplitAllowed;

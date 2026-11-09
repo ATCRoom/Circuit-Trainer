@@ -140,6 +140,8 @@ namespace ATCRoom.Sim
         public bool Turning;
         /// <summary>The 180° turn follows this circle (the plane, NM) with this bank limit: it ends at the right distance from the runway whatever the speed and the wind.</summary>
         public double CentreX, CentreY, Radius, TurnBank, TurnHeading;
+        /// <summary>SFO: the High Key point on the runway track, where the circle touches it (drawn on the map, the user 9 Nov).</summary>
+        public double KeyX = double.NaN, KeyY = double.NaN;
         /// <summary>The circuit ordered while in a circuit (the close pattern), flown after the next go-around or touch and go, and its side.</summary>
         public CircuitType? NextType;
         public CircuitSide NextSide;
@@ -1785,6 +1787,7 @@ namespace ATCRoom.Sim
         {
             double radius = SpiralRadius(plane, circuit);
             (circuit.CentreX, circuit.CentreY) = FromRunway(HighKeyAlong(), radius, circuit.Side);
+            (circuit.KeyX, circuit.KeyY) = FromRunway(HighKeyAlong(), 0, circuit.Side);
             circuit.Radius = radius;
             circuit.Spiral = true;
             circuit.Turning = false;
@@ -1841,6 +1844,7 @@ namespace ATCRoom.Sim
             double s = circuit.Side == CircuitSide.Right ? 1 : -1;
             double radius = SpiralRadius(plane, circuit);
             (circuit.CentreX, circuit.CentreY) = FromRunway(HighKeyAlong(), radius, circuit.Side);
+            (circuit.KeyX, circuit.KeyY) = FromRunway(HighKeyAlong(), 0, circuit.Side);
             circuit.Radius = radius;
             (double course, double distance) = SpiralCourse(plane, circuit);
             plane.CircuitBankDegrees = kind.CircuitBankDegrees;

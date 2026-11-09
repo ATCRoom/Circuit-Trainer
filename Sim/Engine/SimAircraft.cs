@@ -133,7 +133,13 @@ namespace ATCRoom.Sim
         // A helicopter (it can land on a helipad), and going to its pad (the user, 5 Nov).
         bool CanHover = false,
         bool HasPad = false,
-        bool WantsPad = false);
+        bool WantsPad = false,
+        // SFO climbing or on hold (the user, 9 Nov): its circle over the field and the High Key point (NaN: none).
+        double CircleX = double.NaN,
+        double CircleY = double.NaN,
+        double CircleRadius = 0,
+        double KeyX = double.NaN,
+        double KeyY = double.NaN);
 
     /// <summary>An aircraft inside the engine: actual values and the values commanded by the instructor. Only the engine changes it, under its lock.</summary>
     internal sealed class SimAircraft
@@ -256,6 +262,9 @@ namespace ATCRoom.Sim
             Circuit?.NextType, Circuit?.Break ?? BreakPoint.Middle, Circuit?.Hold == true,
             Circuit?.NextSide ?? CircuitSide.Left, Circuit?.Extended == true, Circuit?.OrbitForever == true || (ManualOrbit > 0 && ManualOrbitForever), Circuit?.Transit == true,
             Wingmen.Count > 0 ? new List<string> { Callsign }.Concat(Wingmen).ToList() : null, Wingmen.Count > 0 ? Lands.ToList() : null, SplitAllowed,
-            Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi, Class.CanHover, Circuit?.HasPad ?? false, Circuit?.WantsPad ?? false);
+            Circuit?.LapsLeft ?? 0, ExitName, ExpediteTaxi, Class.CanHover, Circuit?.HasPad ?? false, Circuit?.WantsPad ?? false,
+            Circuit is { Spiral: true, Suspended: false } s ? s.CentreX : double.NaN, Circuit is { Spiral: true, Suspended: false } s2 ? s2.CentreY : double.NaN,
+            Circuit is { Spiral: true, Suspended: false } s3 ? s3.Radius : 0,
+            Circuit is { Spiral: true, Suspended: false } s4 ? s4.KeyX : double.NaN, Circuit is { Spiral: true, Suspended: false } s5 ? s5.KeyY : double.NaN);
     }
 }
