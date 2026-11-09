@@ -1132,6 +1132,11 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (above or below the strip under the mouse; none where it cannot go) — DECIDED (the user: "prossimo gruppo"), with the link.
 - **Student console: NORTH / RWY (the user, 9 Nov: "mancano i bottoni NORTH/RWY")** — next group: a small bar on the
   student's map with NORTH and RWY (RWY again: turned round), as the instructor's; the student's choice kept in his settings.
+- **Link between two PCs (the user, 9 Nov) — DECIDED, next group:** (1) the student takes IVAO's traffic from **his own
+  Aurora** (in an IVAO training he is connected anyway); the simulated aircraft from the link. (2) The student's callsign and
+  VID for the log: connected to IVAO, from his Aurora and IVAO's list (as the instructor's); else those written in his
+  Settings. Plus: "Join a lesson" with the code, the map sent in pieces (memory only), the photo of each second; the drop
+  line of the strips; NORTH / RWY on the student's map.
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
