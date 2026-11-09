@@ -900,18 +900,18 @@ namespace ATCRoom.TwrTrainer
             vidBox.LostFocus += (_, _) => ApplyVid();
             vidBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyVid(); };
             // (The user, 9 Nov: the student's callsign for the instructor's log when he is not connected to IVAO.)
-            TextBox callsignBox = new() { Width = 90, MaxLength = 10, CharacterCasing = CharacterCasing.Upper, Text = settings.MyCallsign };
-            callsignBox.ToolTip = "Your callsign: as the student of a lesson between two PCs, it goes in the instructor's log when you are not connected to IVAO (connected: Aurora's).";
-            Row("My callsign", callsignBox);
+            TextBox myCallsignBox = new() { Width = 90, MaxLength = 10, CharacterCasing = CharacterCasing.Upper, Text = settings.MyCallsign };
+            myCallsignBox.ToolTip = "Your callsign: as the student of a lesson between two PCs, it goes in the instructor's log when you are not connected to IVAO (connected: Aurora's).";
+            Row("My callsign", myCallsignBox);
             void ApplyCallsign()
             {
-                string typed = callsignBox.Text.Trim().ToUpperInvariant();
+                string typed = myCallsignBox.Text.Trim().ToUpperInvariant();
                 if (typed == settings.MyCallsign) return;
                 settings.MyCallsign = typed;
                 settings.Save();
             }
-            callsignBox.LostFocus += (_, _) => ApplyCallsign();
-            callsignBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyCallsign(); };
+            myCallsignBox.LostFocus += (_, _) => ApplyCallsign();
+            myCallsignBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyCallsign(); };
 
             current = Section("Weather", weatherSummary, false);
             Row("METAR", metarBox);
