@@ -911,6 +911,22 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     runway: the point on the final moved in by a full turn. Too high (the user: "calcola la migliore traiettoria"): the
     point on the final, or the base point, moved out so that it is on the glide path there (never a climb).
 
+  - **Aircraft control with full names** (the user, 9 Nov; the label keeps its short names, no symbols):
+    - Columns that adapt to the width of the panel (it can be resized): all the buttons of a group as wide (a minimum
+      width), as many columns as fit, so they stay lined up.
+    - Full names: Conventional circuit, Close pattern, Wide circuit, Overhead join, SFO (forced landing); Left-hand,
+      Right-hand; Runway beginning, Midfield, Runway end, Standby for break, At a point...; Full stop, Touch and go, Low
+      approach, Low pass, Departure; Downwind conv., Downwind close, Base conv., Base close, Initial point, High Key, Final;
+      Extend downwind, Turn base, Break now, Orbit left, Orbit right, Wide circuit now, Hold at High Key / Start SFO, Split
+      formation, Expedite taxi; Go around, Change side, Breakout; Rejoin circuit; Remove aircraft.
+    - Lines between the groups, between DIRECT TO and NOW, a dark red one before the row "Urgent" (with its tag).
+    - The key small on the right of each button.
+    - Symbols (Segoe UI Symbol, forced plain, not coloured; chosen by the user): Extend downwind ⟷ U+27F7, Final ⇥ U+21E5,
+      Base conv. / Base close ⇲ U+21F2, Turn base ↪ U+21AA, High Key ⤒ U+2912, Hold at High Key ⬭ U+2B2D, Start SFO ↧
+      U+21A7, Wide circuit now ⏥ U+23E5, Split formation ⇶ U+21F6, Go around ⏫ U+23EB, Expedite taxi ↴ U+21B4, Breakout ↫
+      U+21AB. The others as in the mock-up: Downwind conv. / close ➝, Initial point ◎, Orbit left ↺, Orbit right ↻, Break
+      now ⤵, Change side ⇄, Remove aircraft ✕.
+
   - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
     formation)." The button keeps the name SPLIT.
 
