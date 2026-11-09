@@ -83,6 +83,14 @@ namespace ATCRoom.TwrTrainer
         public int MapTurn { get; set; }
         /// <summary>The instructor's VID on the network, typed (used when IVAO's list does not give it; the user, 7 Nov).</summary>
         public string InstructorVid { get; set; } = "";
+        /// <summary>My callsign (the user, 9 Nov): the student's in the log of the lesson when he is not connected to IVAO.</summary>
+        public string MyCallsign { get; set; } = "";
+        /// <summary>The student's map turned (as <see cref="MapTurn"/>; the user, 9 Nov).</summary>
+        public int StudentMapTurn { get; set; }
+        /// <summary>The student's IVAO traffic from his own Aurora (the student console linked to another PC; the user, 9 Nov).</summary>
+        public bool StudentIvao { get; set; }
+        /// <summary>The last lesson code written to join one.</summary>
+        public string LessonCode { get; set; } = "";
         /// <summary>The colours of the strips by kind of flight (names of StripColours; the user 6 Nov: white, yellow, pink).</summary>
         public string StripDeparture { get; set; } = "WHITE";
         public string StripArrival { get; set; } = "YELLOW";

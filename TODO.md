@@ -1137,6 +1137,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   VID for the log: connected to IVAO, from his Aurora and IVAO's list (as the instructor's); else those written in his
   Settings. Plus: "Join a lesson" with the code, the map sent in pieces (memory only), the photo of each second; the drop
   line of the strips; NORTH / RWY on the student's map.
+- **Group 2 (the user, 9 Nov: "ok procedi") — WRITTEN, to review, then the build:** LESSON on the bar of the map: START LESSON
+  (a code of 6 letters / digits, COPY CODE, the state: connecting, waiting for the student, sending the map, linked) or JOIN
+  with the code (this PC the student: the student console linked, the main window hidden until it is closed). `LessonLink.cs`
+  copied from AuroraPAR v2 Trainer (own channel "atcroom/twr/lesson/v1/", Logs\Link.log). `Lesson.cs`: the messages (the photo
+  of each second "snap" with the aerodrome, the traffic, the strips, the keys changed by UPDATE; the map "map" compressed in
+  pieces of 48 000 characters, sent every 250 ms until the student says he has it; the student's "s": his map, callsign, VID).
+  The student: IVAO from his own Aurora (IVAO on his bar), callsign / VID from IVAO when connected, else Settings › Network
+  (My callsign, My VID); in the instructor's log STUDENT with callsign and VID. NORTH / RWY on the student's map (kept).
+  Strips: the orange line where a dragged strip goes; the notes follow the plan when it starts (also on the student's side).
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 

@@ -358,6 +358,12 @@ namespace ATCRoom.TwrTrainer
             studentButton.Margin = new Thickness(12, 0, 0, 4);
             studentButton.ToolTip = "Opens the student console on this PC (a second window: put it on the second monitor). The student sees the traffic, the runway, the METAR and his strip bay; nothing of the instructor's commands.";
             bar.Children.Add(studentButton);
+            // (The user, 9 Nov: the lesson between two PCs, instructor or student.)
+            Button lessonButton = ActionButton("LESSON", OpenLessonWindow);
+            lessonButton.Margin = new Thickness(4, 0, 0, 4);
+            lessonButton.ToolTip = "A lesson between two PCs: start one (a code for the student), or join one as the student.";
+            bar.Children.Add(lessonButton);
+            lessonTimer.Tick += (_, _) => LessonTick();
             // (The user, 6 Nov: a photo of the map with its labels for the debriefing; also Ctrl+S and the middle mouse button.)
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
@@ -444,6 +450,7 @@ namespace ATCRoom.TwrTrainer
             Closing += (_, _) =>
             {
                 student?.Close();
+                StopLesson();
                 settings.Save();
                 timer.Stop();
                 networkTimer.Stop();
@@ -892,6 +899,19 @@ namespace ATCRoom.TwrTrainer
             Row("My VID", vidBox);
             vidBox.LostFocus += (_, _) => ApplyVid();
             vidBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyVid(); };
+            // (The user, 9 Nov: the student's callsign for the instructor's log when he is not connected to IVAO.)
+            TextBox callsignBox = new() { Width = 90, MaxLength = 10, CharacterCasing = CharacterCasing.Upper, Text = settings.MyCallsign };
+            callsignBox.ToolTip = "Your callsign: as the student of a lesson between two PCs, it goes in the instructor's log when you are not connected to IVAO (connected: Aurora's).";
+            Row("My callsign", callsignBox);
+            void ApplyCallsign()
+            {
+                string typed = callsignBox.Text.Trim().ToUpperInvariant();
+                if (typed == settings.MyCallsign) return;
+                settings.MyCallsign = typed;
+                settings.Save();
+            }
+            callsignBox.LostFocus += (_, _) => ApplyCallsign();
+            callsignBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyCallsign(); };
 
             current = Section("Weather", weatherSummary, false);
             Row("METAR", metarBox);
@@ -1438,7 +1458,7 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush LitBack = new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A));
         private static readonly Brush LitText = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x2A));
 
-        private static Button ActionButton(string text, Action action)
+        internal static Button ActionButton(string text, Action action)
         {
             Button button = new()
             {
@@ -2746,6 +2766,8 @@ namespace ATCRoom.TwrTrainer
                 // UPDATE: the plan changed in place, in the same place of the list.
                 // (The student's notes on its strip follow the plan changed, the review of 6 Nov.)
                 stripBay.Rekey(plans[at], plan);
+                student?.Bay.Rekey(plans[at], plan);
+                lessonRekeys.Add((StripBay.KeyText(plans[at]), StripBay.KeyText(plan), engine.Time + 10));
                 plans[at] = plan;
                 Say($"{PlanText(plan)}: changed.", Area.Traffic);
             }
@@ -3412,7 +3434,7 @@ namespace ATCRoom.TwrTrainer
                     {
                         // (A formation not split yet: one strip, F2, F3..., the review of 6 Nov.)
                         int count = engine.Get(member)?.Formation?.Count ?? 1;
-                        contact.Add(new StripData(member, count > 1 ? $"{member} F{count}" : member, type, p.Ifr, kind, entry, altitude));
+                        contact.Add(new StripData(member, count > 1 ? $"{member} F{count}" : member, type, p.Ifr, kind, entry, altitude, p));
                     }
                     continue;
                 }
@@ -3447,44 +3469,37 @@ namespace ATCRoom.TwrTrainer
                 student.Activate();
                 return;
             }
-            settings.Parts ??= [];
-            // (Its strip bay floating on the right by default.)
-            if (!settings.Parts.TryGetValue("Student strip bay", out PartPlacement? place))
-                settings.Parts["Student strip bay"] = place = new PartPlacement { Floating = true, Width = 280, Height = 520, Left = 5000, Top = 60 };
-            student = new StudentWindow(place, settings.Save, StripBrush);
+            student = new StudentWindow(settings, StripBrush);
             student.Closed += (_, _) => student = null;
             student.Show();
             FeedStudent();
         }
 
-        /// <summary>
-        /// Each second: the photo of the lesson for the student (the user, 6 and 9 Nov): the traffic with its ICAO type and
-        /// flight rules, IVAO's, the runway, UTC time, the METAR and the strips; the map when another one is opened.
-        /// </summary>
-        private void FeedStudent()
+        /// <summary>The aerodrome for the student's map: the map (its id), the plane, the runway, gates, exits, helipads, categories.</summary>
+        private LessonAerodrome LessonAerodromeNow(string mapId) => new()
         {
-            if (student == null) return;
-            TowerView sv = student.View;
-            if (!ReferenceEquals(student.MapShown, airfield.Map) || !sv.Course.Equals(view.Course) || sv.ElevationFt != view.ElevationFt)
-            {
-                student.MapShown = airfield.Map;
-                sv.Course = view.Course;
-                sv.LengthNM = view.LengthNM;
-                sv.ElevationFt = view.ElevationFt;
-                sv.SetMap(airfield.Map, airfield.Plane);
-                sv.ShowLevel(1);
-            }
-            sv.Qfe = view.Qfe;
-            sv.CentrelineNM = view.CentrelineNM;
-            sv.LongFinalNM = view.LongFinalNM;
-            sv.Gates = view.Gates;
-            sv.Exits = view.Exits;
-            sv.Helipads = view.Helipads;
-            if (!sv.CategoriesOn.SetEquals(view.CategoriesOn))
-            {
-                sv.CategoriesOn.Clear();
-                sv.CategoriesOn.UnionWith(view.CategoriesOn);
-            }
+            MapId = mapId,
+            Latitude = airfield.Plane.Latitude,
+            Longitude = airfield.Plane.Longitude,
+            Heading = airfield.Plane.Heading,
+            Course = view.Course,
+            Length = view.LengthNM,
+            Elevation = view.ElevationFt,
+            Qfe = view.Qfe,
+            Centreline = view.CentrelineNM,
+            LongFinal = view.LongFinalNM,
+            Gates = view.Gates.Select(g => new LessonPoint(g.Name, g.X, g.Y)).ToList(),
+            Exits = view.Exits.Select(g => new LessonPoint(g.Name, g.X, g.Y)).ToList(),
+            Helipads = view.Helipads.Select(g => new LessonPoint(g.Name, g.X, g.Y)).ToList(),
+            Categories = view.CategoriesOn.ToList()
+        };
+
+        /// <summary>
+        /// The photo of the lesson now (the user, 6 and 9 Nov): the traffic with its ICAO type and flight rules, IVAO's, the
+        /// runway, UTC time, the METAR and the strips (of the last second).
+        /// </summary>
+        private LessonSnapshot LessonSnapshotNow()
+        {
             List<StudentTarget> targets = [];
             foreach (AircraftState a in view.Traffic)
             {
@@ -3494,8 +3509,222 @@ namespace ATCRoom.TwrTrainer
                 targets.Add(new StudentTarget(a.Callsign, type, plan?.Ifr == true, a.X, a.Y, a.AltitudeFt, a.GroundSpeedKt, a.TrackTrue,
                     a.Contact != GroundContact.Airborne, a.PerformanceClass.Equals("Helicopter", StringComparison.OrdinalIgnoreCase), a.Formation?.Count ?? 1));
             }
-            student.Show(new LessonSnapshot(engine.Time, DateTime.UtcNow, engine.Paused, airfield.Code, airfield.Runway?.Runway ?? "", settings.Metar,
-                targets, view.Network, lastCoordination, lastContact));
+            return new LessonSnapshot(engine.Time, DateTime.UtcNow, engine.Paused, airfield.Code, airfield.Runway?.Runway ?? "", settings.Metar,
+                targets, view.Network, lastCoordination, lastContact);
+        }
+
+        /// <summary>Each second: the photo of the lesson for the student console on this PC; the map when another one is opened.</summary>
+        private void FeedStudent()
+        {
+            if (student == null) return;
+            student.SetAerodrome(LessonAerodromeNow(airfield.Map != null ? StripBay.KeyText(airfield.Map) : ""), airfield.Map, airfield.Plane);
+            student.Show(LessonSnapshotNow());
+        }
+
+        // ----- The lesson between two PCs (the user, 6 and 9 Nov) ------------------------------------------------------
+
+        private LessonLink? lesson;
+        private readonly DispatcherTimer lessonTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+        private int lessonTicks, pieceNext;
+        private object? packedMap;
+        private (string Id, List<string> Pieces)? mapPack;
+        /// <summary>What the student says (each second): the map he has, his callsign and VID.</summary>
+        private string studentMap = "", studentCallsign = "", studentVid = "";
+        /// <summary>Strips whose plan changed (UPDATE) a moment ago: the student's notes follow them (old key, new key, until).</summary>
+        private readonly List<(string Old, string New, double Until)> lessonRekeys = [];
+        private Window? lessonWindow;
+
+        /// <summary>A lesson code: 6 letters and digits easy to read aloud (no O / 0, I / 1).</summary>
+        private static string NewLessonCode()
+        {
+            const string letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            return new string(Enumerable.Range(0, 6).Select(_ => letters[System.Security.Cryptography.RandomNumberGenerator.GetInt32(letters.Length)]).ToArray());
+        }
+
+        private void StartLesson()
+        {
+            if (lesson != null) return;
+            lesson = new LessonLink(LessonRole.Instructor, NewLessonCode());
+            lesson.Received += json => Dispatcher.BeginInvoke(() => FromStudent(json));
+            studentMap = studentCallsign = studentVid = "";
+            lessonTicks = 0;
+            lessonTimer.Start();
+            flightLog.Event(engine.Time, "LESSON", detail: $"started, code {lesson.Code}", source: "INSTRUCTOR");
+        }
+
+        private void StopLesson()
+        {
+            if (lesson == null) return;
+            lessonTimer.Stop();
+            lesson.Dispose();
+            lesson = null;
+            flightLog.Event(engine.Time, "LESSON", detail: "ended", source: "INSTRUCTOR");
+        }
+
+        /// <summary>Every 250 ms: the photo of the lesson each second; meanwhile the pieces of the map until the student has it.</summary>
+        private void LessonTick()
+        {
+            if (lesson == null) return;
+            if (!ReferenceEquals(packedMap, airfield.Map))
+            {
+                packedMap = airfield.Map;
+                mapPack = airfield.Map != null ? LessonMessages.Pack(airfield.Map) : null;
+                pieceNext = 0;
+            }
+            if (++lessonTicks % 4 == 0)
+            {
+                LessonSnapshot s = LessonSnapshotNow();
+                lessonRekeys.RemoveAll(r => r.Until < engine.Time || r.Until > engine.Time + 30);
+                lesson.Send(LessonMessages.Write(new InstructorMessage
+                {
+                    Time = s.Time,
+                    Utc = s.Utc,
+                    Paused = s.Paused,
+                    Aerodrome = s.Aerodrome,
+                    Runway = s.Runway,
+                    Metar = s.Metar,
+                    Ad = LessonAerodromeNow(mapPack?.Id ?? ""),
+                    Traffic = s.Traffic.ToList(),
+                    Coordination = s.Coordination.Select(LessonMessages.ToLink).ToList(),
+                    Contact = s.Contact.Select(LessonMessages.ToLink).ToList(),
+                    Rekeys = lessonRekeys.Select(r => new[] { r.Old, r.New }).ToList()
+                }));
+                return;
+            }
+            if (mapPack is (string id, List<string> pieces) && studentMap != id && lesson.OtherPresent)
+            {
+                int index = pieceNext++ % pieces.Count;
+                lesson.Send(LessonMessages.Write(new MapPiece { Id = id, Index = index, Count = pieces.Count, Data = pieces[index] }));
+            }
+        }
+
+        /// <summary>The student's message: the map he has; his callsign and VID in the log when they change.</summary>
+        private void FromStudent(string json)
+        {
+            if (lesson == null || LessonMessages.KindOf(json) != "s" || LessonMessages.Read<StudentMessage>(json) is not StudentMessage message) return;
+            studentMap = message.Map ?? "";
+            string callsign = (message.Callsign ?? "").Trim().ToUpperInvariant(), vid = (message.Vid ?? "").Trim();
+            if (callsign == studentCallsign && vid == studentVid) return;
+            studentCallsign = callsign;
+            studentVid = vid;
+            flightLog.StudentCallsign = callsign;
+            flightLog.StudentVid = vid;
+            flightLog.Event(engine.Time, "STUDENT", callsign, vid.Length > 0 ? $"VID {vid}" : "", source: "STUDENT");
+        }
+
+        /// <summary>
+        /// LESSON on the bar (the user, 9 Nov): a lesson between two PCs. This PC as the instructor (a code to give to the
+        /// student), or as the student (the code of the instructor: the student console, this window hidden meanwhile).
+        /// </summary>
+        private void OpenLessonWindow()
+        {
+            if (lessonWindow is { IsVisible: true })
+            {
+                lessonWindow.Activate();
+                return;
+            }
+            StackPanel inside = new() { Margin = new Thickness(16), Width = 420 };
+            TextBlock Text(string text, double size = 12, bool bold = false) => new()
+            {
+                Text = text, Foreground = TextBrush, FontSize = size, FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6)
+            };
+            inside.Children.Add(Text("Instructor (this PC flies the aircraft)", 14, true));
+            inside.Children.Add(Text("Start the lesson and give its code to the student. The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees each second. Nothing to install, no ports: public relays on the internet."));
+            TextBlock code = Text("", 26, true);
+            TextBlock state = Text("");
+            Button startButton = ActionButton("START LESSON", () => { });
+            Button copyButton = ActionButton("COPY CODE", () =>
+            {
+                try
+                {
+                    if (lesson != null) Clipboard.SetText(lesson.Code);
+                }
+                catch (System.Runtime.InteropServices.ExternalException)
+                {
+                    // (The clipboard busy: the code is on the screen anyway.)
+                }
+            });
+            StackPanel instructorRow = new() { Orientation = Orientation.Horizontal };
+            instructorRow.Children.Add(startButton);
+            instructorRow.Children.Add(copyButton);
+            inside.Children.Add(instructorRow);
+            inside.Children.Add(code);
+            inside.Children.Add(state);
+            inside.Children.Add(Text("Student (this PC shows the student console)", 14, true));
+            inside.Children.Add(Text("Write the code of the instructor and JOIN: the student console opens (this window is hidden until it is closed). IVAO's traffic: from your own Aurora (IVAO on its bar). Your callsign and VID for the instructor's log: from IVAO when connected, else Settings › Network."));
+            TextBox codeBox = new() { Width = 120, MaxLength = 12, CharacterCasing = CharacterCasing.Upper, Text = settings.LessonCode, FontSize = 16, Margin = new Thickness(0, 0, 8, 4) };
+            Button joinButton = ActionButton("JOIN", () => { });
+            StackPanel studentRow = new() { Orientation = Orientation.Horizontal };
+            studentRow.Children.Add(codeBox);
+            studentRow.Children.Add(joinButton);
+            inside.Children.Add(studentRow);
+            TextBlock joinSay = Text("");
+            inside.Children.Add(joinSay);
+            Window window = lessonWindow = new()
+            {
+                Title = "TWR Trainer - lesson between two PCs",
+                Owner = this,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = Theme.Panel,
+                Content = inside
+            };
+            void Refresh()
+            {
+                startButton.Content = lesson == null ? "START LESSON" : "STOP LESSON";
+                copyButton.IsEnabled = lesson != null;
+                code.Text = lesson != null ? $"Code: {lesson.Code}" : "";
+                state.Text = lesson == null ? ""
+                    : !lesson.Connected ? "Connecting to the relay..."
+                    : !lesson.OtherPresent ? "Waiting for the student..."
+                    : mapPack is (string id, List<string> pieces) && studentMap != id ? $"● Student linked{(studentCallsign.Length > 0 ? $" ({studentCallsign})" : "")}: sending the map ({pieces.Count} pieces)..."
+                    : $"● Student linked{(studentCallsign.Length > 0 ? $" ({studentCallsign})" : "")}.";
+            }
+            startButton.Click += (_, _) =>
+            {
+                if (lesson == null) StartLesson(); else StopLesson();
+                Refresh();
+            };
+            joinButton.Click += (_, _) =>
+            {
+                string typed = new string((codeBox.Text ?? "").ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
+                if (typed.Length < 4)
+                {
+                    joinSay.Text = "Write the code of the lesson (6 letters and digits, from the instructor).";
+                    return;
+                }
+                if (lesson != null)
+                {
+                    joinSay.Text = "This PC is the instructor of a lesson: stop it first.";
+                    return;
+                }
+                settings.LessonCode = typed;
+                settings.Save();
+                window.Close();
+                JoinLesson(typed);
+            };
+            DispatcherTimer refresh = new() { Interval = TimeSpan.FromSeconds(1) };
+            refresh.Tick += (_, _) => Refresh();
+            window.Closed += (_, _) => refresh.Stop();
+            Refresh();
+            refresh.Start();
+            window.Show();
+        }
+
+        /// <summary>This PC as the student of a lesson: the student console linked to the instructor's PC; this window hidden meanwhile.</summary>
+        private void JoinLesson(string code)
+        {
+            student?.Close();
+            StudentWindow remote = new(settings, StripBrush, new LessonLink(LessonRole.Student, code), appVersion);
+            remote.Closed += (_, _) =>
+            {
+                Show();
+                Activate();
+            };
+            remote.Show();
+            Hide();
         }
 
         /// <summary>Where a plan waiting will start (the plane, NM), and whether on the ground; null when not known (no runway, no gate).</summary>

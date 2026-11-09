@@ -12,7 +12,8 @@ namespace ATCRoom.TwrTrainer
     /// What a strip shows (the user, 6 Nov): line 1 callsign, ICAO type, rules V / I, entry (gate, LF, RWY...; the exit of a
     /// departure) and altitude in hundreds of feet. <see cref="Key"/>: the plan (Coordination) or the callsign (In contact).
     /// </summary>
-    internal sealed record StripData(object Key, string Callsign, string Type, bool Ifr, StripKind Kind, string Entry, string Altitude);
+    /// <param name="From">The key of the plan whose aircraft this is (its notes and its place go with it when it starts), or null.</param>
+    internal sealed record StripData(object Key, string Callsign, string Type, bool Ifr, StripKind Kind, string Entry, string Altitude, object? From = null);
 
     /// <summary>
     /// The strip bay (the user, 6 Nov; here on the instructor's screen to see how it behaves, then the student's): two sections,
@@ -99,6 +100,9 @@ namespace ATCRoom.TwrTrainer
         {
             waiting = coordinationStrips.ToList();
             flying = contactStrips.ToList();
+            // (A plan started: its notes and its place go to its aircraft, the first one of a formation.)
+            foreach (StripData strip in flying)
+                if (strip.From != null && !order.Any(key => Equals(key, strip.Key)) && order.Any(key => Equals(key, strip.From))) Rekey(strip.From, strip.Key);
             // (The notes of strips gone are forgotten, and their places.)
             foreach (object key in notes.Keys.ToList())
                 if (!waiting.Any(s => Equals(s.Key, key)) && !flying.Any(s => Equals(s.Key, key))) notes.Remove(key);
@@ -159,7 +163,7 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>A key as text: the callsign, or the plan itself (not its content: two plans alike are two strips).</summary>
-        private static string KeyText(object key) => key is string text ? text : $"#{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(key)}";
+        public static string KeyText(object key) => key is string text ? text : $"#{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(key)}";
 
         /// <summary>All that is drawn, as text: drawn again only when it changes.</summary>
         private string Text() =>
@@ -190,7 +194,9 @@ namespace ATCRoom.TwrTrainer
             foreach (StripData strip in strips) into.Children.Add(Strip(strip, faint));
         }
 
-        private Border Strip(StripData strip, bool faint)
+        private static readonly Brush DropLine = Frozen(Color.FromRgb(0xF0, 0x7A, 0x1E));
+
+        private Grid Strip(StripData strip, bool faint)
         {
             bool isChosen = Equals(strip.Key, chosen);
             Grid first = new();
@@ -287,13 +293,25 @@ namespace ATCRoom.TwrTrainer
                 }
                 if (Text() != shown) Draw();
             };
+            // (Where it will go, the user 9 Nov: an orange line above or below the strip under the mouse; none where it cannot.)
+            System.Windows.Shapes.Rectangle above = Line(VerticalAlignment.Top), below = Line(VerticalAlignment.Bottom);
+            void ShowLine(bool? after)
+            {
+                above.Visibility = after == false ? Visibility.Visible : Visibility.Hidden;
+                below.Visibility = after == true ? Visibility.Visible : Visibility.Hidden;
+            }
             border.DragOver += (_, e) =>
             {
-                e.Effects = e.Data.GetData(typeof(Moving)) is Moving m && SameSection(m.Key, strip.Key) ? DragDropEffects.Move : DragDropEffects.None;
+                bool allowed = e.Data.GetData(typeof(Moving)) is Moving m && SameSection(m.Key, strip.Key);
+                e.Effects = allowed ? DragDropEffects.Move : DragDropEffects.None;
+                bool own = e.Data.GetData(typeof(Moving)) is Moving self && Equals(self.Key, strip.Key);
+                ShowLine(allowed && !own ? e.GetPosition(border).Y > border.ActualHeight / 2 : null);
                 e.Handled = true;
             };
+            border.DragLeave += (_, _) => ShowLine(null);
             border.Drop += (_, e) =>
             {
+                ShowLine(null);
                 if (e.Data.GetData(typeof(Moving)) is Moving m)
                 {
                     bool after = e.GetPosition(border).Y > border.ActualHeight / 2;
@@ -308,8 +326,23 @@ namespace ATCRoom.TwrTrainer
                 chosen = Equals(chosen, strip.Key) ? null : strip.Key;
                 Draw();
             };
-            return border;
+            Grid holder = new();
+            holder.Children.Add(border);
+            holder.Children.Add(above);
+            holder.Children.Add(below);
+            return holder;
         }
+
+        /// <summary>The line where a dragged strip will go, on the top or the bottom edge of a strip; hidden at first.</summary>
+        private static System.Windows.Shapes.Rectangle Line(VerticalAlignment edge) => new()
+        {
+            Height = 3,
+            Fill = DropLine,
+            VerticalAlignment = edge,
+            Margin = edge == VerticalAlignment.Top ? new Thickness(0, -2, 0, 0) : new Thickness(0, 0, 0, 0),
+            IsHitTestVisible = false,
+            Visibility = Visibility.Hidden
+        };
 
         /// <summary>The left edge of a strip: its colour, darker.</summary>
         private static Brush Darker(Brush brush)

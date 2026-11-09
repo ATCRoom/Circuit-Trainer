@@ -27,4 +27,9 @@
     <ProjectReference Include="..\MapCreator\Core\ATCRoom.Maps.csproj" />
   </ItemGroup>
 
+  <!-- The lesson between two PCs (the user, 9 Nov): the public MQTT relays, as AuroraPAR v2 Trainer. -->
+  <ItemGroup>
+    <PackageReference Include="MQTTnet" Version="4.3.7.1207" />
+  </ItemGroup>
+
 </Project>
