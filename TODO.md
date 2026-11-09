@@ -1129,7 +1129,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (both bays), strips dragged to change their place inside their section. Not yet: IVAO strips (moved to In contact by hand),
   turning the student's map (NORTH / RWY).
 - **Tests of group 1 (the user, 9 Nov): 1-4, 6, 8 OK.** 5/7: while dragging a strip, a coloured line shows where it will go
-  (above or below the strip under the mouse; none where it cannot go) — proposed, waiting for the go.
+  (above or below the strip under the mouse; none where it cannot go) — DECIDED (the user: "prossimo gruppo"), with the link.
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
 
