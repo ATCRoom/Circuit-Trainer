@@ -944,6 +944,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     formation)." The button keeps the name SPLIT.
 
 - **Next group (the user, 9 Nov afternoon) — TO DO, no build yet:**
+  - **SFO climbing / on hold: its circle drawn** (the user, 9 Nov: "solo il primo"): while it climbs on the circle of the
+    High Key or holds there (no route then, so nothing was drawn), the selected aircraft shows that circle dashed as the
+    other ways, with a mark on the High Key point. Not the SFO pattern ahead (only after START SFO, as now).
   - **WIDE NOW grey on the final and rolling** (the user: "A"): there it only became the next circuit, after a touch and
     go or go-around, never flown with F/S (from LONG FINAL it looked dead). For the WIDE after the final: Pattern → Wide
     circuit; at once: G/A, then WIDE NOW. The same on the label and the panel.
