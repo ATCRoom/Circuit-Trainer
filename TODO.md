@@ -899,6 +899,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     within a small distance of the track until the High Key, then the hold within 0.2 NM of the circle, the climb never
     turning back, the final aligned.
 
+- **Next group (the user, 9 Nov) — TO DO, no build yet:**
+  - **BREAKUP → BREAKOUT** (the phraseology of an urgent exit from the approach / circuit; "break-up" is the splitting of
+    a formation): button, label, tooltip, log, F12 list, the right-click menu; key Shift+U as now.
+  - **SPLIT tooltip:** "Formation break-up: each aircraft on its own, one interval after the other (the interval of the
+    formation)." The button keeps the name SPLIT.
+
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
