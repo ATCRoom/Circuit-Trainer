@@ -1611,7 +1611,8 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         List<List<AircraftState>> all = FlyAll(sim, 900, (t, now) =>
         {
             if (now.Count == 1 && now[0].Formation?.Count == 4) alone++;
-            if (now.Count == 1 && now[0].Leg == "INITIAL" && now[0].SplitAllowed) splitEarly = true;
+            // (SPLIT by command is allowed always now, the user 8 Nov: by itself it still splits only at the break.)
+            if (now.Count == 1 && now[0].Leg == "INITIAL" && !now[0].SplitAllowed) splitEarly = true;
             foreach (AircraftState st in now)
             {
                 if (!brokeAt.ContainsKey(st.Callsign) && Math.Abs(SimEngine.Wrap(st.HeadingTrue - CircuitCourse)) > 30) brokeAt[st.Callsign] = t;
