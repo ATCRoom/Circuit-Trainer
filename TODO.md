@@ -1153,6 +1153,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   no trainer and no map). Steps: (1) the common format, recording in TWR Trainer, Replay with the top view; (2) recording in
   AuroraPAR v2 Trainer (its RDR seen at once in the top view); (3) the PAR view in Replay. Before the code: a mock-up of the
   player. The IVAO strips (B) stay in TWR Trainer, apart.
+- **The student's display every half second (the user, 10 Nov: "ok va bene") — next group of TWR:** the photo of the lesson
+  every 0.5 s (as AuroraPAR v2 Trainer), on the same PC and between two PCs; the pieces of the map inside the photo (as
+  AuroraPAR: the map as fast as now); the recording for ATCRoom Replay at one photo a second anyway (both programs).
 - **The log for AuroraPAR v2 Trainer too (the user, 9 Nov: to make the two programs alike)** — to design with the user.
 - **Order of work:** (1) log, (2) recording + player on one PC, (3) student console as a second window, (4) link between two PCs.
   The new fields (rules, ICAO type) first, they go in all of them.
