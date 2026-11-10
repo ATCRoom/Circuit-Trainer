@@ -1172,6 +1172,12 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   with the code; Windows asks the instructor to allow it in the firewall (in the guide); works also on the same home
   network. docs/VPN.md (AuroraPAR, draft of 12 Oct) completed, and the same page for TWR Trainer. The user will test it with
   a friend on a VPN.
+- **IDEA (the user, 10 Nov): a flight simulator linked straight to the trainers, without IVAO** (a friend flies MSFS / X-Plane /
+  P3D, the controller guides him on the PAR or from the tower). Proposed shape: ONE small external program on the pilot's
+  PC (e.g. "ATCRoom Pilot Link", its own download as Map Creator and Replay): it reads position, altitude, speed and heading
+  from the simulator (SimConnect for MSFS / P3D, the UDP data of X-Plane) and sends them on the same lesson link (code,
+  relays or VPN, encrypted); AuroraPAR v2 Trainer and TWR Trainer show it as one more aircraft (a "live" one, not commanded
+  by the instructor). Not started: to plan after the publication.
 - **Group B (the user, 10 Nov: "si"):** the speed of the simulation x1 / x2 / x4 only in Settings (no more on the bar), as
   AuroraPAR v2 Trainer: only for tests, only outside a session (START SESSION back to x1, locked until END SESSION).
 - **The student's display every half second (the user, 10 Nov: "ok va bene") — next group of TWR:** the photo of the lesson
