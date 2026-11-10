@@ -1165,6 +1165,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   RESUME ALL); (12) F12 with the list of the keys in AuroraPAR too (the keys to assign stay); (13) one step for the rate
   ▲ / ▼ (the one of Keys…); (14) the same colours for the urgent commands — mock-up shown (STOP of the rate orange as STOP
   TURN), waiting for the answer; (15) the labels stay different (different commands).
+- **Backup link through a VPN or the home network (the user, 10 Nov: "si perfetto") — in group B (TWR) and in the next
+  AuroraPAR group, shared code:** in the lesson window the kind of link: **Internet relays** (default, as now) or **Direct
+  (VPN or LAN)**: the instructor's program runs its own small relay on a fixed port (MQTTnet, already used), the window shows
+  his IP address (Hamachi 25.x, Radmin 26.x...); the student writes that IP and the code, JOIN; the same messages, encrypted
+  with the code; Windows asks the instructor to allow it in the firewall (in the guide); works also on the same home
+  network. docs/VPN.md (AuroraPAR, draft of 12 Oct) completed, and the same page for TWR Trainer. The user will test it with
+  a friend on a VPN.
 - **Group B (the user, 10 Nov: "si"):** the speed of the simulation x1 / x2 / x4 only in Settings (no more on the bar), as
   AuroraPAR v2 Trainer: only for tests, only outside a session (START SESSION back to x1, locked until END SESSION).
 - **The student's display every half second (the user, 10 Nov: "ok va bene") — next group of TWR:** the photo of the lesson
