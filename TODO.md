@@ -776,6 +776,15 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   only); the PNGs are the instructor's view (the player of the student shows the marks, not the pictures).
 
 ## Next group (local commits, with the next build)
+- **New name: ATCRoom Circuit Trainer (the user, 12 Nov: "si, come hai detto tu va bene"; "fai la cosa semplice. posso rifarle"):**
+  the program has no ground part, so "TWR" no longer fits. Full name "ATCRoom Circuit Trainer", the window title "Circuit Trainer".
+  To do in the build: every visible text (titles, messages, README, `docs/`, TODO), the file names (`CircuitTrainer.csproj`,
+  the executable, the icon, `CircuitTrainer.settings.json`), the user agent, `build.yml`, the "Scenario of ..." text, the
+  Map Creator's portable marker (`MapCreator/App/MainWindow.cs`, so the next copy to ATCRoom/MapCreator carries it), the
+  three CLAUDE.md. NO migration of the old settings: the new program starts from empty ones. Left as they are: the
+  namespace `ATCRoom.TwrTrainer`, the lesson channel `atcroom/twr/lesson/v1`, "TWR" where it means the tower role.
+  The repository (ATCRoom/TWR-Trainer -> ATCRoom/Circuit-Trainer) is renamed by the user on GitHub after the build is green.
+  NOTED (not written yet: waiting for the go).
 - **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;
   a name in the middle of a row is now against the field after it (right-aligned in its place). WRITTEN.
 
