@@ -210,7 +210,7 @@ namespace ATCRoom.TwrTrainer
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public string Description { get; set; } = "Scenario of TWR Trainer: flight plans from entry gates into the circuits.";
+        public string Description { get; set; } = "Scenario of Circuit Trainer: flight plans from entry gates into the circuits.";
         public string Airport { get; set; } = "";
         public string Runway { get; set; } = "";
         public List<TowerPlan> Plans { get; set; } = [];
@@ -238,7 +238,7 @@ namespace ATCRoom.TwrTrainer
             }
             catch (JsonException ex)
             {
-                throw new InvalidDataException($"Not a scenario of TWR Trainer ({ex.Message}).", ex);
+                throw new InvalidDataException($"Not a scenario of Circuit Trainer ({ex.Message}).", ex);
             }
         }
 

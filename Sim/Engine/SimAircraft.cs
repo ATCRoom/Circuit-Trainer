@@ -102,7 +102,7 @@ namespace ATCRoom.Sim
         bool RouteAltitude = false,
         bool RouteSpeed = false,
         NavigationMode Navigation = NavigationMode.Manual,
-        // The circuit (TWR Trainer; null: not in a circuit), its side, what it does at the end of the final, and the leg
+        // The circuit (Circuit Trainer; null: not in a circuit), its side, what it does at the end of the final, and the leg
         // now (UPWIND, CROSSWIND, DOWNWIND, BASE, FINAL, INITIAL, JOIN, ORBIT, GO AROUND, ROLL, LANDED, DEPARTURE; MANUAL: the instructor flies it).
         CircuitType? Circuit = null,
         CircuitSide CircuitSide = CircuitSide.Left,

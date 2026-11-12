@@ -1,6 +1,6 @@
-# Regole di lavoro per TWR Trainer
+# Regole di lavoro per Circuit Trainer
 
-Progetto: **TWR Trainer** (nome provvisorio), simulatore di circuito per la torre, istruttore / studente (C# .NET 9 WPF),
+Progetto: **Circuit Trainer** (ATCRoom Circuit Trainer), simulatore di circuito per la torre, istruttore / studente (C# .NET 9 WPF),
 repository **ATCRoom/TWR-Trainer**. Le cose da fare, le idee e le decisioni sono in `TODO.md`.
 Progetto fratello: **ATCRoom/AuroraPAR-v2** (AuroraPAR v2 e AuroraPAR v2 Trainer), da cui viene il codice di partenza.
 

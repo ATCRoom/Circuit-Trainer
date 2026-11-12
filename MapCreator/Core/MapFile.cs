@@ -10,7 +10,7 @@ namespace ATCRoom.Maps
     /// lines and labels (version 1). Version 3 adds the block "Ground" (the ground layout of the aerodrome: areas, lines,
     /// labels): in memory its items are in <see cref="Lines"/> and <see cref="Labels"/> with their ground categories like
     /// all the others; only the file keeps them apart, so the programs made before version 3 do not see them and cannot
-    /// spoil them. Written by ATCRoom Map Creator, read by AuroraPAR v2 Trainer and TWR Trainer. Coordinates are latitude
+    /// spoil them. Written by ATCRoom Map Creator, read by AuroraPAR v2 Trainer and Circuit Trainer. Coordinates are latitude
     /// and longitude in degrees (WGS 84, north and east positive). Nothing a program does not know is lost: unknown
     /// fields and categories are kept as they are.
     /// </summary>

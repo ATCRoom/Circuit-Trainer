@@ -17,7 +17,7 @@ namespace ATCRoom.MapCreator
     /// <summary>
     /// The window of ATCRoom Map Creator: drop many files (or a folder) at once, see them all together on one picture,
     /// choose for each part the category it goes into, cut a circle around the airport and save the map of that airport
-    /// into the maps folder shared by the programs (AuroraPAR v2 Trainer, TWR Trainer): one file per airport, the
+    /// into the maps folder shared by the programs (AuroraPAR v2 Trainer, Circuit Trainer): one file per airport, the
     /// categories of other imports are kept.
     /// </summary>
     internal sealed class MainWindow : Window
@@ -222,12 +222,12 @@ namespace ATCRoom.MapCreator
         }
 
         /// <summary>The settings files of the programs that use the maps: one of them beside this program = portable mode.</summary>
-        private static readonly string[] PortableMarkers = ["AuroraPARTrainer.settings.json", "TWRTrainer.settings.json"];
+        private static readonly string[] PortableMarkers = ["AuroraPARTrainer.settings.json", "CircuitTrainer.settings.json"];
 
         private static bool Portable => PortableMarkers.Any(m => File.Exists(IoPath.Combine(AppContext.BaseDirectory, m)));
 
         /// <summary>
-        /// The maps folder shared by the programs (AuroraPAR v2 Trainer, TWR Trainer): %AppData%\ATCRoom\Maps, or the Maps
+        /// The maps folder shared by the programs (AuroraPAR v2 Trainer, Circuit Trainer): %AppData%\ATCRoom\Maps, or the Maps
         /// folder beside this program when a program is portable here (its settings file next to this program).
         /// </summary>
         private static string MapsFolder =>

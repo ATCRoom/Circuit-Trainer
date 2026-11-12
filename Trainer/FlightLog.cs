@@ -80,7 +80,7 @@ namespace ATCRoom.TwrTrainer
                     fileName = Path.Combine(Paths.LogsFolder, $"Log_{DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture)}.csv");
                     writer = new StreamWriter(fileName, false, new UTF8Encoding(true)) { AutoFlush = true };
                     writer.WriteLine("sep=;");
-                    writer.WriteLine("TWR Trainer;log of the flights");
+                    writer.WriteLine("Circuit Trainer;log of the flights");
                     writer.WriteLine($"Aerodrome;{Field(Aerodrome)}");
                     writer.WriteLine($"Runway;{Field(Runway)}");
                     writer.WriteLine($"Session started (UTC);{DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}");

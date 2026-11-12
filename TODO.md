@@ -1,6 +1,6 @@
-# TWR Trainer — to do
+# Circuit Trainer — to do
 
-Tower circuit simulator (instructor / student). Name provisional: **TWR Trainer** (other candidate: Circuit Trainer).
+Tower circuit simulator (instructor / student). Name provisional: **Circuit Trainer** (other candidate: Circuit Trainer).
 Repository **ATCRoom/TWR-Trainer** (own repository, option B, decided 2 Nov 2026). Work rules in `CLAUDE.md`.
 
 ## Status
@@ -9,7 +9,7 @@ Repository **ATCRoom/TWR-Trainer** (own repository, option B, decided 2 Nov 2026
   commit `408abbb` (without history): the engine `Sim/Engine` + `Sim/SelfTest` with `Earth.cs`, the maps library
   `MapCreator/Core`, ATCRoom Map Creator `MapCreator/App`, `MapCreator/SelfTest`, `docs/MAP-FORMAT.md`, `LICENSE`
   (MIT of the original author, kept). Workflow: builds, the two self-tests, Map Creator as an artifact; no release yet.
-  The TWR Trainer program itself is not there yet. Next: the ground layout in the map format and the Map Creator
+  The Circuit Trainer program itself is not there yet. Next: the ground layout in the map format and the Map Creator
   (see the decisions below), then the engine (circuits), then the program.
 - **Fixed rule (decision 2 Nov): the home of ATCRoom Map Creator and of the maps library is THIS repository.** Before
   every new release of AuroraPAR v2 Trainer (ATCRoom/AuroraPAR-v2), copy `MapCreator/` from here into AuroraPAR-v2.
@@ -136,7 +136,7 @@ Two files for the same aerodrome, made by the user (same data in two forms):
 - **1b: ONE Map Creator (one source)** (CHANGED 9 Nov, the user: a SEPARATE download, its releases in a new repository ATCRoom/MapCreator; not in the zips any more), (Trainer and tower). The Trainer 1.0.0 stays as it is: no new Trainer release now; the new things of the Map Creator (ground, common maps folder) reach the Trainer with its next release. **Before the first tower release:** a Map Creator must never lose what it does not know: when it opens a map of a newer format or with unknown categories / elements, it keeps them on save (or refuses to overwrite the file with a clear message), because two copies of different versions may be on the same PC and both use the common maps folder.
 - **2c: the code stays in ATCRoom/AuroraPAR-v2; the releases of the tower are published by the CI in a separate repository of ATCRoom used only for the downloads** (so the update check of the installed AuroraPAR v2 2.0.0-2.0.2, which skips only `trainer-` tags, never sees them). To prepare before the first tower release: the downloads repository (name with the program name), a token in the Secrets of AuroraPAR-v2 that can publish there (to renew; the user creates it), the tower's own update check looking at that repository, the site page. The issues of the users will arrive on the downloads repository.
 
-**DECIDED 2 Nov 10:40 (the user), replaces 2c above: option B, its own repository.** No token, no downloads repository, no change to the update check of AuroraPAR v2. **Name (provisional): "TWR Trainer"** (the other candidate was "Circuit Trainer"); repository proposed `ATCRoom/TWR-Trainer`, created empty by the user (Claude cannot create repositories). Layout: copies of the engine (`Sim/Engine` + self-test, will diverge for the tower), of the maps library and the Map Creator (`MapCreator/Core`, `/App`, `/SelfTest`), of the plan view and the few base files (`Earth.cs`, coordinate parser...), adapted; own workflow, own releases (tags `v…` of that repository), own update check, own `CLAUDE.md` and TODO (this file moves there). **The home of the Map Creator becomes the TWR Trainer repository** (one Map Creator for all, decision 1b still valid: shipped in each zip); AuroraPAR-v2 keeps its copy as it is and **before every new Trainer release the Map Creator / maps library are copied from TWR Trainer into AuroraPAR-v2** (a fixed step of the publishing rules). A bug found in the engine of one is fixed in the other by hand when it applies.
+**DECIDED 2 Nov 10:40 (the user), replaces 2c above: option B, its own repository.** No token, no downloads repository, no change to the update check of AuroraPAR v2. **Name (provisional): "Circuit Trainer"** (the other candidate was "Circuit Trainer"); repository proposed `ATCRoom/TWR-Trainer`, created empty by the user (Claude cannot create repositories). Layout: copies of the engine (`Sim/Engine` + self-test, will diverge for the tower), of the maps library and the Map Creator (`MapCreator/Core`, `/App`, `/SelfTest`), of the plan view and the few base files (`Earth.cs`, coordinate parser...), adapted; own workflow, own releases (tags `v…` of that repository), own update check, own `CLAUDE.md` and TODO (this file moves there). **The home of the Map Creator becomes the Circuit Trainer repository** (one Map Creator for all, decision 1b still valid: shipped in each zip); AuroraPAR-v2 keeps its copy as it is and **before every new Trainer release the Map Creator / maps library are copied from Circuit Trainer into AuroraPAR-v2** (a fixed step of the publishing rules). A bug found in the engine of one is fixed in the other by hand when it applies.
 
 ## The idea
 
@@ -180,7 +180,7 @@ A simulation environment for training **tower control of traffic in the circuit*
   the concrete areas a part of their own; no automatic labels of area names in the ground; point labels cut at the
   underscore). Into a ground category points and labels become ground labels; the ground-labels category takes no lines.
 - **Map Creator 2.0.0:** shared maps folder `%AppData%\ATCRoom\Maps` (portable: `Maps` beside it when
-  `AuroraPARTrainer.settings.json` or `TWRTrainer.settings.json` is beside it — the name of the TWR Trainer settings
+  `AuroraPARTrainer.settings.json` or `CircuitTrainer.settings.json` is beside it — the name of the Circuit Trainer settings
   file is a guess, to keep when the program is written); "Save into the maps"; "Open an existing map" lists the shared
   folder and the old one of the Trainer 1.0.0; the preview fills the ground areas. Trainer 1.0.0 users: "Save as..."
   into `%AppData%\AuroraPARTrainer\Maps`.
@@ -309,7 +309,7 @@ A simulation environment for training **tower control of traffic in the circuit*
 
 ## Step 4a (the program: the instructor's window) — WRITTEN 3 Nov (go of the user)
 
-- `Trainer/` (TWRTrainer.exe, version 0.1.0, code-only WPF): the top view (map in the engine's plane, runway in use,
+- `Trainer/` (CircuitTrainer.exe, version 0.1.0, code-only WPF): the top view (map in the engine's plane, runway in use,
   extended centreline with a tick every NM, aircraft with labels "callsign / height above the runway in hundreds of ft
   and ground speed / leg, circuit and side, end action", trails, the route still to fly of the selected one; wheel zoom,
   drag, click to select; F1 level 1 ~7 NM, F2 level 2 ~40 NM) and the side panel: open map (shared maps folder),
@@ -318,9 +318,9 @@ A simulation environment for training **tower control of traffic in the circuit*
   final and IP distances, map layers (MVA, CTR, FIX off by default), a new aircraft, the commands of the selected one
   (circuit and side, end action, break middle/beginning/end/standby/point on the map/BREAK NOW, orbit, go around,
   helipad on the map, remove). The commands are in one class (`TowerCommands`) for the label of step 4b.
-- The aerodrome file (`%AppData%\ATCRoom\TWRTrainer\Aerodromes\<ICAO>.json`) now also holds where each runway is
+- The aerodrome file (`%AppData%\ATCRoom\CircuitTrainer\Aerodromes\<ICAO>.json`) now also holds where each runway is
   (threshold, end, elevation).
-- The build artifacts: `TWRTrainer-win-x64` (TWRTrainer.exe) and `ATCRoomMapCreator-win-x64` (since 9 Nov the Map Creator is a separate download).
+- The build artifacts: `CircuitTrainer-win-x64` (CircuitTrainer.exe) and `ATCRoomMapCreator-win-x64` (since 9 Nov the Map Creator is a separate download).
 - Review 3 Nov (independent, read-only): no compile errors found; fixed: the other way of a runway placed again
   follows it, a point is taken on a click (the map can be dragged meanwhile), unexpected errors are said and the
   program goes on, the saved runway missing → the first, the layers saved as those turned off, lines without a
@@ -579,9 +579,9 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   ORB, G/A, SPLIT; landed: SPEED and EXP TAXI. No drop-down strip any more but for the height and the speed.
 - **ORB on and on (the user, 4 Nov; done):** CONT could be read as CONV: the button stays ORB; Shift + click orbits on
   and on, shown with a thick border; a click again: out of the orbit. The panel's ORBIT ∞ the same (thick border).
-- **Icon (the user, 4 Nov; done: Trainer/TWRTrainer.ico 256/64/48/32 with TWR, 24/16 without it, thicker; the exe and the window):** Trainer/TWRTrainer-icon.svg: the ATCRoom
+- **Icon (the user, 4 Nov; done: Trainer/CircuitTrainer.ico 256/64/48/32 with TWR, 24/16 without it, thicker; the exe and the window):** Trainer/CircuitTrainer-icon.svg: the ATCRoom
   family tile, TWR in orange, the runway from above, the circuit dashed light blue, the white aircraft on the downwind.
-  To do: TWRTrainer.ico (256, 48, 32, 16; matched in size to the other ATCRoom icons; 32 and 16 px with thicker strokes),
+  To do: CircuitTrainer.ico (256, 48, 32, 16; matched in size to the other ATCRoom icons; 32 and 16 px with thicker strokes),
   ApplicationIcon in the project and the window icon.
 - **The student's map (the user, 4 Nov; decided, for step 4c):** the student makes nothing: when the two PCs connect,
   the instructor's program sends the map (made with Map Creator) and the aerodrome file (runway in use, sides, heights,
@@ -784,7 +784,8 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   three CLAUDE.md. NO migration of the old settings: the new program starts from empty ones. Left as they are: the
   namespace `ATCRoom.TwrTrainer`, the lesson channel `atcroom/twr/lesson/v1`, "TWR" where it means the tower role.
   The repository (ATCRoom/TWR-Trainer -> ATCRoom/Circuit-Trainer) is renamed by the user on GitHub after the build is green.
-  NOTED (not written yet: waiting for the go).
+  WRITTEN 12 Nov (go of the user). The data folder is now `%AppData%\ATCRoom\CircuitTrainer`. Still to do: the icon shows "TWR"
+  (`Trainer/CircuitTrainer-icon.svg` / `.ico`): to redraw with the new name.
 - **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;
   a name in the middle of a row is now against the field after it (right-aligned in its place). WRITTEN.
 
@@ -954,7 +955,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 
 - **Group of 9 Nov late (the user: "si") — WRITTEN:** SFO on its way to the circle of the High Key: a dashed line from
   the aircraft to where it joins the circle, turning its way (counterclockwise left-hand); none inside the circle.
-- **Group of 9 Nov evening (the user) — WRITTEN:** the two items below, and ATCRoom Map Creator a SEPARATE download (not beside TWR Trainer, its own artifact; the hint of the map points to github.com/ATCRoom/MapCreator/releases). **Done 9 Nov:** the repository ATCRoom/MapCreator (created by the user), the source of MapCreator/, its workflow and the release v2.0.0; TWR Trainer's own future update check must look only at its own tags.
+- **Group of 9 Nov evening (the user) — WRITTEN:** the two items below, and ATCRoom Map Creator a SEPARATE download (not beside Circuit Trainer, its own artifact; the hint of the map points to github.com/ATCRoom/MapCreator/releases). **Done 9 Nov:** the repository ATCRoom/MapCreator (created by the user), the source of MapCreator/, its workflow and the release v2.0.0; Circuit Trainer's own future update check must look only at its own tags.
   - **SFO climbing / on hold: its circle drawn** (the user, 9 Nov: "solo il primo"): while it climbs on the circle of the
     High Key or holds there (no route then, so nothing was drawn), the selected aircraft shows that circle dashed as the
     other ways, with a mark on the High Key point. Not the SFO pattern ahead (only after START SFO, as now).
@@ -984,7 +985,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     there. A class made for an aerodrome is not made again (no double correction).
   - Settings › Circuits: the table of the altitudes (a row per class: Conv, Wide, Close, IP, Break, HK); a box is saved when
     left, with Enter or with the mouse wheel (no Save button). Without a runway placed the boxes are grey (the elevation is
-    needed). Import heights...: a menu of the other aerodromes of TWR Trainer (the folder Aerodromes), then asked before replacing.
+    needed). Import heights...: a menu of the other aerodromes of Circuit Trainer (the folder Aerodromes), then asked before replacing.
   - Quick: the class of the aerodrome (Settings › Aircraft); none chosen there: the class chosen in Advanced. A plan clicked
     in the Traffic List (or on the map) opens the Advanced tab. The tab chosen is kept.
   - The callsign prefix in the aerodrome file (CallsignPrefix, IcaoType, DefaultClass; missing: SIM, none, none).
@@ -1115,7 +1116,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   runway and aircraft only).
 - **IVAO traffic too (the user, 6 Nov: it must work with IVAO).** As AuroraPAR v2 Trainer, three cases: IVAO only (Aurora),
   mixed (IVAO + simulated), simulated only. Aurora's traffic read with the code of AuroraPAR v2 (Aurora.cs, copied here: today
-  TWR Trainer has no Aurora link). Simulated aircraft never go to IVAO. Proposal (to confirm): the student gets IVAO from his own
+  Circuit Trainer has no Aurora link). Simulated aircraft never go to IVAO. Proposal (to confirm): the student gets IVAO from his own
   Aurora, the simulated aircraft from the link (as decided for AuroraPAR v2 Trainer); on one PC both from the same program. Strips
   for IVAO aircraft too: callsign, ICAO type and rules from the flight plan, type of flight from departure / destination against
   the aerodrome (departure, arrival, else transit), entry gate and altitude empty (not known); **a field not given by IVAO
@@ -1156,18 +1157,18 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (My callsign, My VID); in the instructor's log STUDENT with callsign and VID. NORTH / RWY on the student's map (kept).
   Strips: the orange line where a dragged strip goes; the notes follow the plan when it starts (also on the student's side).
 - **Recording and replay: ATCRoom Replay, an app of its own (the user, 9 Nov: "si ok") — DECIDED, steps:** as ATCRoom Map
-  Creator (a shared folder copied into both projects, its own download). One recording format for TWR Trainer and AuroraPAR v2
+  Creator (a shared folder copied into both projects, its own download). One recording format for Circuit Trainer and AuroraPAR v2
   Trainer: a photo each second (position of each aircraft and the lines of its label already as text), events, the student's
   notes, PHOTO marks; no map inside. Each trainer writes its files; ATCRoom Replay plays them (also the student at home, with
-  no trainer and no map). Steps: (1) the common format, recording in TWR Trainer, Replay with the top view; (2) recording in
+  no trainer and no map). Steps: (1) the common format, recording in Circuit Trainer, Replay with the top view; (2) recording in
   AuroraPAR v2 Trainer (its RDR seen at once in the top view); (3) the PAR view in Replay. Before the code: a mock-up of the
-  player. The IVAO strips (B) stay in TWR Trainer, apart.
-- **Alike in TWR Trainer and AuroraPAR v2 Trainer (the user, 10 Nov: the list of differences, his answers) — DECIDED, next groups:**
-  (1) the pilot reaction (0–5 s) in TWR Trainer too; (2) the speed of the simulation x1 / x2 / x4 in AuroraPAR v2 Trainer
+  player. The IVAO strips (B) stay in Circuit Trainer, apart.
+- **Alike in Circuit Trainer and AuroraPAR v2 Trainer (the user, 10 Nov: the list of differences, his answers) — DECIDED, next groups:**
+  (1) the pilot reaction (0–5 s) in Circuit Trainer too; (2) the speed of the simulation x1 / x2 / x4 in AuroraPAR v2 Trainer
   too, in both only OUTSIDE a session: START SESSION puts it back to x1 and it stays x1 until END SESSION; (3) the same
   lesson window and words in both (LESSON on the bar, START LESSON makes the code, COPY CODE, JOIN; the key lit with the
   code); (4) the student's display every 0.5 s in both; (5) My callsign / My VID in the same place in both (Settings ›
-  Network); (6) no strip bay in AuroraPAR (not needed); (7) NO docking in the column in TWR Trainer (the user: useless):
+  Network); (6) no strip bay in AuroraPAR (not needed); (7) NO docking in the column in Circuit Trainer (the user: useless):
   the parts only float, as in AuroraPAR; (8) the settings panel named "Settings" in both, the titles written the same way;
   (9) LIGHT / DARK in the same section with the same name (Appearance); (10) the same order and names on the top bar (PAUSE /
   RUN, [NORTH / RWY], START SESSION, [STUDENT], LESSON, PHOTO, 📁, LOGS, IVAO); (11) one word: PAUSE / RUN (no PAUSE ALL /
@@ -1179,13 +1180,13 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   (VPN or LAN)**: the instructor's program runs its own small relay on a fixed port (MQTTnet, already used), the window shows
   his IP address (Hamachi 25.x, Radmin 26.x...); the student writes that IP and the code, JOIN; the same messages, encrypted
   with the code; Windows asks the instructor to allow it in the firewall (in the guide); works also on the same home
-  network. docs/VPN.md (AuroraPAR, draft of 12 Oct) completed, and the same page for TWR Trainer. The user will test it with
+  network. docs/VPN.md (AuroraPAR, draft of 12 Oct) completed, and the same page for Circuit Trainer. The user will test it with
   a friend on a VPN.
 - **IDEA (the user, 10 Nov): a flight simulator linked straight to the trainers, without IVAO** (a friend flies MSFS / X-Plane /
   P3D, the controller guides him on the PAR or from the tower). Proposed shape: ONE small external program on the pilot's
   PC (e.g. "ATCRoom Pilot Link", its own download as Map Creator and Replay): it reads position, altitude, speed and heading
   from the simulator (SimConnect for MSFS / P3D, the UDP data of X-Plane) and sends them on the same lesson link (code,
-  relays or VPN, encrypted); AuroraPAR v2 Trainer and TWR Trainer show it as one more aircraft (a "live" one, not commanded
+  relays or VPN, encrypted); AuroraPAR v2 Trainer and Circuit Trainer show it as one more aircraft (a "live" one, not commanded
   by the instructor). Not started: to plan after the publication.
 - **Group B — WRITTEN 12 Nov (the user: "fai la prossima build comunque"), local commit:** pilot reaction (Settings ›
   Simulation, 0–5 s, 1 at first); the speed of the simulation only in Settings › Simulation, x1 during a session; the parts
@@ -1227,7 +1228,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   edge) and the map stay dark. Colours in Trainer/Theme.cs; buttons: blue commands, yellow chosen, the others light blue on LIGHT.
 
 ## AuroraPAR v2 Trainer: panels LIGHT / DARK (the user, 6 Nov) — TO DO, in ATCRoom/AuroraPAR-v2
-- As in TWR Trainer, the other way round: there the frames are already dark and the inside light (Windows' own controls). A choice
+- As in Circuit Trainer, the other way round: there the frames are already dark and the inside light (Windows' own controls). A choice
   Panels: LIGHT / DARK in Simulation settings (LIGHT by default: nothing changes for who uses it), from the next start.
 - DARK means a dark look for Windows' controls inside the panels: text boxes, buttons, combo boxes (their drop-down list too),
   check and radio boxes, the table of Aircraft performance (headers, rows). The most delicate: combo boxes and the table.

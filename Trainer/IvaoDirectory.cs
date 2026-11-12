@@ -26,7 +26,7 @@ namespace ATCRoom.TwrTrainer
             try
             {
                 using HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("TWRTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("CircuitTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
                 using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
                 await using Stream body = await http.GetStreamAsync(Address, cts.Token);
                 using JsonDocument json = await JsonDocument.ParseAsync(body, cancellationToken: cts.Token);
@@ -59,7 +59,7 @@ namespace ATCRoom.TwrTrainer
             try
             {
                 using HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("TWRTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("CircuitTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
                 // (The whole answer within 15 s, not only its start: a stuck download would stop the IVAO traffic.)
                 using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
                 await using Stream body = await http.GetStreamAsync(Address, cts.Token);

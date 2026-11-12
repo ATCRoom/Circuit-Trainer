@@ -1,5 +1,5 @@
 <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
-  <!-- TWR Trainer icon (the user, 4 Nov): the ATCRoom family (dark tile, green border), TWR in orange, the runway
+  <!-- Circuit Trainer icon (the user, 4 Nov): the ATCRoom family (dark tile, green border), TWR in orange, the runway
        seen from above, the circuit dashed light blue, the aircraft white on the downwind. To be matched in size to the
        other ATCRoom icons when the .ico is made; 32 and 16 px: thicker strokes. -->
   <rect x="4" y="4" width="172" height="172" rx="30" fill="#0f1714" stroke="#2f8f4e" stroke-width="8"/>

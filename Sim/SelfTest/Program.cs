@@ -821,7 +821,7 @@ double Distance(AircraftState s, double x, double y) => Math.Sqrt((s.X - x) * (s
         "Stop climb: levels off just above where it was, then holds it", $"stop at {altitudeAtStop:F0}, holds {level:F0}");
 }
 
-// --- Circuits (TWR Trainer): flown by the engine, checked, and drawn into circuits.html for the user ---------------
+// --- Circuits (Circuit Trainer): flown by the engine, checked, and drawn into circuits.html for the user ---------------
 
 {
     // (Elevation 0: the heights of the classes are altitudes QNH since 7 Nov, the same as heights at sea level; test 60: higher.)
@@ -2681,7 +2681,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         };
         string Colour(string leg) => colours.TryGetValue(leg, out string? found) ? found : "#888888";
         System.Text.StringBuilder html = new();
-        html.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>TWR Trainer - circuits of the self-test</title>")
+        html.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Circuit Trainer - circuits of the self-test</title>")
             .Append("<style>body{font-family:Segoe UI,Arial,sans-serif;background:#101820;color:#d6e2ec;margin:16px}h1{font-size:18px}")
             .Append(".p{display:inline-block;margin:8px;vertical-align:top}.p div{font-size:13px;margin:4px 0;max-width:420px}")
             .Append(".k{display:inline-block;margin-right:14px;font-size:13px}.k b{display:inline-block;width:18px;height:4px;margin-right:5px;vertical-align:middle}</style></head><body>")

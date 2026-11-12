@@ -15,7 +15,7 @@ namespace ATCRoom.TwrTrainer
     }
 
     /// <summary>
-    /// TWR Trainer (copied from AuroraPAR v2 Trainer, the user 9 Nov): the lesson link between the instructor's PC and the student's PC, through the public MQTT
+    /// Circuit Trainer (copied from AuroraPAR v2 Trainer, the user 9 Nov): the lesson link between the instructor's PC and the student's PC, through the public MQTT
     /// relays of the coordination panel (encrypted connection, nothing to install, no port to open). The channel is
     /// computed from the lesson code (it cannot be found without it). Each side sends one small message about every
     /// second (the instructor every half second); nothing is kept on the relay, so a student who joins later sees only
@@ -101,7 +101,7 @@ namespace ATCRoom.TwrTrainer
             Role = role;
             Code = code;
             Direct = direct;
-            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes("TWR Trainer lesson " + code));
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes("Circuit Trainer lesson " + code));
             channel = "atcroom/twr/lesson/v1/" + Convert.ToHexString(hash)[..20].ToLowerInvariant();
             // (The relays are public: every message encrypted with a key from the code, the review of 9 Nov; the map never readable by others.)
             key = SHA256.HashData(Encoding.UTF8.GetBytes("TWR Trainer lesson key " + code));

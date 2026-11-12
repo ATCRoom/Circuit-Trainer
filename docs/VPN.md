@@ -1,6 +1,6 @@
 # A lesson through a VPN or the home network
 
-For the lesson between two PCs of **TWR Trainer** (and of AuroraPAR v2 Trainer, which works the same way).
+For the lesson between two PCs of **Circuit Trainer** (and of AuroraPAR v2 Trainer, which works the same way).
 
 ## When to use it
 
@@ -72,7 +72,7 @@ Help pages of the program: [radmin-vpn.com/help](https://radmin-vpn.com/help/).
 The idea is the same: both PCs in the same network, then the student uses the **instructor's address in
 that network**, as shown by the VPN program.
 
-## In TWR Trainer
+## In Circuit Trainer
 
 1. **Instructor:** **LESSON** on the bar of the map → tick **Direct (VPN or home network)** → **START LESSON**. The
    window shows the code and **the IP addresses of this PC**: the VPN one is the `25.…` (Hamachi), `26.…` (Radmin VPN)
@@ -90,7 +90,7 @@ the networks: tick **both Private and Public** and press **Allow access**. VPN n
 Windows as *Public*: if only *Private* is ticked, the student cannot connect.
 
 If the question was answered wrongly: *Start → Windows Security → Firewall & network protection →
-Allow an app through firewall → Change settings →* tick the program (AuroraPAR v2 Trainer or TWR Trainer) for
+Allow an app through firewall → Change settings →* tick the program (AuroraPAR v2 Trainer or Circuit Trainer) for
 **Private** and **Public** → OK.
 
 Antivirus programs with their own firewall (Kaspersky, Norton, ESET…) may need the same permission; for

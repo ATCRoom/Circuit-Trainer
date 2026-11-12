@@ -21,7 +21,7 @@ namespace ATCRoom.TwrTrainer
             try
             {
                 using HttpClient http = new() { Timeout = TimeSpan.FromSeconds(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("TWRTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("CircuitTrainer/" + (version.Length > 0 ? version.Replace(' ', '-') : "0"));
                 string text = await http.GetStringAsync(Address + code);
                 // One METAR a line (the newest first); "METAR " / "SPECI " in front on some.
                 string? line = text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);

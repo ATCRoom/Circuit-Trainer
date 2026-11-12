@@ -63,7 +63,7 @@ namespace ATCRoom.TwrTrainer
             this.settings = settings;
             this.link = link;
             this.appVersion = appVersion;
-            Title = link != null ? $"TWR Trainer - Student (lesson {link.Code})" : "TWR Trainer - Student";
+            Title = link != null ? $"Circuit Trainer - Student (lesson {link.Code})" : "Circuit Trainer - Student";
             Width = 1200;
             Height = 800;
             Background = Theme.Panel;

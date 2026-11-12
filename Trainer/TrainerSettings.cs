@@ -5,19 +5,19 @@ using System.Text.Json.Serialization;
 namespace ATCRoom.TwrTrainer
 {
     /// <summary>
-    /// Where TWR Trainer keeps its files. Normally %AppData%\ATCRoom\TWRTrainer (settings, performance.json, the
+    /// Where Circuit Trainer keeps its files. Normally %AppData%\ATCRoom\CircuitTrainer (settings, performance.json, the
     /// aerodromes) and the maps shared with the other programs in %AppData%\ATCRoom\Maps; portable when its settings
     /// file is beside the program: everything beside it (the Maps folder too).
     /// </summary>
     internal static class Paths
     {
-        public const string SettingsFileName = "TWRTrainer.settings.json";
+        public const string SettingsFileName = "CircuitTrainer.settings.json";
 
         public static bool Portable => File.Exists(Path.Combine(AppContext.BaseDirectory, SettingsFileName));
 
         private static string AppData => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
-        public static string Folder => Portable ? AppContext.BaseDirectory : Path.Combine(AppData, "ATCRoom", "TWRTrainer");
+        public static string Folder => Portable ? AppContext.BaseDirectory : Path.Combine(AppData, "ATCRoom", "CircuitTrainer");
 
         public static string MapsFolder => Portable ? Path.Combine(AppContext.BaseDirectory, "Maps") : Path.Combine(AppData, "ATCRoom", "Maps");
 
@@ -35,11 +35,11 @@ namespace ATCRoom.TwrTrainer
         public static string Performance => Path.Combine(Folder, ATCRoom.Sim.PerformanceFile.FileName);
 
         /// <summary>The folders as said to the user (without the Windows user name).</summary>
-        public static string FolderText => Portable ? "the folder of this program (portable)" : "%AppData%\\ATCRoom\\TWRTrainer";
+        public static string FolderText => Portable ? "the folder of this program (portable)" : "%AppData%\\ATCRoom\\CircuitTrainer";
         public static string MapsFolderText => Portable ? "the Maps folder beside this program (portable)" : "%AppData%\\ATCRoom\\Maps";
     }
 
-    /// <summary>What TWR Trainer remembers between two starts. Fields it does not know are kept.</summary>
+    /// <summary>What Circuit Trainer remembers between two starts. Fields it does not know are kept.</summary>
     internal sealed class TrainerSettings
     {
         private static readonly JsonSerializerOptions Options = new()

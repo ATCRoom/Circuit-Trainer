@@ -1,6 +1,6 @@
 # ATCRoom map files (open format)
 
-The maps of **AuroraPAR v2 Trainer** (surveillance radar RDR) and of **TWR Trainer** are plain JSON files in an open
+The maps of **AuroraPAR v2 Trainer** (surveillance radar RDR) and of **Circuit Trainer** are plain JSON files in an open
 format. They are made by **ATCRoom Map Creator** from files of other formats, or written by hand, and can be used by
 other programs. The home of the Map Creator and of this format is the repository ATCRoom/TWR-Trainer.
 
@@ -9,7 +9,7 @@ other programs. The home of the Map Creator and of this format is the repository
 ATCRoom Map Creator 2.0 saves into the maps folder **shared by the programs**:
 
 - normally `%AppData%\ATCRoom\Maps\` (Windows);
-- in portable mode (the settings file of a program, `AuroraPARTrainer.settings.json` or `TWRTrainer.settings.json`, next
+- in portable mode (the settings file of a program, `AuroraPARTrainer.settings.json` or `CircuitTrainer.settings.json`, next
   to `ATCRoomMapCreator.exe`), the folder `Maps` next to the program.
 
 AuroraPAR v2 Trainer 1.0.0 still reads only its own folder, `%AppData%\AuroraPARTrainer\Maps\` (portable: `Maps` next to

@@ -29,7 +29,7 @@ namespace ATCRoom.Sim
         /// <summary>Bank angle limit for the turns (degrees): the turn rate is lower at high speed.</summary>
         public double MaxBankDegrees { get; set; }
 
-        // ----- The circuit (TWR Trainer). The heights of the class (circuits, initial, break, High and Low Key) are altitudes, ft
+        // ----- The circuit (Circuit Trainer). The heights of the class (circuits, initial, break, High and Low Key) are altitudes, ft
         // QNH (the user, 7 Nov: most aerodromes work with altitudes): at an aerodrome they become heights above its runway, see
         // AerodromeCircuits.Apply. 0 or missing: the value of the class name, see CircuitDefaults.
         /// <summary>Height of the circuit (ft above the threshold).</summary>

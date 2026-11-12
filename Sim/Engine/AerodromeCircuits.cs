@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace ATCRoom.Sim
 {
     /// <summary>
-    /// The circuits of one aerodrome (TWR Trainer): the side of the circuit of each runway (the default of every aircraft
+    /// The circuits of one aerodrome (Circuit Trainer): the side of the circuit of each runway (the default of every aircraft
     /// and every circuit of that runway; the instructor can change it in flight) and, for the classes that fly there
     /// differently, the heights: circuit, initial and break of the overhead pattern, High and Low Key of the simulated
     /// flame out. What a file does not say comes from the class (performance.json). One JSON file per aerodrome, named
@@ -32,7 +32,7 @@ namespace ATCRoom.Sim
         public List<RunwayCircuit> Runways { get; set; } = [];
         /// <summary>The heights of the classes that fly this aerodrome differently.</summary>
         public List<ClassCircuit> Classes { get; set; } = [];
-        /// <summary>The entry gates (TWR Trainer): where the arriving aircraft start, at least 5 NM out.</summary>
+        /// <summary>The entry gates (Circuit Trainer): where the arriving aircraft start, at least 5 NM out.</summary>
         public List<EntryGate> Gates { get; set; } = [];
         /// <summary>The runway exits (the user, 4 Nov: no taxiways, so where it leaves the runway after landing): a name and a point on the runway edge.</summary>
         public List<EntryGate> Exits { get; set; } = [];
@@ -220,7 +220,7 @@ namespace ATCRoom.Sim
     }
 
     /// <summary>
-    /// One runway of an aerodrome: its circuit side and (TWR Trainer, given by two clicks on the map) where it is: the
+    /// One runway of an aerodrome: its circuit side and (Circuit Trainer, given by two clicks on the map) where it is: the
     /// threshold and the end (degrees), the elevation of the threshold (ft). Missing: the runway has only its side.
     /// </summary>
     public sealed class RunwayCircuit

@@ -1,6 +1,6 @@
 namespace ATCRoom.Sim
 {
-    /// <summary>The kinds of circuit (TWR Trainer).</summary>
+    /// <summary>The kinds of circuit (Circuit Trainer).</summary>
     public enum CircuitType
     {
         /// <summary>The rectangular circuit: upwind, crosswind, downwind, base, final.</summary>

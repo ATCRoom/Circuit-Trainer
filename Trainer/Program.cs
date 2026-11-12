@@ -13,8 +13,8 @@ namespace ATCRoom.TwrTrainer
             {
                 // (In the log of the session too, the user 8 Nov.)
                 try { MainWindow.Current?.ProgramProblem(e.Exception, fatal: false); } catch (Exception) { }
-                MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nTWR Trainer goes on; if it happens again, please tell us what you were doing.",
-                    "TWR Trainer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Something went wrong: {e.Exception.Message}\n\nCircuit Trainer goes on; if it happens again, please tell us what you were doing.",
+                    "Circuit Trainer", MessageBoxButton.OK, MessageBoxImage.Warning);
                 e.Handled = true;
             };
             // A crash it cannot go on from (another thread): written in the log of the session, which is closed, before it ends.

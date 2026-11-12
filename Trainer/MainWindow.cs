@@ -297,10 +297,10 @@ namespace ATCRoom.TwrTrainer
             commands = new TowerCommands(engine, airfield);
             string version = Assembly.GetExecutingAssembly().GetName().Version is Version v ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
             appVersion = version;
-            Title = $"TWR Trainer {version} - instructor";
+            Title = $"Circuit Trainer {version} - instructor";
             try
             {
-                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/TWRTrainer.ico"));
+                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/CircuitTrainer.ico"));
             }
             catch (Exception ex) when (ex is IOException or UriFormatException or NotSupportedException)
             {
@@ -744,7 +744,7 @@ namespace ATCRoom.TwrTrainer
             }
             Window keys = keysWindow = new()
             {
-                Title = "TWR Trainer - keys",
+                Title = "Circuit Trainer - keys",
                 Owner = this,
                 SizeToContent = SizeToContent.WidthAndHeight,
                 ResizeMode = ResizeMode.NoResize,
@@ -797,7 +797,7 @@ namespace ATCRoom.TwrTrainer
             {
                 settings.LightPanels = light;
                 settings.Save();
-                Say(light == Theme.Light ? "Panels as they are now." : $"Panels {(light ? "light" : "dark")} from the next start of TWR Trainer.");
+                Say(light == Theme.Light ? "Panels as they are now." : $"Panels {(light ? "light" : "dark")} from the next start of Circuit Trainer.");
             };
             Note("Strips (Strip bay): the colour of each kind of flight.");
             StripColourRow("Departures", () => settings.StripDeparture, v => settings.StripDeparture = v);
@@ -1464,7 +1464,7 @@ namespace ATCRoom.TwrTrainer
             ["Open map..."] = "Open a map made with ATCRoom Map Creator (the maps folder shared by the programs).",
             ["Place on the map"] = "Write the name and the elevation of the runway, then click its threshold and its end on the map.",
             ["Remove runway"] = "Remove the runway in use (and the same runway the other way) from the aerodrome file.",
-            ["Import heights..."] = "The altitudes of the classes of another aerodrome of TWR Trainer copied here (the same altitudes, QNH); asked before replacing.",
+            ["Import heights..."] = "The altitudes of the classes of another aerodrome of Circuit Trainer copied here (the same altitudes, QNH); asked before replacing.",
             ["Aircraft classes..."] = "The classes of aircraft and their performance (all aerodromes); their altitudes here: Settings › Circuits.",
             ["GROUP"] = "The rows ticked (☐) into one formation, led by the first one's callsign (at most 4 aircraft).",
             ["▼ WAITING LIST"] = "Every aircraft out of the simulation: their rows back in WAITING.",
@@ -1592,7 +1592,7 @@ namespace ATCRoom.TwrTrainer
         /// <summary>REMOVE of Aircraft control and the Del key: asked first.</summary>
         private void RemoveAsked(string callsign)
         {
-            if (MessageBox.Show(this, $"Remove {callsign}?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (MessageBox.Show(this, $"Remove {callsign}?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             commands.Remove(callsign);
         }
 
@@ -1903,7 +1903,7 @@ namespace ATCRoom.TwrTrainer
 
         private void OpenMap(string path, string? runway)
         {
-            if (engine.Count > 0 && MessageBox.Show(this, "The aircraft flying now are removed. Go on?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (engine.Count > 0 && MessageBox.Show(this, "The aircraft flying now are removed. Go on?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             try
             {
                 airfield.OpenMap(path);
@@ -1952,7 +1952,7 @@ namespace ATCRoom.TwrTrainer
         {
             bool changed = !string.Equals(airfield.Runway?.Runway, name, StringComparison.OrdinalIgnoreCase);
             if (changed && ask && engine.Count > 0
-                && MessageBox.Show(this, "Another runway: the aircraft flying now are removed. Go on?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
+                && MessageBox.Show(this, "Another runway: the aircraft flying now are removed. Go on?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK)
             {
                 ShowAerodrome();
                 return;
@@ -2032,7 +2032,7 @@ namespace ATCRoom.TwrTrainer
                 Say("Write the elevation of the threshold in feet (for example 340): the heights of the labels are above it.");
                 return;
             }
-            if (engine.Count > 0 && MessageBox.Show(this, "The aircraft flying now are removed. Go on?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (engine.Count > 0 && MessageBox.Show(this, "The aircraft flying now are removed. Go on?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             Say(null);
             view.AskPoint($"Runway {name}: click its THRESHOLD (zoom in with the wheel first)  -  Esc: cancel", (tx, ty) =>
                 view.AskPoint($"Runway {name}: now click its END  -  Esc: cancel", (ex, ey) =>
@@ -2086,7 +2086,7 @@ namespace ATCRoom.TwrTrainer
             string names = string.Join(", ", runways.Select(r => r.Other != null ? $"{r.One.Runway}/{r.Other.Runway}" : r.One.Runway));
             string flying = engine.Count > 0 ? "\n\nThe aircraft flying now are removed." : "";
             if (MessageBox.Show(this, $"Place runway {names} of {airfield.Code} from runways.par? A runway already placed with that name is moved there.{flying}",
-                "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+                "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             foreach ((RunwaysPar.Threshold one, RunwaysPar.Threshold? other) in runways)
             {
                 (double tx, double ty) = airfield.Plane.FromGeo(one.Latitude, one.Longitude);
@@ -2104,7 +2104,7 @@ namespace ATCRoom.TwrTrainer
         {
             if (airfield.Runway == null) return;
             string other = RunwayCircuit.Reciprocal(airfield.Runway.Runway) is string o ? $" and {o}" : "";
-            if (MessageBox.Show(this, $"Remove runway {airfield.Runway.Runway}{other} from the aerodrome file?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (MessageBox.Show(this, $"Remove runway {airfield.Runway.Runway}{other} from the aerodrome file?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             airfield.RemoveRunway(airfield.Runway.Runway);
             Say(airfield.Save());
             UseRunway(airfield.PlacedRunways.FirstOrDefault()?.Runway, ask: false);
@@ -2230,7 +2230,7 @@ namespace ATCRoom.TwrTrainer
             {
                 // (Not readable: none.)
             }
-            if (files.Count == 0) { Say("No other aerodrome yet: TWR Trainer keeps one for each map opened (with its runways placed)."); return; }
+            if (files.Count == 0) { Say("No other aerodrome yet: Circuit Trainer keeps one for each map opened (with its runways placed)."); return; }
             OpenMenu(files.OrderBy(f => f.Code, StringComparer.Ordinal).Select(f => Item(f.Code, () => ImportHeightsFrom(f.Code, f.Path))).ToList());
         }
 
@@ -2253,7 +2253,7 @@ namespace ATCRoom.TwrTrainer
                 return;
             }
             if (MessageBox.Show(this, $"Replace the altitudes of the classes at {airfield.Code} with those of {code}?\n\nThe same altitudes (QNH); those not written at {code}: the classes' ones.",
-                "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+                "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             airfield.Circuits.CopyHeightsFrom(other, otherElevation, airfield.ElevationFt);
             string? error = airfield.Save();
             engine.SetAerodrome(airfield.Circuits, airfield.Runway?.Runway);
@@ -2284,7 +2284,7 @@ namespace ATCRoom.TwrTrainer
             }
             if (file.FormatVersion > PerformanceFile.CurrentFormatVersion)
             {
-                Say($"{PerformanceFile.FileName} was made by a newer version of TWR Trainer: the classes can't be changed with this one.", Area.Aerodrome);
+                Say($"{PerformanceFile.FileName} was made by a newer version of Circuit Trainer: the classes can't be changed with this one.", Area.Aerodrome);
                 return;
             }
             ClassesWindow window = new(engine.Classes) { Owner = this };
@@ -3190,7 +3190,7 @@ namespace ATCRoom.TwrTrainer
             }
             else
             {
-                if (MessageBox.Show(this, "End the session? Its log is closed with the summary, and the simulation paused.", "TWR Trainer",
+                if (MessageBox.Show(this, "End the session? Its log is closed with the summary, and the simulation paused.", "Circuit Trainer",
                     MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
                 string file = flightLog.FileName;
                 flightLog.EndSession(engine.Time);
@@ -3818,7 +3818,7 @@ namespace ATCRoom.TwrTrainer
             inside.Children.Add(joinSay);
             Window window = lessonWindow = new()
             {
-                Title = "TWR Trainer - lesson between two PCs",
+                Title = "Circuit Trainer - lesson between two PCs",
                 Owner = this,
                 SizeToContent = SizeToContent.WidthAndHeight,
                 ResizeMode = ResizeMode.NoResize,
@@ -4159,7 +4159,7 @@ namespace ATCRoom.TwrTrainer
 
         private void ClearPlans()
         {
-            if (plans.Count > 0 && MessageBox.Show(this, $"Remove the {plans.Count} rows of the Traffic List (the aircraft flying go on)?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (plans.Count > 0 && MessageBox.Show(this, $"Remove the {plans.Count} rows of the Traffic List (the aircraft flying go on)?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             plans.Clear();
             ShowPlans();
         }
@@ -4253,7 +4253,7 @@ namespace ATCRoom.TwrTrainer
             try { Directory.CreateDirectory(TowerScenario.Folder); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             Microsoft.Win32.SaveFileDialog dialog = new()
             {
-                Filter = "TWR Trainer scenario (*.json)|*.json",
+                Filter = "Circuit Trainer scenario (*.json)|*.json",
                 InitialDirectory = TowerScenario.Folder,
                 FileName = (airfield.Code.Length > 0 ? airfield.Code : "scenario") + " scenario.json"
             };
@@ -4273,14 +4273,14 @@ namespace ATCRoom.TwrTrainer
         {
             Microsoft.Win32.OpenFileDialog dialog = new()
             {
-                Filter = "TWR Trainer scenario (*.json)|*.json",
+                Filter = "Circuit Trainer scenario (*.json)|*.json",
                 InitialDirectory = Directory.Exists(TowerScenario.Folder) ? TowerScenario.Folder : ""
             };
             if (dialog.ShowDialog(this) != true) return;
             try
             {
                 TowerScenario scenario = TowerScenario.Load(dialog.FileName);
-                if (plans.Count > 0 && MessageBox.Show(this, "The flight plans of the list are replaced. Go on?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+                if (plans.Count > 0 && MessageBox.Show(this, "The flight plans of the list are replaced. Go on?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
                 plans.Clear();
                 plans.AddRange(scenario.Plans);
                 ShowPlans();
@@ -4644,7 +4644,7 @@ namespace ATCRoom.TwrTrainer
                 Say("Write the name of the gate to remove (or choose it in Start from).");
                 return;
             }
-            if (MessageBox.Show(this, $"Remove the gate {name}?", "TWR Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (MessageBox.Show(this, $"Remove the gate {name}?", "Circuit Trainer", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             airfield.RemoveGate(name);
             Say(airfield.Save());
             newGateName.Text = "";

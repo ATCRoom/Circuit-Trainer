@@ -1,7 +1,7 @@
-# TWR Trainer
+# ATCRoom Circuit Trainer
 
 A simulator for training **tower control of traffic in the circuit**: the instructor flies the aircraft, the student
-controls them as a tower controller. Name provisional. **Work in progress: no release yet.**
+controls them as a tower controller. **Work in progress: no release yet.**
 
 Part of the ATCRoom family of programs, with [AuroraPAR v2](https://github.com/ATCRoom/AuroraPAR-v2).
 

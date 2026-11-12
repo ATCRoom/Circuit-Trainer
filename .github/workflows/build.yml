@@ -1,5 +1,5 @@
-# Builds TWR Trainer on GitHub's Windows machines at every push.
-# The simulation engine and the maps library with their self-tests, TWR Trainer (the instructor's window, step 4a) and
+# Builds Circuit Trainer on GitHub's Windows machines at every push.
+# The simulation engine and the maps library with their self-tests, Circuit Trainer (the instructor's window, step 4a) and
 # ATCRoom Map Creator. Each program is attached to each run as its own artifact (Actions tab -> latest run -> Artifacts; a
 # GitHub account is needed to download them); the Map Creator is a separate download (the user, 9 Nov). They do not
 # require .NET to be installed. No release yet.
@@ -52,15 +52,15 @@ jobs:
           name: ATCRoomMapCreator-win-x64
           path: publish-mapcreator/ATCRoomMapCreator.exe
 
-      # TWR Trainer: the program (one exe); ATCRoom Map Creator is downloaded on its own (the user, 9 Nov).
-      - name: Build TWR Trainer
+      # Circuit Trainer: the program (one exe); ATCRoom Map Creator is downloaded on its own (the user, 9 Nov).
+      - name: Build Circuit Trainer
         run: >
-          dotnet publish Trainer/TWRTrainer.csproj -c Release -r win-x64 --self-contained true
+          dotnet publish Trainer/CircuitTrainer.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish-trainer
 
       - uses: actions/upload-artifact@v5
         with:
-          name: TWRTrainer-win-x64
+          name: CircuitTrainer-win-x64
           path: |
-            publish-trainer/TWRTrainer.exe
+            publish-trainer/CircuitTrainer.exe
