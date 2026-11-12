@@ -963,6 +963,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
     circuit; at once: G/A, then WIDE NOW. The same on the label and the panel.
 
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
+- **Draft written 12 Nov (the user: "vai"; all in English, complete): `docs/MANUAL.md`, 19 chapters, DCT TO / NOW in chapter 9. Local commit only; screenshots to add (the user will send them: no real names, no Windows user paths).**
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
   from there. NOW (orange) = WHAT it does now, where it is, without being sent elsewhere (EXT DWN, BASE, ORB, G/A, BREAK
