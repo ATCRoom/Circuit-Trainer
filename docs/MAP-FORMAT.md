@@ -2,7 +2,7 @@
 
 The maps of **AuroraPAR v2 Trainer** (surveillance radar RDR) and of **Circuit Trainer** are plain JSON files in an open
 format. They are made by **ATCRoom Map Creator** from files of other formats, or written by hand, and can be used by
-other programs. The home of the Map Creator and of this format is the repository ATCRoom/TWR-Trainer.
+other programs. The home of the Map Creator and of this format is the repository ATCRoom/Circuit-Trainer.
 
 ## Where they are
 

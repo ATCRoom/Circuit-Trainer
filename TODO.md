@@ -1,7 +1,7 @@
 # Circuit Trainer — to do
 
 Tower circuit simulator (instructor / student). Name provisional: **Circuit Trainer** (other candidate: Circuit Trainer).
-Repository **ATCRoom/TWR-Trainer** (own repository, option B, decided 2 Nov 2026). Work rules in `CLAUDE.md`.
+Repository **ATCRoom/Circuit-Trainer** (own repository, option B, decided 2 Nov 2026). Work rules in `CLAUDE.md`.
 
 ## Status
 
@@ -783,7 +783,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   Map Creator's portable marker (`MapCreator/App/MainWindow.cs`, so the next copy to ATCRoom/MapCreator carries it), the
   three CLAUDE.md. NO migration of the old settings: the new program starts from empty ones. Left as they are: the
   namespace `ATCRoom.TwrTrainer`, the lesson channel `atcroom/twr/lesson/v1`, "TWR" where it means the tower role.
-  The repository (ATCRoom/TWR-Trainer -> ATCRoom/Circuit-Trainer) is renamed by the user on GitHub after the build is green.
+  The repository (ATCRoom/TWR-Trainer -> ATCRoom/Circuit-Trainer) renamed by the user on GitHub on 12 Nov (done).
   WRITTEN 12 Nov (go of the user). The data folder is now `%AppData%\ATCRoom\CircuitTrainer`. Still to do: the icon shows "TWR"
   (`Trainer/CircuitTrainer-icon.svg` / `.ico`): to redraw with the new name.
 - **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- ATCRoom Map Creator (home: ATCRoom/TWR-Trainer): converts map files of other formats (IVAO sector files and ground
+  <!-- ATCRoom Map Creator (home: ATCRoom/Circuit-Trainer): converts map files of other formats (IVAO sector files and ground
        layouts, EuroScope .ese, KML, AIP tables in PDF) into the
        open ATCRoom map format read by AuroraPAR v2 Trainer: many files at once, one picture, categories, a cut around an
        airport, one map file per airport. A window with drag & drop; no settings. -->
