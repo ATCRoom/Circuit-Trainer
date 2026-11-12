@@ -1858,7 +1858,7 @@ namespace ATCRoom.TwrTrainer
             photoTextTimer.Start();
         }
 
-        /// <summary>The folder of the photos of this session (the Photos folder before the first photo) in the Explorer.</summary>
+        /// <summary>The Logs folder in the Explorer (LOGS on the bar).</summary>
         private void OpenLogs()
         {
             try
@@ -1872,6 +1872,7 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>The folder of the photos of this session (the Photos folder before the first photo) in the Explorer.</summary>
         private void OpenPhotos()
         {
             string folder = photoCount > 0 && Directory.Exists(PhotoFolder) ? PhotoFolder : Paths.PhotosFolder;
@@ -3479,10 +3480,6 @@ namespace ATCRoom.TwrTrainer
             return (kind, entry, altitude);
         }
 
-        /// <summary>
-        /// Each second: the strips (Coordination: the plans waiting; In contact: the aircraft of the plans flying, also those
-        /// split off a formation) and the plans waiting on the map (WAITING TFC).
-        /// </summary>
         /// <summary>The IVAO aircraft within this distance (NM) have a strip.</summary>
         private const double NetworkStripRange = 25;
         private Dictionary<string, IvaoDirectory.FlightPlan> ivaoPlans = new(StringComparer.OrdinalIgnoreCase);
@@ -3505,6 +3502,10 @@ namespace ATCRoom.TwrTrainer
             }
         }
 
+        /// <summary>
+        /// Each second: the strips (Coordination: the plans waiting; In contact: the aircraft of the plans flying, also those
+        /// split off a formation, and the IVAO aircraft moved there) and the plans waiting on the map (WAITING TFC).
+        /// </summary>
         private void RefreshStrips()
         {
             List<StripData> coordination = [], contact = [];
@@ -3776,7 +3777,8 @@ namespace ATCRoom.TwrTrainer
             kindNote.Foreground = DimBrush;
             inside.Children.Add(kindNote);
             inside.Children.Add(Text("Instructor (this PC flies the aircraft)", 14, true));
-            inside.Children.Add(Text("Start the lesson and give its code to the student. The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees every half second. Nothing to install, no ports: public relays on the internet, every message encrypted with the code."));
+            TextBlock instructorNote = Text("");
+            inside.Children.Add(instructorNote);
             TextBlock code = Text("", 26, true);
             TextBlock state = Text("");
             Button startButton = ActionButton("START LESSON", () => { });
@@ -3836,7 +3838,10 @@ namespace ATCRoom.TwrTrainer
             {
                 relaysChoice.IsEnabled = directChoice.IsEnabled = lesson == null;
                 bool directNow = lesson != null ? lesson.Direct != null : directChoice.IsChecked == true;
-                hostRow.Visibility = directNow ? Visibility.Visible : Visibility.Collapsed;
+                hostRow.Visibility = directNow && lesson == null ? Visibility.Visible : Visibility.Collapsed;
+                instructorNote.Text = directNow
+                    ? "Start the lesson and tell the student the code and your IP address (below). The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees every half second. Direct: through your VPN or home network, port 18831; every message encrypted with the code."
+                    : "Start the lesson and give its code to the student. The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees every half second. Nothing to install, no ports: public relays on the internet, every message encrypted with the code.";
                 if (lesson?.Direct == null) lessonAddresses = null;
                 else lessonAddresses ??= LessonLink.LocalAddresses() is { Count: > 0 } list ? string.Join("  or  ", list.Take(3)) : "see your VPN program";
                 startButton.Content = lesson == null ? "START LESSON" : "STOP LESSON";
@@ -3868,7 +3873,7 @@ namespace ATCRoom.TwrTrainer
                     return;
                 }
                 string host = hostBox.Text.Trim();
-                if (directChoice.IsChecked == true && !System.Net.IPAddress.TryParse(host, out _))
+                if (directChoice.IsChecked == true && !LessonLink.IsAddress(host))
                 {
                     joinSay.Text = "Write the IP address of the instructor (for example 26.12.34.56): he reads it in his lesson window.";
                     return;
@@ -3892,7 +3897,8 @@ namespace ATCRoom.TwrTrainer
         {
             student?.Close();
             // (This window hidden: its simulation paused and its IVAO off meanwhile, the review of 9 Nov; one Aurora client only.)
-            if (!engine.Paused) TogglePause();
+            engine.Paused = true;
+            UpdatePause();
             networkTimer.Stop();
             aurora.Release();
             StudentWindow remote = new(settings, StripBrush, new LessonLink(LessonRole.Student, code, settings.LessonDirect ? settings.LessonHost : null), appVersion);

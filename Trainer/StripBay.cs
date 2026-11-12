@@ -129,7 +129,8 @@ namespace ATCRoom.TwrTrainer
             waiting = coordinationStrips.ToList();
             flying = contactStrips.ToList();
             // (The IVAO strips moved to In contact by hand stay there; gone: forgotten.)
-            networkInContact.RemoveWhere(k => !waiting.Any(s => KeyText(s.Key) == k) && !flying.Any(s => KeyText(s.Key) == k));
+            networkInContact.RemoveWhere(k => !waiting.Any(s => string.Equals(KeyText(s.Key), k, StringComparison.OrdinalIgnoreCase))
+                && !flying.Any(s => string.Equals(KeyText(s.Key), k, StringComparison.OrdinalIgnoreCase)));
             foreach (StripData strip in waiting.Where(s => IsNetwork(s.Key) && networkInContact.Contains(KeyText(s.Key))).ToList())
             {
                 waiting.Remove(strip);

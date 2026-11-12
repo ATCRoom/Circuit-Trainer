@@ -72,6 +72,9 @@ namespace ATCRoom.TwrTrainer
                 place.ManualHeight = false;
                 place.Left ??= 5000;
                 place.Top ??= 60 + 34 * index;
+                // (Closed to its small box at first, so the parts do not cover each other; the review of 12 Nov.)
+                place.Open = false;
+                changed();
             }
             title = title.ToUpperInvariant();
             this.title = title;
