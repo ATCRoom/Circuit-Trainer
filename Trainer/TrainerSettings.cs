@@ -57,6 +57,11 @@ namespace ATCRoom.TwrTrainer
         public string RunwaysParPath { get; set; } = "";
         /// <summary>The runway in use last.</summary>
         public string Runway { get; set; } = "";
+        /// <summary>The pilot reaction (s, 0–5; the user, 10 Nov: as AuroraPAR v2 Trainer): the orders are carried out after it.</summary>
+        public double PilotReaction { get; set; } = 1;
+        /// <summary>The lesson through the direct link (VPN or home network) instead of the public relays, and the instructor's IP typed by the student.</summary>
+        public bool LessonDirect { get; set; }
+        public string LessonHost { get; set; } = "";
         /// <summary>The last METAR line given (for the wind).</summary>
         public string Metar { get; set; } = "";
         /// <summary>The METAR on the map with only the wind and the QNH (the user, 3 Nov).</summary>

@@ -89,6 +89,8 @@ namespace ATCRoom.TwrTrainer
         /// <summary>The same RUN / PAUSE in the Traffic List.</summary>
         private readonly Button trafficPauseButton = new() { Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 4, 0, 0) };
         /// <summary>The speed of the simulation (the user, 4 Nov: buttons, not a drop-down list).</summary>
+        private readonly TextBox reactionBox = new() { Width = 46 };
+        private readonly TextBlock speedNote = new() { Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11, Margin = new Thickness(6, 0, 0, 0) };
         private readonly ChoiceRow<double> speedRow = new([(1.0, "x1"), (2.0, "x2"), (4.0, "x4")], (v, _) => v == 1 ? "Real time." : $"The time runs {v:0} times faster.");
         private readonly TextBox longFinalBox = new() { Width = 45 };
         private readonly TextBox initialPointBox = new() { Width = 45 };
@@ -327,12 +329,11 @@ namespace ATCRoom.TwrTrainer
                 ToolTip = "Drag to move the bar; double click: back to the top middle."
             };
             bar.Children.Add(barGrip);
+            // (The user, 10 Nov: the same order and names as AuroraPAR v2 Trainer: PAUSE / RUN, [NORTH / RWY, view], START
+            // SESSION, STUDENT, LESSON, PHOTO, 📁, LOGS, IVAO; the speed of the simulation in Settings.)
             bar.Children.Add(pauseButton);
-            bar.Children.Add(new TextBlock { Text = "Speed", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) });
-            speedRow.VerticalAlignment = VerticalAlignment.Center;
             levelRow.VerticalAlignment = VerticalAlignment.Center;
-            bar.Children.Add(speedRow);
-            bar.Children.Add(new TextBlock { Text = "View", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
+            bar.Children.Add(new TextBlock { Text = "View", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) });
             bar.Children.Add(levelRow);
             // (The user, 7 Nov: range rings, the instructor's map only.)
             ringsButton = ActionButton("", ToggleRings);
@@ -345,10 +346,6 @@ namespace ATCRoom.TwrTrainer
             runwayButton = ActionButton("RWY", () => SetMapTurn(settings.MapTurn == 1 ? 2 : 1));
             runwayButton.Margin = new Thickness(4, 0, 0, 4);
             bar.Children.Add(runwayButton);
-            // (The user, 7 Nov: the traffic of IVAO from Aurora, only shown; its METAR used.)
-            ivaoButton = ActionButton("", ToggleIvao);
-            ivaoButton.Margin = new Thickness(4, 0, 0, 4);
-            bar.Children.Add(ivaoButton);
             // (The user, 8 Nov: the session of the training or the exam, for the log; nothing starts flying.)
             sessionButton = ActionButton("START SESSION", ToggleSession);
             sessionButton.Margin = new Thickness(12, 0, 0, 4);
@@ -368,10 +365,18 @@ namespace ATCRoom.TwrTrainer
             Button photoButton = ActionButton("PHOTO", TakePhoto);
             photoButton.Margin = new Thickness(12, 0, 4, 4);
             photoButton.ToolTip = "A picture of the map with all the labels, for the debriefing (also Ctrl+S, or the middle mouse button on the map). Saved in the Photos folder, one folder for each session.";
-            Button folderButton = ActionButton("FOLDER", OpenPhotos);
+            Button folderButton = ActionButton("📁", OpenPhotos);
             folderButton.ToolTip = "Opens the folder of the photos of this session (Photos).";
+            Button logsButton = ActionButton("LOGS", OpenLogs);
+            logsButton.ToolTip = "Opens the Logs folder: a CSV for each session (Excel).";
+            logsButton.Margin = new Thickness(4, 0, 0, 4);
             bar.Children.Add(photoButton);
             bar.Children.Add(folderButton);
+            bar.Children.Add(logsButton);
+            // (The user, 7 Nov: the traffic of IVAO from Aurora, only shown; its METAR used. Last on the bar, 10 Nov.)
+            ivaoButton = ActionButton("", ToggleIvao);
+            ivaoButton.Margin = new Thickness(12, 0, 0, 4);
+            bar.Children.Add(ivaoButton);
             photoText.VerticalAlignment = VerticalAlignment.Center;
             photoText.Margin = new Thickness(4, 0, 2, 4);
             bar.Children.Add(photoText);
@@ -559,7 +564,8 @@ namespace ATCRoom.TwrTrainer
                 column.Visibility = allFloating ? Visibility.Collapsed : Visibility.Visible;
                 selectedPart.SummaryText = view.Selected ?? "";
             }
-            if (student != null && ticks % 25 == 0) FeedStudent();
+            // (Every half second, as AuroraPAR v2 Trainer; the user 10 Nov.)
+            if (student != null && ticks % 12 == 0) FeedStudent();
         }
 
         /// <summary>The bar on the map at its place (top middle unless moved), always inside the map.</summary>
@@ -865,6 +871,24 @@ namespace ATCRoom.TwrTrainer
             };
             Buttons(("Import heights...", ImportHeights));
 
+            // (The user, 10 Nov: as AuroraPAR v2 Trainer: the pilot reaction, and the speed of the simulation only here, only
+            // outside a session.)
+            current = Section("Simulation", null, false);
+            reactionBox.ToolTip = "The pilot reaction: the orders are carried out after it (0 to 5 s).";
+            Row("Pilot reaction", Inline(reactionBox, new TextBlock { Text = "s (0–5)", Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center, FontSize = 11 }));
+            void ApplyReaction()
+            {
+                if (double.TryParse(reactionBox.Text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && double.IsFinite(seconds))
+                    settings.PilotReaction = Math.Clamp(Math.Round(seconds, 1), 0, SimEngine.MaxReaction);
+                reactionBox.Text = settings.PilotReaction.ToString("0.0", CultureInfo.InvariantCulture);
+                engine.ReactionSeconds = settings.PilotReaction;
+                settings.Save();
+            }
+            reactionBox.LostFocus += (_, _) => ApplyReaction();
+            reactionBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) ApplyReaction(); };
+            Row("Speed", Inline(speedRow, speedNote));
+            speedNote.Text = "(only outside a session)";
+
             // (The user, 6 Nov night: the aircraft in a section of their own, out of Circuits.)
             current = Section("Aircraft", null, false);
             // (The user, 7 Nov: the base traffic of this aerodrome, kept in its file.)
@@ -942,7 +966,19 @@ namespace ATCRoom.TwrTrainer
             pauseButton.Click += (_, _) => TogglePause();
             pauseButton.Padding = new Thickness(10, 2, 10, 2);
             speedRow.Show(1.0);
-            speedRow.Picked += v => speed = v;
+            speedRow.Picked += v =>
+            {
+                // (Only outside a session, the user 10 Nov.)
+                if (flightLog.InSession && v != 1)
+                {
+                    speedRow.Show(1.0);
+                    Say("During a session the simulation runs at x1 (x2 / x4 only outside a session).");
+                    return;
+                }
+                speed = v;
+            };
+            engine.ReactionSeconds = settings.PilotReaction;
+            reactionBox.Text = settings.PilotReaction.ToString("0.0", CultureInfo.InvariantCulture);
             levelRow.Show(1);
             levelRow.Picked += GoLevel;
             foreach (int level in new[] { 1, 2 })
@@ -1823,6 +1859,19 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>The folder of the photos of this session (the Photos folder before the first photo) in the Explorer.</summary>
+        private void OpenLogs()
+        {
+            try
+            {
+                Directory.CreateDirectory(Paths.LogsFolder);
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.LogsFolder}\"") { UseShellExecute = true });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+            {
+                Say("The Logs folder cannot be opened.");
+            }
+        }
+
         private void OpenPhotos()
         {
             string folder = photoCount > 0 && Directory.Exists(PhotoFolder) ? PhotoFolder : Paths.PhotosFolder;
@@ -2344,15 +2393,23 @@ namespace ATCRoom.TwrTrainer
 
         // ----- Simulation ------------------------------------------------------------------------------------------------
 
+        private DateTime pauseToggledAt = DateTime.MinValue;
+
         private void TogglePause()
         {
+            // (A double click must not put the pause back at once: the log of AuroraPAR, 10 Nov.)
+            DateTime now = DateTime.UtcNow;
+            if ((now - pauseToggledAt).TotalSeconds < 0.5) return;
+            pauseToggledAt = now;
             engine.Paused = !engine.Paused;
             UpdatePause();
         }
 
         private void UpdatePause()
         {
-            pauseButton.Content = engine.Paused ? "Run" : "Pause";
+            pauseButton.Content = engine.Paused ? "RUN" : "PAUSE";
+            pauseButton.Background = engine.Paused ? LitBack : ActionBack;
+            pauseButton.Foreground = engine.Paused ? LitText : ActionText;
             trafficPauseButton.Content = engine.Paused ? "RUN" : "PAUSE";
         }
 
@@ -3120,6 +3177,11 @@ namespace ATCRoom.TwrTrainer
                 photoCount = 0;
                 flightLog.Aerodrome = airfield.Code;
                 flightLog.Runway = airfield.Runway?.Runway ?? "";
+                // (The speed of the simulation back to x1, and x1 until END SESSION; the user 10 Nov.)
+                speed = 1;
+                speedRow.Show(1.0);
+                speedRow.IsEnabled = false;
+                speedNote.Text = "(x1 during a session)";
                 flightLog.StartSession(engine.Time, engine.Snapshot(), FlightInfo);
                 // (A network trouble going on at the start: written, so its RESTORED has a beginning.)
                 if (networkProblem.Length > 0) flightLog.Event(engine.Time, networkProblem, detail: "going on at the start of the session", source: "IVAO");
@@ -3136,6 +3198,8 @@ namespace ATCRoom.TwrTrainer
                 photoCount = 0;
                 engine.Paused = true;
                 UpdatePause();
+                speedRow.IsEnabled = true;
+                speedNote.Text = "(only outside a session)";
                 Say($"Session ended: {file}");
             }
             ShowSession();
@@ -3419,6 +3483,28 @@ namespace ATCRoom.TwrTrainer
         /// Each second: the strips (Coordination: the plans waiting; In contact: the aircraft of the plans flying, also those
         /// split off a formation) and the plans waiting on the map (WAITING TFC).
         /// </summary>
+        /// <summary>The IVAO aircraft within this distance (NM) have a strip.</summary>
+        private const double NetworkStripRange = 25;
+        private Dictionary<string, IvaoDirectory.FlightPlan> ivaoPlans = new(StringComparer.OrdinalIgnoreCase);
+        private DateTime ivaoPlansAt = DateTime.MinValue;
+        private bool ivaoPlansBusy;
+
+        /// <summary>The flight plans of IVAO (its public list), at most once a minute while IVAO aircraft are near.</summary>
+        private async Task RefreshIvaoPlans()
+        {
+            ivaoPlansBusy = true;
+            ivaoPlansAt = DateTime.UtcNow;
+            try
+            {
+                Dictionary<string, IvaoDirectory.FlightPlan> found = await IvaoDirectory.FlightPlansAsync(appVersion);
+                if (found.Count > 0) ivaoPlans = found;
+            }
+            finally
+            {
+                ivaoPlansBusy = false;
+            }
+        }
+
         private void RefreshStrips()
         {
             List<StripData> coordination = [], contact = [];
@@ -3453,6 +3539,21 @@ namespace ATCRoom.TwrTrainer
                     marks.Add(new WaitingMark(x, y, $"{name} {type}", $"{where} {state}".Trim(), p.Now == TowerPlan.State.Held,
                         engine.Classes.FirstOrDefault(c => string.Equals(c.Name, p.Class, StringComparison.OrdinalIgnoreCase))?.CanHover == true, p.Formation > 1, p));
                 }
+            }
+            // The IVAO aircraft near (the user, 9 Nov): a strip each in Coordination (moved by hand to In contact), its ICAO type,
+            // rules, kind and level from IVAO's flight plans; the entry is not known (IVAO).
+            if (settings.ShowIvao)
+            {
+                foreach ((string callsign, double x, double y, _, _, _) in view.Network)
+                {
+                    if (Math.Sqrt(x * x + y * y) > NetworkStripRange) continue;
+                    ivaoPlans.TryGetValue(callsign, out IvaoDirectory.FlightPlan? fp);
+                    StripKind kind = fp == null ? StripKind.Local
+                        : string.Equals(fp.Departure, airfield.Code, StringComparison.OrdinalIgnoreCase) ? StripKind.Departure
+                        : string.Equals(fp.Arrival, airfield.Code, StringComparison.OrdinalIgnoreCase) ? StripKind.Arrival : StripKind.Local;
+                    coordination.Add(new StripData("IVAO:" + callsign, callsign, fp?.Type ?? "", fp?.Ifr == true, kind, "IVAO", fp?.Level ?? ""));
+                }
+                if (view.Network.Count > 0 && !ivaoPlansBusy && DateTime.UtcNow - ivaoPlansAt > TimeSpan.FromSeconds(60)) _ = RefreshIvaoPlans();
             }
             stripBay.Show(coordination, contact);
             (lastCoordination, lastContact) = (coordination, contact);
@@ -3556,10 +3657,14 @@ namespace ATCRoom.TwrTrainer
             return new string(Enumerable.Range(0, 6).Select(_ => letters[System.Security.Cryptography.RandomNumberGenerator.GetInt32(letters.Length)]).ToArray());
         }
 
+        /// <summary>The IP addresses of this PC for a direct lesson, read once for each lesson.</summary>
+        private string? lessonAddresses;
+
         private void StartLesson()
         {
             if (lesson != null) return;
-            lesson = new LessonLink(LessonRole.Instructor, NewLessonCode());
+            lesson = new LessonLink(LessonRole.Instructor, NewLessonCode(), settings.LessonDirect ? "" : null);
+            lessonAddresses = null;
             lesson.Received += json => Dispatcher.BeginInvoke(() => FromStudent(json));
             studentMap = studentCallsign = studentVid = "";
             lessonTicks = 0;
@@ -3588,9 +3693,16 @@ namespace ATCRoom.TwrTrainer
                 mapPack = airfield.Map != null ? LessonMessages.Pack(airfield.Map) : null;
                 pieceNext = 0;
             }
-            if (++lessonTicks % 4 == 0)
+            // (The photo every half second, a piece of the map inside it until the student has the map; the user, 10 Nov.)
+            if (++lessonTicks % 2 == 0)
             {
                 LessonSnapshot s = LessonSnapshotNow();
+                MapPiece? piece = null;
+                if (mapPack is (string id, List<string> pieces) && studentMap != id && lesson.OtherPresent && pieces.Count > 0)
+                {
+                    int index = pieceNext++ % pieces.Count;
+                    piece = new MapPiece { Id = id, Index = index, Count = pieces.Count, Data = pieces[index] };
+                }
                 lessonRekeys.RemoveAll(r => r.Until < engine.Time || r.Until > engine.Time + 30);
                 lesson.Send(LessonMessages.Write(new InstructorMessage
                 {
@@ -3604,15 +3716,9 @@ namespace ATCRoom.TwrTrainer
                     Traffic = s.Traffic.ToList(),
                     Coordination = s.Coordination.Select(LessonMessages.ToLink).ToList(),
                     Contact = s.Contact.Select(LessonMessages.ToLink).ToList(),
-                    Rekeys = lessonRekeys.Select(r => new[] { r.Old, r.New }).ToList()
+                    Rekeys = lessonRekeys.Select(r => new[] { r.Old, r.New }).ToList(),
+                    Piece = piece
                 }));
-                return;
-            }
-            // (Not just before the photo: one message at a time on the link, the photo must not be dropped; the review of 9 Nov.)
-            if (lessonTicks % 4 != 3 && mapPack is (string id, List<string> pieces) && studentMap != id && lesson.OtherPresent)
-            {
-                int index = pieceNext++ % pieces.Count;
-                lesson.Send(LessonMessages.Write(new MapPiece { Id = id, Index = index, Count = pieces.Count, Data = pieces[index] }));
             }
         }
 
@@ -3659,8 +3765,18 @@ namespace ATCRoom.TwrTrainer
                 Text = text, Foreground = TextBrush, FontSize = size, FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6)
             };
+            // The kind of link (the user, 10 Nov): the public relays, or direct through a VPN / the home network (a backup).
+            RadioButton relaysChoice = new() { Content = "Internet relays (normal)", GroupName = "LessonLinkKind", Foreground = TextBrush, Margin = new Thickness(0, 0, 14, 0), IsChecked = !settings.LessonDirect };
+            RadioButton directChoice = new() { Content = "Direct (VPN or home network)", GroupName = "LessonLinkKind", Foreground = TextBrush, IsChecked = settings.LessonDirect };
+            StackPanel kindRow = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            kindRow.Children.Add(relaysChoice);
+            kindRow.Children.Add(directChoice);
+            inside.Children.Add(kindRow);
+            TextBlock kindNote = Text("Direct: both PCs in the same VPN (Hamachi, Radmin VPN, ZeroTier, Tailscale...) or on the same home network. The instructor tells his IP address; Windows may ask him once to allow the program in the firewall: Allow.", 11);
+            kindNote.Foreground = DimBrush;
+            inside.Children.Add(kindNote);
             inside.Children.Add(Text("Instructor (this PC flies the aircraft)", 14, true));
-            inside.Children.Add(Text("Start the lesson and give its code to the student. The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees each second. Nothing to install, no ports: public relays on the internet."));
+            inside.Children.Add(Text("Start the lesson and give its code to the student. The map goes to him at the start (kept in memory only, never saved on his PC), then what he sees every half second. Nothing to install, no ports: public relays on the internet, every message encrypted with the code."));
             TextBlock code = Text("", 26, true);
             TextBlock state = Text("");
             Button startButton = ActionButton("START LESSON", () => { });
@@ -3684,6 +3800,13 @@ namespace ATCRoom.TwrTrainer
             inside.Children.Add(Text("Student (this PC shows the student console)", 14, true));
             inside.Children.Add(Text("Write the code of the instructor and JOIN: the student console opens (this window is hidden until it is closed). IVAO's traffic: from your own Aurora (IVAO on its bar). Your callsign and VID for the instructor's log: from IVAO when connected, else Settings › Network."));
             TextBox codeBox = new() { Width = 120, MaxLength = 12, CharacterCasing = CharacterCasing.Upper, Text = settings.LessonCode, FontSize = 16, Margin = new Thickness(0, 0, 8, 4) };
+            TextBox hostBox = new() { Width = 150, FontSize = 14, Text = settings.LessonHost, Margin = new Thickness(0, 0, 0, 4) };
+            StackPanel hostRow = new() { Orientation = Orientation.Horizontal };
+            TextBlock hostCaption = Text("Instructor's IP address  ");
+            hostCaption.VerticalAlignment = VerticalAlignment.Center;
+            hostRow.Children.Add(hostCaption);
+            hostRow.Children.Add(hostBox);
+            inside.Children.Add(hostRow);
             Button joinButton = ActionButton("JOIN", () => { });
             StackPanel studentRow = new() { Orientation = Orientation.Horizontal };
             studentRow.Children.Add(codeBox);
@@ -3701,8 +3824,21 @@ namespace ATCRoom.TwrTrainer
                 Background = Theme.Panel,
                 Content = inside
             };
+            void KindChanged()
+            {
+                settings.LessonDirect = directChoice.IsChecked == true;
+                settings.Save();
+                Refresh();
+            }
+            relaysChoice.Checked += (_, _) => KindChanged();
+            directChoice.Checked += (_, _) => KindChanged();
             void Refresh()
             {
+                relaysChoice.IsEnabled = directChoice.IsEnabled = lesson == null;
+                bool directNow = lesson != null ? lesson.Direct != null : directChoice.IsChecked == true;
+                hostRow.Visibility = directNow ? Visibility.Visible : Visibility.Collapsed;
+                if (lesson?.Direct == null) lessonAddresses = null;
+                else lessonAddresses ??= LessonLink.LocalAddresses() is { Count: > 0 } list ? string.Join("  or  ", list.Take(3)) : "see your VPN program";
                 startButton.Content = lesson == null ? "START LESSON" : "STOP LESSON";
                 copyButton.IsEnabled = lesson != null;
                 code.Text = lesson != null ? $"Code: {lesson.Code}" : "";
@@ -3711,6 +3847,7 @@ namespace ATCRoom.TwrTrainer
                     : !lesson.OtherPresent ? "Waiting for the student..."
                     : mapPack is (string id, List<string> pieces) && studentMap != id ? $"● Student linked{(studentCallsign.Length > 0 ? $" ({studentCallsign})" : "")}: sending the map ({pieces.Count} pieces)..."
                     : $"● Student linked{(studentCallsign.Length > 0 ? $" ({studentCallsign})" : "")}.";
+                if (lesson?.Direct != null) state.Text = (lesson.DirectError ?? "Direct: tell the student your IP address: " + lessonAddresses) + "\n" + state.Text;
             }
             startButton.Click += (_, _) =>
             {
@@ -3730,7 +3867,14 @@ namespace ATCRoom.TwrTrainer
                     joinSay.Text = "This PC is the instructor of a lesson: stop it first.";
                     return;
                 }
+                string host = hostBox.Text.Trim();
+                if (directChoice.IsChecked == true && !System.Net.IPAddress.TryParse(host, out _))
+                {
+                    joinSay.Text = "Write the IP address of the instructor (for example 26.12.34.56): he reads it in his lesson window.";
+                    return;
+                }
                 settings.LessonCode = typed;
+                settings.LessonHost = host;
                 settings.Save();
                 window.Close();
                 JoinLesson(typed);
@@ -3751,7 +3895,7 @@ namespace ATCRoom.TwrTrainer
             if (!engine.Paused) TogglePause();
             networkTimer.Stop();
             aurora.Release();
-            StudentWindow remote = new(settings, StripBrush, new LessonLink(LessonRole.Student, code), appVersion);
+            StudentWindow remote = new(settings, StripBrush, new LessonLink(LessonRole.Student, code, settings.LessonDirect ? settings.LessonHost : null), appVersion);
             remote.Closed += (_, _) =>
             {
                 networkTimer.Start();

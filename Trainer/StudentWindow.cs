@@ -249,6 +249,7 @@ namespace ATCRoom.TwrTrainer
                     message.Ad.Categories ??= [];
                     lastMessage = message;
                     foreach (string[] pair in message.Rekeys ?? []) if (pair is [string old, string now]) Bay.Rekey(old, now);
+                    if (message.Piece is { Id: not null, Data: not null } inside) TakePiece(inside);
                     plane = new LessonPlane(message.Ad.Latitude, message.Ad.Longitude, message.Ad.Heading);
                     SetAerodrome(message.Ad, message.Ad.MapId == mapId ? map : null, plane.Make());
                     Show(new LessonSnapshot(message.Time, message.Utc, message.Paused, message.Aerodrome, message.Runway, message.Metar,

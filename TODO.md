@@ -1178,6 +1178,14 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   from the simulator (SimConnect for MSFS / P3D, the UDP data of X-Plane) and sends them on the same lesson link (code,
   relays or VPN, encrypted); AuroraPAR v2 Trainer and TWR Trainer show it as one more aircraft (a "live" one, not commanded
   by the instructor). Not started: to plan after the publication.
+- **Group B — WRITTEN 12 Nov (the user: "fai la prossima build comunque"), local commit:** pilot reaction (Settings ›
+  Simulation, 0–5 s, 1 at first); the speed of the simulation only in Settings › Simulation, x1 during a session; the parts
+  only float (no column: ⇲ and the double click gone; a part that was in the column floats on the right); titles of the
+  parts upper case; bar: PAUSE / RUN (yellow RUN), View, rings, NORTH / RWY, START SESSION, STUDENT, LESSON, PHOTO, 📁,
+  LOGS, IVAO last; the student's photo every 0.5 s (same PC and link), the pieces of the map inside the photo (32 000
+  characters); IVAO strips (key IVAO:callsign, within 25 NM, type / rules / kind / level from IVAO's flight plans, asked
+  at most once a minute; dragged to In contact and back, also on the titles); direct link (VPN or home network, port
+  18830; docs/VPN.md); a double click on PAUSE ignored.
 - **Group B (the user, 10 Nov: "si"):** the speed of the simulation x1 / x2 / x4 only in Settings (no more on the bar), as
   AuroraPAR v2 Trainer: only for tests, only outside a session (START SESSION back to x1, locked until END SESSION).
 - **The student's display every half second (the user, 10 Nov: "ok va bene") — next group of TWR:** the photo of the lesson

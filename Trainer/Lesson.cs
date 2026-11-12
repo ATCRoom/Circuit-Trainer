@@ -72,6 +72,8 @@ namespace ATCRoom.TwrTrainer
         public List<LessonStrip> Contact { get; set; } = [];
         /// <summary>Strips whose plan changed a moment ago: [old key, new key] (the student's notes follow them).</summary>
         public List<string[]> Rekeys { get; set; } = [];
+        /// <summary>A piece of the map, inside the photo while the student has not got it all (the user, 10 Nov).</summary>
+        public MapPiece? Piece { get; set; }
     }
 
     /// <summary>A piece of the map (T = "map"): the map compressed, in pieces, sent until the student has it all.</summary>
@@ -102,8 +104,8 @@ namespace ATCRoom.TwrTrainer
             PropertyNameCaseInsensitive = true
         };
 
-        /// <summary>The size of a piece of the map (characters): small enough for the public relays.</summary>
-        private const int PieceSize = 48_000;
+        /// <summary>The size of a piece of the map (characters): small enough for the public relays, two photos a second.</summary>
+        private const int PieceSize = 32_000;
 
         public static string Write<T>(T message) => JsonSerializer.Serialize(message, Json);
 

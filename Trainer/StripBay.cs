@@ -41,6 +41,13 @@ namespace ATCRoom.TwrTrainer
         private readonly List<object> order = [];
         /// <summary>A strip being dragged: not drawn again meanwhile.</summary>
         private bool dragging;
+        /// <summary>
+        /// The strips of the IVAO aircraft (key "IVAO:callsign", the user 9 Nov): they come in Coordination; moved by hand to In
+        /// contact (and back), each bay its own.
+        /// </summary>
+        private readonly HashSet<string> networkInContact = new(StringComparer.OrdinalIgnoreCase);
+        public static bool IsNetwork(object key) => key is string text && text.StartsWith("IVAO:", StringComparison.OrdinalIgnoreCase);
+
         /// <summary>What is dragged: the key of a strip.</summary>
         private sealed record Moving(object Key);
         private static readonly Brush VfrText = Frozen(Color.FromRgb(0x1A, 0x7A, 0x35));
@@ -55,6 +62,27 @@ namespace ATCRoom.TwrTrainer
             Children.Add(coordination);
             Children.Add(Title(contactTitle));
             Children.Add(contact);
+            // (An IVAO strip dropped on the title of a section, also an empty one: it goes there.)
+            foreach ((TextBlock title, bool inContact) in new[] { (coordinationTitle, false), (contactTitle, true) })
+            {
+                title.Background = Brushes.Transparent;
+                title.AllowDrop = true;
+                title.DragOver += (_, e) =>
+                {
+                    e.Effects = e.Data.GetData(typeof(Moving)) is Moving m && IsNetwork(m.Key) ? DragDropEffects.Move : DragDropEffects.None;
+                    e.Handled = true;
+                };
+                title.Drop += (_, e) =>
+                {
+                    if (e.Data.GetData(typeof(Moving)) is Moving m && IsNetwork(m.Key))
+                    {
+                        dragging = false;
+                        PutNetwork(m.Key, inContact);
+                        Draw();
+                    }
+                    e.Handled = true;
+                };
+            }
             WrapPanel buttons = new() { Margin = new Thickness(0, 8, 0, 0) };
             foreach (string note in Quick)
             {
@@ -74,7 +102,7 @@ namespace ATCRoom.TwrTrainer
             Children.Add(free);
             Children.Add(new TextBlock
             {
-                Text = "Click a strip to choose it, then a button or a free note; click a note to remove it. Drag a strip to change its place.",
+                Text = "Click a strip to choose it, then a button or a free note; click a note to remove it. Drag a strip to change its place; an IVAO strip also to In contact and back.",
                 Foreground = Theme.Dim, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
             });
             Draw();
@@ -100,6 +128,13 @@ namespace ATCRoom.TwrTrainer
         {
             waiting = coordinationStrips.ToList();
             flying = contactStrips.ToList();
+            // (The IVAO strips moved to In contact by hand stay there; gone: forgotten.)
+            networkInContact.RemoveWhere(k => !waiting.Any(s => KeyText(s.Key) == k) && !flying.Any(s => KeyText(s.Key) == k));
+            foreach (StripData strip in waiting.Where(s => IsNetwork(s.Key) && networkInContact.Contains(KeyText(s.Key))).ToList())
+            {
+                waiting.Remove(strip);
+                flying.Add(strip);
+            }
             // (A plan started: its notes and its place go to its aircraft, the first one of a formation.)
             foreach (StripData strip in flying)
                 if (strip.From != null && !order.Any(key => Equals(key, strip.Key)) && order.Any(key => Equals(key, strip.From))) Rekey(strip.From, strip.Key);
@@ -140,13 +175,15 @@ namespace ATCRoom.TwrTrainer
         }
 
         /// <summary>Whether two strips are in the same section (a strip moves only inside its own).</summary>
-        private bool SameSection(object a, object b) =>
+        private bool SameSection(object a, object b) => IsNetwork(a) ||
             (waiting.Any(s => Equals(s.Key, a)) && waiting.Any(s => Equals(s.Key, b))) || (flying.Any(s => Equals(s.Key, a)) && flying.Any(s => Equals(s.Key, b)));
 
         /// <summary>A strip dropped on another: before it (or after it, dropped on its lower half).</summary>
         private void Move(object key, object onto, bool after)
         {
             if (Equals(key, onto) || !SameSection(key, onto)) return;
+            // (An IVAO strip dropped on a strip of the other section: it goes to that section.)
+            if (IsNetwork(key)) PutNetwork(key, flying.Any(s => Equals(s.Key, onto)));
             int from = order.FindIndex(k => Equals(k, key));
             if (from < 0) return;
             object moved = order[from];
@@ -160,6 +197,18 @@ namespace ATCRoom.TwrTrainer
             order.Insert(after ? at + 1 : at, moved);
             Sort();
             Draw();
+        }
+
+        /// <summary>An IVAO strip to In contact (or back to Coordination).</summary>
+        private void PutNetwork(object key, bool inContact)
+        {
+            string text = KeyText(key);
+            if (inContact) networkInContact.Add(text); else networkInContact.Remove(text);
+            StripData? strip = waiting.Concat(flying).FirstOrDefault(s => Equals(s.Key, key));
+            if (strip == null) return;
+            waiting.Remove(strip);
+            flying.Remove(strip);
+            (inContact ? flying : waiting).Add(strip);
         }
 
         /// <summary>A key as text: the callsign, or the plan itself (not its content: two plans alike are two strips).</summary>

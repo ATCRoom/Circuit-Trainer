@@ -57,8 +57,23 @@ namespace ATCRoom.TwrTrainer
         private static readonly Brush FlashBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xD2, 0x4A)));
         private const double PillWidth = 52, PillGap = 4, PillMargin = 8;
 
+        /// <summary>How many parts were placed for the first time on each view (one under the other, on the right).</summary>
+        private static readonly Dictionary<Canvas, int> FirstPlaced = [];
+
         public DockablePart(string title, string symbol, FrameworkElement content, Panel column, Canvas layer, PartPlacement place, Action changed)
         {
+            // (The user, 10 Nov: the docking in the column is useless: the parts only float, as in AuroraPAR v2 Trainer. A part
+            // that was in the column floats on the right, one under the other.)
+            if (!place.Floating)
+            {
+                int index = FirstPlaced.TryGetValue(layer, out int n) ? n : 0;
+                FirstPlaced[layer] = index + 1;
+                place.Floating = true;
+                place.ManualHeight = false;
+                place.Left ??= 5000;
+                place.Top ??= 60 + 34 * index;
+            }
+            title = title.ToUpperInvariant();
             this.title = title;
             this.content = content;
             this.layer = layer;
@@ -78,7 +93,6 @@ namespace ATCRoom.TwrTrainer
 
             // Floating: its bar (moved by it; double click: back to the column) and its content, which scrolls, and the grip.
             floatToggle = BarButton("▴", "Close to the bar / open.", () => SetOpen(!place.Open));
-            Button back = BarButton("⇲", "Back into the column on the right.", Dock);
             floatBar = new Border
             {
                 Background = BarBrush,
@@ -86,8 +100,8 @@ namespace ATCRoom.TwrTrainer
                 Padding = new Thickness(6, 3, 4, 3),
                 MinHeight = 24,
                 Cursor = Cursors.SizeAll,
-                Child = Bar("⋮⋮ " + title, floatSummary, back, floatToggle),
-                ToolTip = "Drag to move it; double click: back into the column."
+                Child = Bar("⋮⋮ " + title, floatSummary, floatToggle),
+                ToolTip = "Drag to move it."
             };
             floatBar.MouseLeftButtonDown += BarDown;
             floatBar.MouseMove += BarMove;
@@ -187,9 +201,8 @@ namespace ATCRoom.TwrTrainer
             pill.MouseLeftButtonDown += (_, e) =>
             {
                 if (e.ClickCount < 2) return;
-                // (Back into the column open, the review of 9 Nov.)
-                place.Open = true;
-                Dock();
+                // (Open again where it was: no column any more, the user 10 Nov.)
+                SetOpen(true);
                 e.Handled = true;
             };
             System.Windows.Controls.Panel.SetZIndex(pill, 100000);
@@ -322,12 +335,6 @@ namespace ATCRoom.TwrTrainer
 
         private void BarDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.ClickCount >= 2)
-            {
-                Dock();
-                e.Handled = true;
-                return;
-            }
             dragStart = e.GetPosition(layer);
             dragFrom = new Point(Canvas.GetLeft(floating) is double l && double.IsFinite(l) ? l : 0, Canvas.GetTop(floating) is double t && double.IsFinite(t) ? t : 0);
             floatBar.CaptureMouse();
