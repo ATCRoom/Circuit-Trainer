@@ -784,8 +784,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
   three CLAUDE.md. NO migration of the old settings: the new program starts from empty ones. Left as they are: the
   namespace `ATCRoom.TwrTrainer`, the lesson channel `atcroom/twr/lesson/v1`, "TWR" where it means the tower role.
   The repository (ATCRoom/TWR-Trainer -> ATCRoom/Circuit-Trainer) renamed by the user on GitHub on 12 Nov (done).
-  WRITTEN 12 Nov (go of the user). The data folder is now `%AppData%\ATCRoom\CircuitTrainer`. Still to do: the icon shows "TWR"
-  (`Trainer/CircuitTrainer-icon.svg` / `.ico`): to redraw with the new name.
+  WRITTEN 12 Nov (go of the user). The data folder is now `%AppData%\ATCRoom\CircuitTrainer`. The icon keeps the letters "TWR" (the user, 12 Nov: "circuit non si leggerebbe, troppo lungo"): nothing to redraw.
 - **The label of the selected aircraft (the user, 7 Nov: "ok, per il prossimo gruppo"):** SPEED was against the ALT field;
   a name in the middle of a row is now against the field after it (right-aligned in its place). WRITTEN.
 
