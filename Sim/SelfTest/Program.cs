@@ -2097,6 +2097,34 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         pictures.Add(("DCT TO DW CLS from the conventional downwind (Jet)", flown));
     }
 
+    // 66b. DW entry never later than abeam the middle of the runway (the user, 13 Nov, TEST1: far outside the circuit it joined
+    // the downwind almost at the base). Far out: the 45° entry at the start of the downwind; near its line but past the
+    // middle of the runway: to abeam the middle, then along the downwind.
+    {
+        SimEngine far = NewCircuitEngine();
+        (double fx, double fy) = Place(0.3, 4.0, CircuitSide.Left);
+        string fc = far.Add(fx, fy, CircuitElevation + 1500, CircuitCourse, 150, performanceClass: "Turboprop");
+        far.SetCircuit(fc, CircuitType.Conventional, CircuitSide.Left);
+        List<AircraftState> flownFar = Fly(far, fc, 1500);
+        AircraftState? firstDownwind = flownFar.FirstOrDefault(st => st.Leg == "DOWNWIND");
+        Check(firstDownwind != null && Frame(firstDownwind).Along >= CircuitLength / 2 && LandedOnRunway(flownFar),
+            "DW entry from far outside the circuit: onto the downwind at its start (not later than abeam the middle of the runway), then lands",
+            firstDownwind != null ? $"first downwind point at {Frame(firstDownwind).Along:F2} NM" : "no downwind");
+        pictures.Add(("DW entry from far outside the circuit, 45° at the start of the downwind (Turboprop)", flownFar));
+
+        SimEngine near = NewCircuitEngine();
+        (double nx, double ny) = Place(-0.5, 1.6, CircuitSide.Left);
+        string nc = near.Add(nx, ny, CircuitElevation + 1500, CircuitCourse, 150, performanceClass: "Turboprop");
+        near.SetCircuit(nc, CircuitType.Conventional, CircuitSide.Left);
+        List<AircraftState> flownNear = Fly(near, nc, 1500);
+        int toBase = flownNear.FindIndex(st => st.Leg is "BASE" or "FINAL");
+        double farthest = (toBase > 0 ? flownNear.Take(toBase) : flownNear).Max(st => Frame(st).Along);
+        Check(farthest >= CircuitLength / 2 - 0.1 && LandedOnRunway(flownNear),
+            "DW entry from near the downwind but past the middle of the runway: to abeam the middle, then along the downwind, lands",
+            $"farthest along before the base {farthest:F2} NM");
+        pictures.Add(("DW entry past the middle of the runway: abeam the middle, then the downwind (Turboprop)", flownNear));
+    }
+
     // 67-69. L / R and CHG SIDE (the user, 8 Nov): L / R only the side of the next circuit (before the turn of this one, on
     // the initial: this one too); CHG SIDE moves it now and keeps the next circuit ordered.
     {

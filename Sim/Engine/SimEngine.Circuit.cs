@@ -790,11 +790,17 @@ namespace ATCRoom.Sim
                 // (Also on the way along a downwind beyond its start, the user 8 Nov, DCT TO DW CLS from the conventional
                 // downwind: straight in onto the narrower downwind, not out for a 45° entry.)
                 bool downwindWay = Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 60;
-                if (lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay))
+                // (The user, 13 Nov: the entry onto the downwind never later than abeam the middle of the runway. Sliding onto it only
+                // from near its line, or from the circuit's own downwind; from farther out the 45° entry at its start.)
+                double midfield = Math.Max(runwayLength, 0.3) / 2;
+                bool onItsDownwind = inCircuit && downwindWay;
+                if (lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay)
+                    && (onItsDownwind || Math.Abs(lateral - width) <= 1.0))
                 {
                     // On the circuit side: join the downwind ahead (the points still ahead of it).
                     // (Onto a narrower or wider downwind, test 66: far enough ahead to slide across, not a loop to the point.)
-                    double entry = Math.Clamp(along - Math.Max(0.4, 4 * Math.Abs(lateral - width)), baseTurn + 0.3, upwind);
+                    // (Past the middle of the runway, not on its downwind yet: to abeam the middle, then along the downwind.)
+                    double entry = Math.Clamp(along - Math.Max(0.4, 4 * Math.Abs(lateral - width)), onItsDownwind ? baseTurn + 0.3 : Math.Max(baseTurn + 0.3, midfield), upwind);
                     List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "DOWNWIND")];
                     route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);

@@ -299,7 +299,7 @@ namespace ATCRoom.Sim
                 if (file == null) throw new JsonException("Empty document.");
                 if (file.FormatVersion > CurrentFormatVersion)
                 {
-                    return (file.NormalizedClasses(), true, $"{FileName} was made by a newer version of AuroraPAR: it is used as far as this version understands it, and not changed.");
+                    return (file.NormalizedClasses(), true, $"{FileName} was made by a newer version of this program: it is used as far as this version understands it, and not changed.");
                 }
                 // Written before the final speed existed: the new values, and the file written again with them.
                 bool upgraded = false;
