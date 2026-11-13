@@ -805,6 +805,15 @@ namespace ATCRoom.Sim
                     route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);
                 }
+                else if (lateral > width + 1.0 && along - (lateral - width) <= upwind)
+                {
+                    // (The user, 13 Nov, with a drawing: from outside the circuit, on its side: a 45° entry from where it is, onto
+                    // the downwind; if that would be later than abeam the middle of the runway, straight to abeam the middle.)
+                    double entry = Math.Max(along - (lateral - width), midfield);
+                    List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "JOIN")];
+                    route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
+                    GiveRoute(a, route);
+                }
                 else
                 {
                     // Elsewhere: a 45° entry from the outside: to a point 1 NM outside the downwind and 1 NM before its start,

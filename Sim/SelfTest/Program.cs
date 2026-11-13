@@ -2098,19 +2098,34 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
     }
 
     // 66b. DW entry never later than abeam the middle of the runway (the user, 13 Nov, TEST1: far outside the circuit it joined
-    // the downwind almost at the base). Far out: the 45° entry at the start of the downwind; near its line but past the
-    // middle of the runway: to abeam the middle, then along the downwind.
+    // the downwind almost at the base). From far outside on its side: a 45° entry from where it is, or, if that would be later
+    // than abeam the middle, straight to abeam the middle (the user's arrow); near its line but past the middle: to abeam the middle.
     {
+        // Along the runway where it first is near the downwind line (lateral 1.6 NM or less).
+        double AlongAtLine(List<AircraftState> track) => track.Where(st => st.Contact == GroundContact.Airborne && Frame(st).Lateral <= 1.6 && Frame(st).Lateral > 0)
+            .Select(st => Frame(st).Along).FirstOrDefault(double.NaN);
+
         SimEngine far = NewCircuitEngine();
         (double fx, double fy) = Place(0.3, 4.0, CircuitSide.Left);
         string fc = far.Add(fx, fy, CircuitElevation + 1500, CircuitCourse, 150, performanceClass: "Turboprop");
         far.SetCircuit(fc, CircuitType.Conventional, CircuitSide.Left);
         List<AircraftState> flownFar = Fly(far, fc, 1500);
-        AircraftState? firstDownwind = flownFar.FirstOrDefault(st => st.Leg == "DOWNWIND");
-        Check(firstDownwind != null && Frame(firstDownwind).Along >= CircuitLength / 2 && LandedOnRunway(flownFar),
-            "DW entry from far outside the circuit: onto the downwind at its start (not later than abeam the middle of the runway), then lands",
-            firstDownwind != null ? $"first downwind point at {Frame(firstDownwind).Along:F2} NM" : "no downwind");
-        pictures.Add(("DW entry from far outside the circuit, 45° at the start of the downwind (Turboprop)", flownFar));
+        double farAt = AlongAtLine(flownFar);
+        Check(farAt >= 0.2 && LandedOnRunway(flownFar),
+            "DW entry from far outside, a 45° would be past the middle of the runway: straight to abeam the middle, then the downwind, lands",
+            $"at the downwind line at {farAt:F2} NM along");
+        pictures.Add(("DW entry from far outside: straight to abeam the middle of the runway (Turboprop)", flownFar));
+
+        SimEngine ahead = NewCircuitEngine();
+        (double ax, double ay) = Place(3.0, 3.0, CircuitSide.Left);
+        string ac = ahead.Add(ax, ay, CircuitElevation + 1500, CircuitCourse, 150, performanceClass: "Turboprop");
+        ahead.SetCircuit(ac, CircuitType.Conventional, CircuitSide.Left);
+        List<AircraftState> flownAhead = Fly(ahead, ac, 1500);
+        double aheadAt = AlongAtLine(flownAhead);
+        Check(aheadAt >= 0.9 && aheadAt <= 1.6 && LandedOnRunway(flownAhead),
+            "DW entry from far outside, ahead of the runway: a 45° entry from where it is onto the downwind (not a detour), lands",
+            $"at the downwind line at {aheadAt:F2} NM along");
+        pictures.Add(("DW entry from far outside, ahead: 45° from where it is (Turboprop)", flownAhead));
 
         SimEngine near = NewCircuitEngine();
         (double nx, double ny) = Place(-0.5, 1.6, CircuitSide.Left);
