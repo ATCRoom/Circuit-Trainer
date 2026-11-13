@@ -964,6 +964,7 @@ grey); Entry grey with LONG FIN and RWY. Tooltips on every button, choice and bo
 
 ## Manual (the user, 8 Nov: "va spiegata molto bene nel manuale")
 - **Draft written 12 Nov (the user: "vai"; all in English, complete): `docs/MANUAL.md`, 19 chapters, DCT TO / NOW in chapter 9. Local commit only; screenshots to add (the user will send them: no real names, no Windows user paths).**
+- **Tutorials drafted 13 Nov (the user: "Si ok parti")**: `docs/tutorials/` 1-6 (first lesson, flight plan, scenario, fly the traffic, strip bay, lesson between two PCs), `README.md`, `GIF-LIST.md` (26 GIF, ★ = first ones, and 12 pictures `s-*.png` for the manual in `docs/images/`). The user records them with ScreenToGif; then the manual shows the pictures. Local commit only.
 - **DCT TO and NOW look very much alike: explain them well.** DCT TO (blue) = WHERE it goes: it leaves where it is, goes
   straight to that point of the circuit (DW CONV, DW CLS, BASE CONV, BASE CLS, IP, HK, HPAD) and goes on with the circuit
   from there. NOW (orange) = WHAT it does now, where it is, without being sent elsewhere (EXT DWN, BASE, ORB, G/A, BREAK
