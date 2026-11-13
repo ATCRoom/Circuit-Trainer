@@ -1699,7 +1699,9 @@ namespace ATCRoom.Sim
                     double legCourse = Math.Atan2(target.X - plane.LegStartX, target.Y - plane.LegStartY);
                     double nextCourse = Math.Atan2(next.X - target.X, next.Y - target.Y);
                     double turn = Math.Abs(Wrap((nextCourse - legCourse) * 180 / Math.PI));
-                    if (turn > 5)
+                    // (A turn back of more than 150°, the half S before the DW entry, the user 13 Nov: over the point, then the turn;
+                    // anticipated it would cut the corner by miles.)
+                    if (turn > 5 && turn <= 150)
                     {
                         double rate = Math.Max(MinTurnRate, Math.Min(MaxTurnRate, RateForBank(BankLimit(plane), plane.SpeedKt)));
                         double speed = Math.Max(30, plane.GroundSpeedKt) / 3600;
