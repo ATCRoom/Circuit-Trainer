@@ -790,28 +790,40 @@ namespace ATCRoom.Sim
                 // (Also on the way along a downwind beyond its start, the user 8 Nov, DCT TO DW CLS from the conventional
                 // downwind: straight in onto the narrower downwind, not out for a 45° entry.)
                 bool downwindWay = Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 60;
-                // (The user, 13 Nov: the entry onto the downwind never later than abeam the middle of the runway. Sliding onto it only
-                // from near its line, or from the circuit's own downwind; from farther out the 45° entry at its start.)
+                // (The user, 13 Nov, with drawings: the entry onto the downwind never later than abeam the middle of the runway, and no
+                // odd turns onto it. Sliding onto it from near its line or from the circuit's own downwind; from farther out on its side a
+                // 45° entry from where it is; either of them later than abeam the middle: a half S, out to a point 1 NM outside the
+                // downwind and 1 NM before abeam the middle, then 45° onto the downwind abeam the middle.)
                 double midfield = Math.Max(runwayLength, 0.3) / 2;
                 bool onItsDownwind = inCircuit && downwindWay;
-                if (lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay)
-                    && (onItsDownwind || Math.Abs(lateral - width) <= 1.0))
+                double joinAt = runwayElevation + CircuitHeight(type, a.Class);
+                bool slide = lateral > 0.3 * width && along > baseTurn + 0.3 && (along < upwind + 1.5 || downwindWay)
+                    && (onItsDownwind || Math.Abs(lateral - width) <= 1.0);
+                bool fortyFive = !slide && lateral > width + 1.0 && along - (lateral - width) <= upwind;
+                double slideEntry = Math.Clamp(along - Math.Max(0.4, 4 * Math.Abs(lateral - width)), baseTurn + 0.3, upwind);
+                double fortyFiveEntry = along - (lateral - width);
+                if ((slide && !onItsDownwind && slideEntry < midfield) || (fortyFive && fortyFiveEntry < midfield))
+                {
+                    GiveRoute(a,
+                    [
+                        Point(midfield + 1, width + 1, side, joinAt, a.Class.CircuitSpeedKt, "JOIN"),
+                        Point(midfield, width, side, joinAt, a.Class.CircuitSpeedKt, "JOIN"),
+                        .. downwind.Where(p => AlongOf(p, side) < midfield - 0.05 || p.Name != "DOWNWIND")
+                    ]);
+                }
+                else if (slide)
                 {
                     // On the circuit side: join the downwind ahead (the points still ahead of it).
                     // (Onto a narrower or wider downwind, test 66: far enough ahead to slide across, not a loop to the point.)
-                    // (Past the middle of the runway, not on its downwind yet: to abeam the middle, then along the downwind.)
-                    double entry = Math.Clamp(along - Math.Max(0.4, 4 * Math.Abs(lateral - width)), onItsDownwind ? baseTurn + 0.3 : Math.Max(baseTurn + 0.3, midfield), upwind);
-                    List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "DOWNWIND")];
-                    route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
+                    List<RoutePoint> route = [Point(slideEntry, width, side, joinAt, a.Class.CircuitSpeedKt, "DOWNWIND")];
+                    route.AddRange(downwind.Where(p => AlongOf(p, side) < slideEntry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);
                 }
-                else if (lateral > width + 1.0 && along - (lateral - width) <= upwind)
+                else if (fortyFive)
                 {
-                    // (The user, 13 Nov, with a drawing: from outside the circuit, on its side: a 45° entry from where it is, onto
-                    // the downwind; if that would be later than abeam the middle of the runway, straight to abeam the middle.)
-                    double entry = Math.Max(along - (lateral - width), midfield);
-                    List<RoutePoint> route = [Point(entry, width, side, runwayElevation + CircuitHeight(type, a.Class), a.Class.CircuitSpeedKt, "JOIN")];
-                    route.AddRange(downwind.Where(p => AlongOf(p, side) < entry - 0.05 || p.Name != "DOWNWIND"));
+                    // From outside the circuit, on its side: 45° from where it is onto the downwind.
+                    List<RoutePoint> route = [Point(fortyFiveEntry, width, side, joinAt, a.Class.CircuitSpeedKt, "JOIN")];
+                    route.AddRange(downwind.Where(p => AlongOf(p, side) < fortyFiveEntry - 0.05 || p.Name != "DOWNWIND"));
                     GiveRoute(a, route);
                 }
                 else
