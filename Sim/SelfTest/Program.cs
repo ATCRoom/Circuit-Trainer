@@ -2106,7 +2106,7 @@ $"turned at most {top - bottom:F0}° one way, " + (crossings.Count > 0 ? $"cross
         {
             int i = track.FindIndex(st => st.Contact == GroundContact.Airborne && Math.Abs(Frame(st).Lateral - 1.2) < 0.1 && st.Leg is "JOIN" or "DOWNWIND");
             if (i < 0) return (double.NaN, double.NaN);
-            return (Frame(track[i]).Along, Math.Abs(SimEngine.Wrap(track[Math.Max(0, i - 15)].HeadingTrue - (CircuitCourse + 180))));
+            return (Frame(track[i]).Along, Math.Abs(SimEngine.Wrap(track[Math.Max(0, i - 10)].HeadingTrue - (CircuitCourse + 180))));
         }
         List<AircraftState> DwEntry(double along, double lateral)
         {

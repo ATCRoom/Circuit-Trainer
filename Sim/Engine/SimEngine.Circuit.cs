@@ -792,8 +792,8 @@ namespace ATCRoom.Sim
                 bool downwindWay = Math.Abs(Wrap(a.HeadingTrue - (glidePathCourse + 180))) < 60;
                 // (The user, 13 Nov, with drawings: the entry onto the downwind never later than abeam the middle of the runway, and no
                 // odd turns onto it. Sliding onto it from near its line or from the circuit's own downwind; from farther out on its side a
-                // 45° entry from where it is; either of them later than abeam the middle: a half S, out to a point 1 NM outside the
-                // downwind and 1 NM before abeam the middle, then 45° onto the downwind abeam the middle.)
+                // 45° entry from where it is; either of them later than abeam the middle: a half S, out to a point 1.5 NM outside the
+                // downwind and 1.5 NM before abeam the middle (room for the turn there), then 45° onto the downwind abeam the middle.)
                 double midfield = Math.Max(runwayLength, 0.3) / 2;
                 bool onItsDownwind = inCircuit && downwindWay;
                 double joinAt = runwayElevation + CircuitHeight(type, a.Class);
@@ -806,7 +806,7 @@ namespace ATCRoom.Sim
                 {
                     GiveRoute(a,
                     [
-                        Point(midfield + 1, width + 1, side, joinAt, a.Class.CircuitSpeedKt, "JOIN"),
+                        Point(midfield + 1.5, width + 1.5, side, joinAt, a.Class.CircuitSpeedKt, "JOIN"),
                         Point(midfield, width, side, joinAt, a.Class.CircuitSpeedKt, "JOIN"),
                         .. downwind.Where(p => AlongOf(p, side) < midfield - 0.05 || p.Name != "DOWNWIND")
                     ]);
